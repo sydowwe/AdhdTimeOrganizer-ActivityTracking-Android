@@ -37,12 +37,12 @@ enum class SignOutReason {
  * limited per client IP, and phones share carrier IPs) or a 5xx keeps the tokens; the sync waits.
  *
  * The server rotates the refresh token on every call. For a token client it reads a replay of the rotated
- * token whose successor nobody used as a lost answer and exchanges it again — but only once the rotation is
- * more than **5 s** old (`RefreshTokenService`, `RotationGraceWindow`, `LostResponseRecoveryWindow`). Inside
- * those 5 s the replay is the losing side of a concurrent refresh and gets a 401, which would sign us out. So
- * a refresh whose answer may have been lost — sent and then failed, or a 5xx, since rotation commits before
- * the access token is minted — is replayed only after [REPLAY_DELAY_MS]: retried once after that wait, and
- * otherwise left to the next sync. It never signs the phone out.
+ * token whose successor nobody used as a lost answer and exchanges it again — but only once the latest
+ * rotation is more than **5 s** old (`RefreshTokenService`, `RotationGraceWindow`, `LostResponseRecoveryWindow`).
+ * Inside those 5 s it answers **409**, "rotated moments ago" (a server from before 409 answers 401 there, which
+ * would sign us out). So a refresh whose answer may have been lost — sent and then failed, a 409, or a 5xx,
+ * since rotation commits before the access token is minted — is replayed only after [REPLAY_DELAY_MS]: retried
+ * once after that wait, and otherwise left to the next sync. It never signs the phone out.
  */
 object RefreshPolicy {
 
@@ -55,7 +55,7 @@ object RefreshPolicy {
                 if (attempt.accessToken.isNullOrEmpty() || attempt.refreshToken.isNullOrEmpty()) RefreshDecision.KeepTokens
                 else RefreshDecision.Save(attempt.accessToken, attempt.refreshToken)
             400, 401, 403 -> RefreshDecision.SignOut(SignOutReason.SESSION_ENDED)
-            in 500..599 -> retryOnce(previousAttempts)
+            409, in 500..599 -> retryOnce(previousAttempts)
             else -> RefreshDecision.KeepTokens
         }
         RefreshAttempt.NotSent -> RefreshDecision.KeepTokens
@@ -71,7 +71,7 @@ object RefreshPolicy {
         RefreshAttempt.NotSent -> false
         is RefreshAttempt.Http -> when (attempt.statusCode) {
             in 200..299 -> decide(attempt, 0) !is RefreshDecision.Save
-            in 500..599 -> true
+            409, in 500..599 -> true
             else -> false
         }
     }

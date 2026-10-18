@@ -37,6 +37,17 @@ class RefreshPolicyTest {
         assertTrue(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(500, null, null)))
     }
 
+    /**
+     * 409: the token was rotated moments ago — by our own refresh whose answer was lost. Nothing was revoked, and
+     * past the grace the server exchanges the same token again, so it is retried after the wait, never a sign-out.
+     */
+    @Test
+    fun rotatedMomentsAgo_isRetriedOnceAfterTheGrace_thenKeepsTheTokens() {
+        assertEquals(RefreshDecision.RetryAfterGrace, decide(RefreshAttempt.Http(409, null, null), 0))
+        assertEquals(RefreshDecision.KeepTokens, decide(RefreshAttempt.Http(409, null, null), 1))
+        assertTrue(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(409, null, null)))
+    }
+
     @Test
     fun aSuccessWithoutBothTokens_keepsTheOldOnes() {
         assertEquals(RefreshDecision.KeepTokens, decide(RefreshAttempt.Http(200, "a", null)))
@@ -65,8 +76,8 @@ class RefreshPolicyTest {
     }
 
     /**
-     * Inside the grace the server answers a just-rotated token with a 401, which signs the phone out — so an
-     * uncertain token is held back until the grace has passed, whichever refresh sends it next.
+     * Inside the grace the server answers a just-rotated token with a 409 (a 401 from an older server, which signs
+     * the phone out) — so an uncertain token is held back until the grace has passed, whichever refresh sends it next.
      */
     @Test
     fun anUncertainToken_isNotSentAgainInsideTheGrace() {
