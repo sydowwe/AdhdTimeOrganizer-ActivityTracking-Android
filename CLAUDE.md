@@ -31,6 +31,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `notify/Notifications.kt` | Channels, the permission check every poster makes, notification ids |
 | `notify/SyncBlockedDecider.kt` | **Pure.** A run's facts + what was shown → post / clear / nothing |
 | `notify/SyncBlockedNotifier.kt` | Runs the decider after every `SyncEngine.run`, builds the notification, keeps its state |
+| `watch/ForegroundTracker.kt`, `watch/WatchReasons.kt` | **Pure.** Events → "came to the front / left" on top of `SessionBuilder`; who asked to watch until when |
+| `watch/ForegroundWatcher.kt` | The API features use: `watch(reason, until)` / `stop(reason)`, listeners, `inFront` |
+| `watch/ForegroundWatchService.kt` | The `specialUse` foreground service that polls the usage log while a reason is active |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
 | `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (incl. the notification permission) |
 
@@ -120,7 +123,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - The authenticator refreshes at most once per request (`priorResponse`) and serializes refreshes on one lock.
 
 ### Notifications
-- **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems" today.
+- **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems" and
+  the watcher's silent "Focus watch" today.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
 - **`POST_NOTIFICATIONS` (API 33+) is asked for only from the status screen's Notifications card**, which says
@@ -135,6 +139,34 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   sign-in, or the status screen.
 - The decision runs at the end of `SyncEngine.run`, so a fixed condition clears on the next sync (≤ 15 min),
   not the moment it is fixed.
+
+### Foreground watcher
+- **It never records time.** Sessions come only from the sync's read of the usage log. What the watcher reports
+  (`ForegroundChange`) is a cue for a nudge; nothing it sees goes into the outbox or to the server.
+- **It runs only while some feature has asked**: `ForegroundWatcher.watch(context, reason, untilMs)` starts it or
+  moves that reason's end, `stop(reason)` lets go, and the service stops itself when the last reason ends. Reasons
+  are kept in prefs, so a sticky restart resumes them. Listeners get every change on a background thread; register
+  them in `TimeOrganizerApp.onCreate` so a restarted process has them too.
+- **Starting it from the background needs the battery-optimization exemption** (Android 12+). Without it, and
+  outside the app, `watch` returns `false` — a feature must cope with that, not assume the watch began.
+- **Mechanism (decided 2026-10-19):** a `specialUse` foreground service that polls `queryEvents` every 5 s while
+  the screen is on. The SDK has no public "app came to the front" callback (`registerAppUsageObserver` is system
+  only), an `AccessibilityService` is a permission Play restricts for non-accessibility use, and WorkManager can't
+  run more often than every 15 min. `dataSync` doesn't fit and is capped at 6 h a day on Android 15. Play needs a
+  `specialUse` declaration matching the manifest's `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`.
+- **Same rules as the sessions, reused, not copied**: `ForegroundTracker` drives a `SessionBuilder` and reports
+  changes to its `openSessions()`. A leave is held back for the 2 s merge gap (or until another app comes to the
+  front), so switching screens inside one app is not a change. Feed each event exactly once: reads are contiguous
+  (`[last end, now − 1 s)`) because a repeated resume leaves an app open for good.
+- **Screen off stops the polling**; one read 3 s after screen-off settles everything as left, and the first read
+  after unlock carries the dark stretch from the log. The first read looks back 6 h for the app already in front.
+- **Battery, estimated, not measured:** a poll is one `queryEvents` call over ~5 s of log plus a few objects,
+  ~1–5 ms of CPU. 720 polls a screen-on hour ≈ 1–4 s of CPU ≈ 0.1–0.3 mWh, under 0.01 % of a ~17 Wh battery
+  per hour. The screen itself draws hundreds of times more. Nothing runs while the screen is off. Measure on the
+  phone (`dumpsys batterystats`) only with the user's go-ahead.
+- The ongoing notification ("Focus watch on until 14:30 · Notices which app is in front so nudges arrive on
+  time. Records nothing.") is on the silent "Focus watch" channel. Without `POST_NOTIFICATIONS` it is hidden but
+  the service still runs.
 
 ### Privacy and logging
 - No email, name, password or token in logs. The OkHttp logger is `BASIC` in debug and off in release, with

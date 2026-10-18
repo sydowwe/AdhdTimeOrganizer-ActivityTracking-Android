@@ -52,6 +52,9 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
         resumeFromMs = open.values.minOfOrNull { it.startMs } ?: queryEndMs
     )
 
+    /** The apps whose session is open right now, with when it started — what `ForegroundTracker` watches. */
+    fun openSessions(): Map<String, Long> = open.mapValues { it.value.startMs }
+
     private fun onResumed(packageName: String, className: String, timestampMs: Long) {
         val session = open.getOrPut(packageName) { reopenOrStart(packageName, timestampMs) }
         session.resumedActivities.merge(className, 1, Int::plus)

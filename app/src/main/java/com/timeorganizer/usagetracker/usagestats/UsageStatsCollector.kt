@@ -19,13 +19,22 @@ class UsageStatsCollector(context: Context) {
 
     fun collect(fromMs: Long, toMs: Long): BuildResult {
         val builder = SessionBuilder()
-        val events = usageStatsManager.queryEvents(fromMs, toMs) ?: return builder.build(fromMs)
+        if (!forEachEvent(fromMs, toMs, builder::onEvent)) return builder.build(fromMs)
+        return builder.build(toMs)
+    }
+
+    /** The events from [fromMs] (inclusive) to [toMs] (exclusive), translated the same way — for the watcher. */
+    fun events(fromMs: Long, toMs: Long): List<UsageEventRecord> = buildList { forEachEvent(fromMs, toMs, ::add) }
+
+    /** `false` when the log could not be read at all. */
+    private inline fun forEachEvent(fromMs: Long, toMs: Long, action: (UsageEventRecord) -> Unit): Boolean {
+        val events = usageStatsManager.queryEvents(fromMs, toMs) ?: return false
         val event = UsageEvents.Event()
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             val packageName = event.packageName ?: continue
-            builder.onEvent(
+            action(
                 UsageEventRecord(
                     kind = kindOf(event.eventType),
                     packageName = packageName,
@@ -34,8 +43,7 @@ class UsageStatsCollector(context: Context) {
                 )
             )
         }
-
-        return builder.build(toMs)
+        return true
     }
 
     /**

@@ -19,6 +19,13 @@
     <!-- Notification channels -->
     <string name="channel_sync_problems">Sync problems</string>
     <string name="channel_sync_problems_description">When sessions stop being recorded or sent</string>
+    <string name="channel_foreground_watch">Focus watch</string>
+    <string name="channel_foreground_watch_description">Shown while the app watches which app is in front for a nudge. Silent.</string>
+
+    <!-- Foreground watcher notification -->
+    <string name="watch_notification_title">Focus watch on</string>
+    <string name="watch_notification_title_until">Focus watch on until %1$s</string>
+    <string name="watch_notification_text">Notices which app is in front so nudges arrive on time. Records nothing.</string>
 
     <!-- Sync blocked notification -->
     <string name="notify_no_usage_access_title">Usage access is off</string>

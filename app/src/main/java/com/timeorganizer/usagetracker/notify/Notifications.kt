@@ -24,8 +24,12 @@ object Notifications {
 
     const val CHANNEL_SYNC_PROBLEMS = "sync_problems"
 
+    /** The foreground watcher's ongoing notification: silent, so muting it costs nothing else. */
+    const val CHANNEL_FOREGROUND_WATCH = "foreground_watch"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
+    const val ID_FOREGROUND_WATCH = 2
 
     /** Idempotent: creating an existing channel only updates its name and description. */
     fun createChannels(context: Context) {
@@ -34,6 +38,11 @@ object Notifications {
                 NotificationChannelCompat.Builder(CHANNEL_SYNC_PROBLEMS, NotificationManagerCompat.IMPORTANCE_DEFAULT)
                     .setName(context.getString(R.string.channel_sync_problems))
                     .setDescription(context.getString(R.string.channel_sync_problems_description))
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_FOREGROUND_WATCH, NotificationManagerCompat.IMPORTANCE_LOW)
+                    .setName(context.getString(R.string.channel_foreground_watch))
+                    .setDescription(context.getString(R.string.channel_foreground_watch_description))
+                    .setShowBadge(false)
                     .build()
             )
         )

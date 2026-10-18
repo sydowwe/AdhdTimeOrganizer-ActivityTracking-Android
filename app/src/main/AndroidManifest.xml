@@ -10,12 +10,17 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- WorkManager declares its own boot receiver; nothing here needs a foreground service. -->
+    <!-- WorkManager declares its own boot receiver. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Also what lets the foreground watcher start from the background (Android 12+). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- API 33+: asked for from the status screen only, never at launch -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The foreground watcher; it runs only while a feature has asked to watch. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- No backup: the tokens and the device id must not be restored onto another phone. -->
     <application
@@ -42,6 +47,16 @@
         <activity
             android:name=".LoginActivity"
             android:exported="false" />
+
+        <!-- specialUse: no other type fits; the subtype is what Play's declaration review reads. -->
+        <service
+            android:name=".watch.ForegroundWatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="While the user has a focus block or a time chime running, checks every few seconds which app is in front (UsageStatsManager) so the app can nudge them when they drift. Records nothing; stops when the block ends." />
+        </service>
 
         <!-- WorkManager initializer -->
         <provider
