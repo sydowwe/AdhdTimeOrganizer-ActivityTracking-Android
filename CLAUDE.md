@@ -7,8 +7,8 @@ Kotlin, Views (no Compose), Retrofit + OkHttp + Gson, Room, no DI container. min
 The server is `../../RiderProjects/AdhdTimeOrganizer` (Tracking slice: `AdhdTimeOrganizer.Tracking/`, start
 with its `docs/summary.md`). The desktop tracker is the sibling `../../RiderProjects/AdhdTimeOrganizer.ActivityTracking.Desktop`
 — same server, same rules, read its `CLAUDE.md` for the shared ones. Ideas for what to build next are in
-[docs/ideas.md](docs/ideas.md). The 2026-10-18 review that produced this layout is
-`../../RiderProjects/AdhdTimeOrganizer/review/androidTrackerReview.md`.
+[docs/ideas.md](docs/ideas.md); the follow-up work is planned as clean-context prompts in
+`../../RiderProjects/AdhdTimeOrganizer/review/androidTrackerPrompts/` (start with its `00-README.md`).
 
 ## Layout
 
