@@ -50,7 +50,6 @@
     <string name="login_failed_code">Sign-in failed (%1$d). Try again.</string>
     <string name="login_two_factor_setup_required">Your account must set up two-factor authentication. Do it in the web app, then sign in here.</string>
     <string name="login_session_ended">Your session ended. Sign in again — nothing recorded meanwhile is lost.</string>
-    <string name="login_lost_refresh">You were signed out because a sign-in renewal was interrupted. Sign in again — nothing recorded meanwhile is lost.</string>
     <string name="two_factor_hint">Enter the code from your authenticator app, or a recovery code.</string>
     <string name="two_factor_code">Code</string>
     <string name="two_factor_code_required">Enter the code</string>

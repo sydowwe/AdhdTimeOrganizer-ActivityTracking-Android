@@ -102,11 +102,14 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 ### Auth
 - **Only the server refusing the refresh token (400/401/403) signs out.** Offline, 429 (the refresh is throttled
   per client IP; phones share carrier IPs) and 5xx keep the tokens and the sync waits.
-- **Never replay a refresh token whose answer may have been lost.** The server rotates on every refresh and
-  answers a rotated token replayed more than 5 s later by revoking *every* session of the account, web included.
-  `RefreshPolicy`: a failure before the request was written keeps the tokens; one after it is retried at once
-  only if it failed within 2.5 s (inside the grace), otherwise the phone signs itself out (`LOST_REFRESH`).
-  Revisit once the framework tolerates a token client's lost response (handoff item 1 in the review).
+- **A refresh whose answer may have been lost is replayed only after the server's 5 s grace.** The server
+  rotates on every refresh. For a token client it exchanges a replay of the rotated token again, as long as the
+  successor was never used and the rotation is 5 s – 72 h old (`RefreshTokenService`, lost-response recovery).
+  Inside the 5 s it answers 401, which would sign us out. Past 72 h it ends only this phone's session.
+  `RefreshPolicy`: a failure before the request was written keeps the tokens. A failure after it, or a 5xx,
+  leaves the token *uncertain*: `TokenRefresher` holds every send of it back to 6 s after that failure, retries
+  once, and otherwise keeps the tokens for the next sync. A lost answer never signs the phone out.
+  This needs a server with the recovery: against an older one, the replay revokes every session of the account.
 - Tokens are AES-GCM-encrypted with a Keystore key (`EncryptedSharedPreferences` is deprecated) and written with
   `commit()` — a rotated pair lost to `apply()` and a kill is a replay. Backup and device transfer exclude
   everything (`data_extraction_rules.xml`): a restored token or device id on a second phone breaks both rules above.

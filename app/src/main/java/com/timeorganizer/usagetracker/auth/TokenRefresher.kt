@@ -1,5 +1,6 @@
 package com.timeorganizer.usagetracker.auth
 
+import android.os.SystemClock
 import com.google.gson.Gson
 import com.timeorganizer.usagetracker.data.api.dto.AuthResponse
 import com.timeorganizer.usagetracker.data.api.dto.RefreshRequest
@@ -23,12 +24,25 @@ class TokenRefresher(
     private val authPrefs: AuthPreferences,
     private val gson: Gson = Gson()
 ) {
+    /**
+     * When the last attempt that may have rotated the token without us seeing the answer ended
+     * ([SystemClock.elapsedRealtime], which keeps counting in deep sleep). Kept across calls: the wait applies to
+     * whichever refresh sends the token next.
+     */
+    @Volatile
+    private var uncertainAtMs: Long? = null
+
     /** Blocking; called from OkHttp's authenticator thread under the refresh lock. */
     fun refresh(refreshToken: String): RefreshDecision {
         var attempts = 0
         while (true) {
-            when (val decision = RefreshPolicy.decide(attemptOnce(refreshToken), attempts)) {
-                RefreshDecision.RetryNow -> attempts++
+            val wait = RefreshPolicy.waitBeforeSendingMs(uncertainAtMs?.let { SystemClock.elapsedRealtime() - it })
+            if (wait > 0) Thread.sleep(wait)
+
+            val attempt = attemptOnce(refreshToken)
+            uncertainAtMs = if (RefreshPolicy.leftTheTokenUncertain(attempt)) SystemClock.elapsedRealtime() else null
+            when (val decision = RefreshPolicy.decide(attempt, attempts)) {
+                RefreshDecision.RetryAfterGrace -> attempts++
                 is RefreshDecision.Save -> {
                     authPrefs.saveTokens(decision.accessToken, decision.refreshToken)
                     return decision
@@ -48,7 +62,6 @@ class TokenRefresher(
             .url(Constants.API_BASE_URL + "auth/extension/refresh")
             .post(gson.toJson(RefreshRequest(refreshToken)).toRequestBody(JSON))
             .build()
-        val startedAt = System.nanoTime()
 
         return try {
             client.newBuilder().eventListener(written).build().newCall(request).execute().use { response ->
@@ -61,7 +74,7 @@ class TokenRefresher(
             }
         } catch (_: IOException) {
             if (!written.requestStarted) RefreshAttempt.NotSent
-            else RefreshAttempt.Ambiguous((System.nanoTime() - startedAt) / 1_000_000)
+            else RefreshAttempt.Ambiguous
         }
     }
 

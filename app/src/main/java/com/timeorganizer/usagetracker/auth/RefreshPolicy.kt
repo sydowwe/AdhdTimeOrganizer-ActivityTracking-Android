@@ -8,12 +8,14 @@ sealed interface RefreshAttempt {
     data object NotSent : RefreshAttempt
 
     /** Failed after the request was written: the server may have rotated the token and the answer was lost. */
-    data class Ambiguous(val elapsedMs: Long) : RefreshAttempt
+    data object Ambiguous : RefreshAttempt
 }
 
 sealed interface RefreshDecision {
     data class Save(val accessToken: String, val refreshToken: String) : RefreshDecision
-    data object RetryNow : RefreshDecision
+
+    /** Send the same token again once [RefreshPolicy.waitBeforeSendingMs] allows it. */
+    data object RetryAfterGrace : RefreshDecision
     data class SignOut(val reason: SignOutReason) : RefreshDecision
 
     /** The token is still good; this request fails and the next sync tries again. */
@@ -23,9 +25,6 @@ sealed interface RefreshDecision {
 enum class SignOutReason {
     /** The server refused the refresh token (400/401/403): the session really is over. */
     SESSION_ENDED,
-
-    /** A refresh answer was lost; re-using the old token later could sign out every device of the account. */
-    LOST_REFRESH,
 
     /** The user pressed Sign Out. */
     USER
@@ -37,20 +36,18 @@ enum class SignOutReason {
  * Only the server refusing the refresh token ends the session. Offline, a throttle (the refresh is rate
  * limited per client IP, and phones share carrier IPs) or a 5xx keeps the tokens; the sync waits.
  *
- * The server rotates the refresh token on every call and treats a rotated token replayed more than **5 s**
- * later as theft: it revokes *every* session of the user, web included (`RefreshTokenService`,
- * `RotationGraceWindow`). So a refresh whose answer may have been lost is never replayed later:
- * - it is retried at once if it failed quickly, which lands inside the grace window — the server then either
- *   rotates (it had not before) or soft-refuses with a 401 (it had, and the new token is lost to us);
- * - otherwise, and if the retry is ambiguous too, the phone signs itself out rather than risk the account.
- *
- * A 5xx is retried once at once for the same reason: rotation commits before the access token is minted, so
- * a 500 after the commit is possible.
+ * The server rotates the refresh token on every call. For a token client it reads a replay of the rotated
+ * token whose successor nobody used as a lost answer and exchanges it again — but only once the rotation is
+ * more than **5 s** old (`RefreshTokenService`, `RotationGraceWindow`, `LostResponseRecoveryWindow`). Inside
+ * those 5 s the replay is the losing side of a concurrent refresh and gets a 401, which would sign us out. So
+ * a refresh whose answer may have been lost — sent and then failed, or a 5xx, since rotation commits before
+ * the access token is minted — is replayed only after [REPLAY_DELAY_MS]: retried once after that wait, and
+ * otherwise left to the next sync. It never signs the phone out.
  */
 object RefreshPolicy {
 
-    /** A failure this fast leaves room for the retry to reach the server within its 5 s grace window. */
-    const val SAFE_RETRY_WINDOW_MS = 2_500L
+    /** Past the server's 5 s grace, with room for a clock-skewed request to arrive late. */
+    const val REPLAY_DELAY_MS = 6_000L
 
     fun decide(attempt: RefreshAttempt, previousAttempts: Int): RefreshDecision = when (attempt) {
         is RefreshAttempt.Http -> when (attempt.statusCode) {
@@ -58,12 +55,31 @@ object RefreshPolicy {
                 if (attempt.accessToken.isNullOrEmpty() || attempt.refreshToken.isNullOrEmpty()) RefreshDecision.KeepTokens
                 else RefreshDecision.Save(attempt.accessToken, attempt.refreshToken)
             400, 401, 403 -> RefreshDecision.SignOut(SignOutReason.SESSION_ENDED)
-            in 500..599 -> if (previousAttempts == 0) RefreshDecision.RetryNow else RefreshDecision.KeepTokens
+            in 500..599 -> retryOnce(previousAttempts)
             else -> RefreshDecision.KeepTokens
         }
         RefreshAttempt.NotSent -> RefreshDecision.KeepTokens
-        is RefreshAttempt.Ambiguous ->
-            if (previousAttempts == 0 && attempt.elapsedMs <= SAFE_RETRY_WINDOW_MS) RefreshDecision.RetryNow
-            else RefreshDecision.SignOut(SignOutReason.LOST_REFRESH)
+        RefreshAttempt.Ambiguous -> retryOnce(previousAttempts)
     }
+
+    /**
+     * Whether an attempt may have rotated the token without us seeing the new one. The next send of the same
+     * token has to wait out the grace, whichever refresh makes it.
+     */
+    fun leftTheTokenUncertain(attempt: RefreshAttempt): Boolean = when (attempt) {
+        RefreshAttempt.Ambiguous -> true
+        RefreshAttempt.NotSent -> false
+        is RefreshAttempt.Http -> when (attempt.statusCode) {
+            in 200..299 -> decide(attempt, 0) !is RefreshDecision.Save
+            in 500..599 -> true
+            else -> false
+        }
+    }
+
+    /** How long to hold a send back, given how long ago an attempt left the token uncertain (`null`: never). */
+    fun waitBeforeSendingMs(sinceUncertainMs: Long?): Long =
+        if (sinceUncertainMs == null) 0 else (REPLAY_DELAY_MS - sinceUncertainMs).coerceAtLeast(0)
+
+    private fun retryOnce(previousAttempts: Int): RefreshDecision =
+        if (previousAttempts == 0) RefreshDecision.RetryAfterGrace else RefreshDecision.KeepTokens
 }

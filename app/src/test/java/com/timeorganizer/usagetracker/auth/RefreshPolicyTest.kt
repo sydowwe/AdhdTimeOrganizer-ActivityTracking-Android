@@ -1,6 +1,8 @@
 package com.timeorganizer.usagetracker.auth
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RefreshPolicyTest {
@@ -27,35 +29,51 @@ class RefreshPolicyTest {
         assertEquals(RefreshDecision.KeepTokens, decide(RefreshAttempt.Http(404, null, null)))
     }
 
+    /** Rotation commits before the access token is minted, so a 500 may have rotated the token too. */
     @Test
-    fun aServerError_isRetriedOnceAtOnce_thenKeepsTheTokens() {
-        assertEquals(RefreshDecision.RetryNow, decide(RefreshAttempt.Http(500, null, null), 0))
+    fun aServerError_isRetriedOnceAfterTheGrace_thenKeepsTheTokens() {
+        assertEquals(RefreshDecision.RetryAfterGrace, decide(RefreshAttempt.Http(500, null, null), 0))
         assertEquals(RefreshDecision.KeepTokens, decide(RefreshAttempt.Http(503, null, null), 1))
+        assertTrue(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(500, null, null)))
     }
 
     @Test
     fun aSuccessWithoutBothTokens_keepsTheOldOnes() {
         assertEquals(RefreshDecision.KeepTokens, decide(RefreshAttempt.Http(200, "a", null)))
+        // The server did rotate, and the new token is not in our hands.
+        assertTrue(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(200, "a", null)))
     }
 
     /**
-     * A lost answer may mean the server rotated. Replaying the old token more than 5 s later revokes every
-     * session of the account, so it is retried at once only if that lands inside the grace window — and
-     * otherwise the phone signs itself out.
+     * A lost answer may mean the server rotated. Past its 5 s grace the server exchanges the old token again,
+     * so the phone retries once after the wait and otherwise keeps the token for the next sync — it is never a
+     * reason to sign out.
      */
     @Test
-    fun aLostAnswer_isRetriedOnlyInsideTheGraceWindow_elseSignsThisPhoneOut() {
-        assertEquals(RefreshDecision.RetryNow, decide(RefreshAttempt.Ambiguous(RefreshPolicy.SAFE_RETRY_WINDOW_MS), 0))
-        assertEquals(
-            RefreshDecision.SignOut(SignOutReason.LOST_REFRESH),
-            decide(RefreshAttempt.Ambiguous(RefreshPolicy.SAFE_RETRY_WINDOW_MS + 1), 0)
-        )
-        assertEquals(RefreshDecision.SignOut(SignOutReason.LOST_REFRESH), decide(RefreshAttempt.Ambiguous(100), 1))
+    fun aLostAnswer_isRetriedOnceAfterTheGrace_thenKeepsTheTokens() {
+        assertEquals(RefreshDecision.RetryAfterGrace, decide(RefreshAttempt.Ambiguous, 0))
+        assertEquals(RefreshDecision.KeepTokens, decide(RefreshAttempt.Ambiguous, 1))
+        assertTrue(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Ambiguous))
     }
 
     @Test
-    fun theRetrysSoftRefusal_endsOnlyThisPhonesSession() {
-        // Inside the grace window the server answers a just-rotated token with a 401 and revokes nothing else.
-        assertEquals(RefreshDecision.SignOut(SignOutReason.SESSION_ENDED), decide(RefreshAttempt.Http(401, null, null), 1))
+    fun onlyASentRequestWithoutAClearAnswer_leavesTheTokenUncertain() {
+        assertFalse(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.NotSent))
+        assertFalse(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(200, "a", "r")))
+        assertFalse(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(401, null, null)))
+        assertFalse(RefreshPolicy.leftTheTokenUncertain(RefreshAttempt.Http(429, null, null)))
+    }
+
+    /**
+     * Inside the grace the server answers a just-rotated token with a 401, which signs the phone out — so an
+     * uncertain token is held back until the grace has passed, whichever refresh sends it next.
+     */
+    @Test
+    fun anUncertainToken_isNotSentAgainInsideTheGrace() {
+        assertEquals(0L, RefreshPolicy.waitBeforeSendingMs(null))
+        assertEquals(RefreshPolicy.REPLAY_DELAY_MS, RefreshPolicy.waitBeforeSendingMs(0))
+        assertEquals(RefreshPolicy.REPLAY_DELAY_MS - 1_000, RefreshPolicy.waitBeforeSendingMs(1_000))
+        assertEquals(0L, RefreshPolicy.waitBeforeSendingMs(RefreshPolicy.REPLAY_DELAY_MS + 1))
+        assertTrue("past the server's 5 s grace", RefreshPolicy.REPLAY_DELAY_MS > 5_000)
     }
 }

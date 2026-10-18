@@ -206,8 +206,8 @@ more of #1/#2/#5 exist.
 
 ## 11. "Sync blocked" notification
 
-**Why.** The status card explains a stall only when the user opens the app. Usage access revoked, signed out
-(including `LOST_REFRESH`), or nothing sent for a day — each silently stops the data, and the server's
+**Why.** The status card explains a stall only when the user opens the app. Usage access revoked, signed out,
+or nothing sent for a day — each silently stops the data, and the server's
 tracker-silence push needs 48 h and a browser.
 
 **How.** Local notification from `SyncEngine.run` when the report's state is `SIGNED_OUT` or `NO_USAGE_ACCESS`,

@@ -66,7 +66,6 @@ class LoginActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             when (authPrefs.signOutReason) {
                 SignOutReason.SESSION_ENDED -> showError(R.string.login_session_ended)
-                SignOutReason.LOST_REFRESH -> showError(R.string.login_lost_refresh)
                 SignOutReason.USER, null -> Unit
             }
         }

@@ -35,8 +35,8 @@ object RetrofitClient {
     }
 
     private val refresher: TokenRefresher by lazy {
-        // A refresh that times out after it was sent may have rotated the token, and RefreshPolicy signs the
-        // phone out rather than replay it later; ten seconds is long enough for a slow mobile network.
+        // A refresh that times out after it was sent may have rotated the token; RefreshPolicy replays it once the
+        // server's grace has passed, which recovers it. Ten seconds is long enough for a slow mobile network.
         TokenRefresher(baseClient.newBuilder().readTimeout(10, TimeUnit.SECONDS).build(), authPrefs)
     }
 
