@@ -3,7 +3,7 @@
 
     <!-- Permission card -->
     <string name="permission_granted">Usage access granted</string>
-    <string name="permission_denied">Usage access not granted</string>
+    <string name="permission_denied">Usage access not granted — nothing new is being recorded</string>
     <string name="btn_grant_permission">Grant Usage Access</string>
 
     <!-- Battery card -->
@@ -12,18 +12,27 @@
     <string name="btn_exclude_battery">Exclude from Battery Optimization</string>
 
     <!-- Sync status card -->
-    <string name="sync_never">Never synced</string>
-    <string name="sync_result_success">Success</string>
-    <string name="sync_result_failed">Failed</string>
-    <string name="sync_result_pending">Pending</string>
-    <string name="last_sync_label">Last sync: %1$s</string>
-    <string name="last_sync_result_label">Result: %1$s</string>
+    <string name="sync_never">Nothing sent yet</string>
+    <string name="last_sync_label">Last sent: %1$s</string>
+    <string name="sync_state_never">Waiting for the first sync</string>
+    <string name="sync_state_sent">Sent %1$d new sessions (%2$d already on the server)</string>
+    <string name="sync_state_up_to_date">Up to date</string>
+    <string name="sync_state_waiting">Waiting — offline or the server is busy. Sessions are kept and sent later.</string>
+    <string name="sync_state_signed_out">Signed out — sign in again. Sessions are kept until then.</string>
+    <string name="sync_state_no_usage_access">Usage access is off — nothing new can be recorded</string>
+    <string name="sync_pending">%1$d sessions waiting to be sent</string>
+    <string name="sync_dropped">The server ignored %1$d sessions (check the phone\'s clock)</string>
+    <string name="sync_rejected">The server refused %1$d sessions as malformed; they were discarded</string>
+    <string name="sync_clock_ahead">The phone\'s clock is %1$d minutes ahead of the server — sessions from the future are ignored</string>
+    <string name="time_just_now">just now</string>
+    <string name="time_minutes_ago">%1$d minutes ago</string>
+    <string name="time_hours_ago">%1$d hours ago</string>
 
     <!-- Backend card -->
     <string name="backend_connected">Backend: Connected</string>
     <string name="backend_unreachable">Backend: Unreachable</string>
     <string name="backend_checking">Backend: Checking…</string>
-    <string name="backend_url_label">API: %1$s</string>
+    <string name="backend_url_label">Server: %1$s</string>
 
     <!-- Manual sync -->
     <string name="btn_sync_now">Sync Now</string>
@@ -31,4 +40,20 @@
 
     <!-- Auth -->
     <string name="btn_logout">Sign Out</string>
+    <string name="login_email_required">Email is required</string>
+    <string name="login_password_required">Password is required</string>
+    <string name="login_network_error">Network error. Check your connection.</string>
+    <string name="login_unexpected_response">Unexpected response from the server. Try again.</string>
+    <string name="login_invalid_credentials">Invalid email or password.</string>
+    <string name="login_account_refused">This account can\'t sign in to the tracker right now. Check the web app.</string>
+    <string name="login_too_many_attempts">Too many attempts. Try again in a few minutes.</string>
+    <string name="login_failed_code">Sign-in failed (%1$d). Try again.</string>
+    <string name="login_two_factor_setup_required">Your account must set up two-factor authentication. Do it in the web app, then sign in here.</string>
+    <string name="login_session_ended">Your session ended. Sign in again — nothing recorded meanwhile is lost.</string>
+    <string name="login_lost_refresh">You were signed out because a sign-in renewal was interrupted. Sign in again — nothing recorded meanwhile is lost.</string>
+    <string name="two_factor_hint">Enter the code from your authenticator app, or a recovery code.</string>
+    <string name="two_factor_code">Code</string>
+    <string name="two_factor_code_required">Enter the code</string>
+    <string name="two_factor_invalid_code">That code didn\'t work. Try the current one.</string>
+    <string name="two_factor_verify">Verify</string>
 </resources>

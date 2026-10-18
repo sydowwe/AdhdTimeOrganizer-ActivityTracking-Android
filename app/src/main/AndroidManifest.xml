@@ -10,15 +10,14 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
-    <!-- WorkManager / background network -->
+    <!-- WorkManager declares its own boot receiver; nothing here needs a foreground service. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- No backup: the tokens and the device id must not be restored onto another phone. -->
     <application
         android:name=".TimeOrganizerApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -51,16 +50,6 @@
                 android:name="androidx.work.WorkManagerInitializer"
                 android:value="androidx.startup" />
         </provider>
-
-        <!-- Boot receiver to re-schedule WorkManager after reboot -->
-        <receiver
-            android:name=".BootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
 
     </application>
 

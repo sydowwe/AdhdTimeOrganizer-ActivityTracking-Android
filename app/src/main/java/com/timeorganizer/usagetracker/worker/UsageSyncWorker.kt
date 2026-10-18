@@ -3,50 +3,25 @@ package com.timeorganizer.usagetracker.worker
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.timeorganizer.usagetracker.data.local.SyncPreferences
-import com.timeorganizer.usagetracker.data.repository.SyncOutcome
-import com.timeorganizer.usagetracker.data.repository.UsageRepository
-import com.timeorganizer.usagetracker.util.PermissionHelper
+import com.timeorganizer.usagetracker.sync.SyncEngine
+import kotlinx.coroutines.CancellationException
 
+/**
+ * Runs [SyncEngine]. A run that has to wait (offline, signed out, server busy) is still a success: its
+ * sessions are in the outbox and the next period picks them up, so a retry with backoff would add nothing.
+ * Only an unexpected failure asks WorkManager to retry.
+ */
 class UsageSyncWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
-    private val prefs = SyncPreferences(context)
-
-    override suspend fun doWork(): Result {
-        if (!PermissionHelper.hasUsageStatsPermission(applicationContext)) {
-            prefs.lastSyncResult = SyncPreferences.RESULT_FAILED
-            prefs.lastSyncTimeMillis = System.currentTimeMillis()
-            return Result.failure()
-        }
-
-        return try {
-            val repo = UsageRepository(applicationContext)
-            when (val outcome = repo.syncNow()) {
-                is SyncOutcome.NoData, is SyncOutcome.Success -> {
-                    prefs.lastSyncResult = SyncPreferences.RESULT_SUCCESS
-                    prefs.lastSyncTimeMillis = System.currentTimeMillis()
-                    Result.success()
-                }
-                is SyncOutcome.ClientError -> {
-                    // Bad request — don't retry, something is wrong with data or auth
-                    prefs.lastSyncResult = SyncPreferences.RESULT_FAILED
-                    prefs.lastSyncTimeMillis = System.currentTimeMillis()
-                    Result.failure()
-                }
-                is SyncOutcome.ServerError -> {
-                    // Transient server/network issue — let WorkManager retry with backoff
-                    prefs.lastSyncResult = SyncPreferences.RESULT_FAILED
-                    prefs.lastSyncTimeMillis = System.currentTimeMillis()
-                    Result.retry()
-                }
-            }
-        } catch (e: Exception) {
-            prefs.lastSyncResult = SyncPreferences.RESULT_FAILED
-            prefs.lastSyncTimeMillis = System.currentTimeMillis()
-            Result.retry()
-        }
+    override suspend fun doWork(): Result = try {
+        SyncEngine(applicationContext).run()
+        Result.success()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        Result.retry()
     }
 }

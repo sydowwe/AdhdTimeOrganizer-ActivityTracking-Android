@@ -65,6 +65,35 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Second step, shown when the account has two-factor authentication -->
+        <TextView
+            android:id="@+id/tvTwoFactorHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/two_factor_hint"
+            android:visibility="gone"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilCode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/two_factor_code"
+            android:visibility="gone"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_marginBottom="8dp">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:imeOptions="actionDone"
+                android:singleLine="true" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
         <TextView
             android:id="@+id/tvError"
             android:layout_width="match_parent"

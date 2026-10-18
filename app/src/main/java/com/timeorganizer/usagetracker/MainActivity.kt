@@ -10,19 +10,18 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import androidx.work.Constraints
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.timeorganizer.usagetracker.auth.SignOutReason
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
-import kotlinx.coroutines.GlobalScope
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
+import com.timeorganizer.usagetracker.sync.SyncReport
+import com.timeorganizer.usagetracker.sync.SyncState
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.PermissionHelper
-import com.timeorganizer.usagetracker.worker.UsageSyncWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -58,7 +57,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (!AuthPreferences(this).isLoggedIn) {
+        authPrefs = AuthPreferences.get(this)
+        if (!authPrefs.isLoggedIn) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
@@ -67,7 +67,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         prefs = SyncPreferences(this)
-        authPrefs = AuthPreferences(this)
 
         tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
         btnGrantPermission = findViewById(R.id.btnGrantPermission)
@@ -89,21 +88,32 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnSyncNow.setOnClickListener {
-            enqueueSyncNow()
+            TimeOrganizerApp.enqueueSyncNow(this)
+            Toast.makeText(this, getString(R.string.sync_enqueued), Toast.LENGTH_SHORT).show()
         }
 
         btnLogout.setOnClickListener {
             performLogout()
         }
 
-        tvApiUrl.text = getString(
-            R.string.backend_url_label,
-            Constants.API_BASE_URL.take(30) + "…"
-        )
+        tvApiUrl.text = getString(R.string.backend_url_label, Constants.SERVER_ROOT)
+
+        // Refresh the card when a "Sync Now" run finishes, not only on the next resume.
+        WorkManager.getInstance(this)
+            .getWorkInfosForUniqueWorkLiveData(Constants.SYNC_NOW_WORK_NAME)
+            .observe(this) { updateSyncStatusCard() }
     }
 
     override fun onResume() {
         super.onResume()
+        if (!authPrefs.isLoggedIn) {
+            // A refresh refused while the app was in the background.
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+        // A force-stop cancels WorkManager's schedule; opening the app is what restores it.
+        TimeOrganizerApp.enqueuePeriodicSync(this)
         updatePermissionCard()
         updateBatteryCard()
         updateSyncStatusCard()
@@ -132,19 +142,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateSyncStatusCard() {
-        val lastSyncMs = prefs.lastSyncTimeMillis
-        tvLastSync.text = if (lastSyncMs == 0L) {
+        val report = prefs.lastReport
+        tvLastSync.text = if (report.lastSentAtMs == 0L) {
             getString(R.string.sync_never)
         } else {
-            getString(R.string.last_sync_label, relativeTime(lastSyncMs))
+            getString(R.string.last_sync_label, relativeTime(report.lastSentAtMs))
         }
+        tvSyncResult.text = describe(report)
+    }
 
-        val resultText = when (prefs.lastSyncResult) {
-            SyncPreferences.RESULT_SUCCESS -> getString(R.string.sync_result_success)
-            SyncPreferences.RESULT_FAILED -> getString(R.string.sync_result_failed)
-            else -> getString(R.string.sync_result_pending)
+    private fun describe(report: SyncReport): String {
+        val lines = mutableListOf(
+            when (report.state) {
+                SyncState.NEVER -> getString(R.string.sync_state_never)
+                SyncState.SENT -> getString(R.string.sync_state_sent, report.sent.accepted, report.sent.duplicates)
+                SyncState.UP_TO_DATE -> getString(R.string.sync_state_up_to_date)
+                SyncState.WAITING -> getString(R.string.sync_state_waiting)
+                SyncState.SIGNED_OUT -> getString(R.string.sync_state_signed_out)
+                SyncState.NO_USAGE_ACCESS -> getString(R.string.sync_state_no_usage_access)
+            }
+        )
+        if (report.pending > 0) lines += getString(R.string.sync_pending, report.pending)
+        if (report.sent.dropped > 0) lines += getString(R.string.sync_dropped, report.sent.dropped)
+        if (report.rejected > 0) lines += getString(R.string.sync_rejected, report.rejected)
+        if (report.clockAheadMs > Constants.CLOCK_AHEAD_WARNING_MS) {
+            lines += getString(R.string.sync_clock_ahead, TimeUnit.MILLISECONDS.toMinutes(report.clockAheadMs))
         }
-        tvSyncResult.text = getString(R.string.last_sync_result_label, resultText)
+        return lines.joinToString("\n")
     }
 
     private fun checkBackendHealth() {
@@ -152,8 +176,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val reachable = withContext(Dispatchers.IO) {
                 try {
-                    val response = RetrofitClient.apiService.healthCheck()
-                    response.isSuccessful || response.code() in 200..499
+                    RetrofitClient.authApiService.health(Constants.HEALTH_URL).isSuccessful
                 } catch (_: Exception) {
                     false
                 }
@@ -166,19 +189,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun enqueueSyncNow() {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val request = OneTimeWorkRequestBuilder<UsageSyncWorker>()
-            .setConstraints(constraints)
-            .build()
-
-        WorkManager.getInstance(this).enqueue(request)
-        Toast.makeText(this, getString(R.string.sync_enqueued), Toast.LENGTH_SHORT).show()
-    }
-
     @Suppress("OPT_IN_USAGE")
     private fun performLogout() {
         btnLogout.isEnabled = false
@@ -187,7 +197,7 @@ class MainActivity : AppCompatActivity() {
         val savedToken = authPrefs.token
         val savedRefreshToken = authPrefs.refreshToken
 
-        authPrefs.clearTokens()
+        authPrefs.clearTokens(SignOutReason.USER)
 
         // Fire-and-forget on GlobalScope so it survives this Activity finishing
         if (savedToken != null && savedRefreshToken != null) {
@@ -219,9 +229,9 @@ class MainActivity : AppCompatActivity() {
         val minutes = TimeUnit.MILLISECONDS.toMinutes(diffMs)
         val hours = TimeUnit.MILLISECONDS.toHours(diffMs)
         return when {
-            minutes < 1 -> "just now"
-            minutes < 60 -> "$minutes minutes ago"
-            hours < 24 -> "$hours hours ago"
+            minutes < 1 -> getString(R.string.time_just_now)
+            minutes < 60 -> getString(R.string.time_minutes_ago, minutes)
+            hours < 24 -> getString(R.string.time_hours_ago, hours)
             else -> SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(timestampMs))
         }
     }

@@ -2,15 +2,14 @@ package com.timeorganizer.usagetracker.data.api
 
 import android.content.Context
 import com.timeorganizer.usagetracker.BuildConfig
-import com.timeorganizer.usagetracker.data.api.dto.RefreshRequest
+import com.timeorganizer.usagetracker.auth.RefreshDecision
+import com.timeorganizer.usagetracker.auth.TokenRefresher
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.util.Constants
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import okhttp3.Authenticator
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -19,114 +18,89 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     private lateinit var authPrefs: AuthPreferences
-    private val refreshMutex = Mutex()
+    private val refreshLock = Any()
 
     /** Must be called once in Application.onCreate() before any API calls. */
     fun init(context: Context) {
-        authPrefs = AuthPreferences(context.applicationContext)
+        authPrefs = AuthPreferences.get(context)
     }
 
-    val authApiService: AuthApiService by lazy { buildAuthService() }
-
-    val apiService: ApiService by lazy { buildService() }
-
-    // Unauthenticated client — used for login + refresh only
-    private fun buildAuthService(): AuthApiService {
-        val client = OkHttpClient.Builder()
+    private val baseClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor())
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
-
-        return Retrofit.Builder()
-            .baseUrl(Constants.API_BASE_URL)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(AuthApiService::class.java)
     }
 
-    // Authenticated client — attaches Bearer token and refreshes on 401
-    private fun buildService(): ApiService {
-        val authInterceptor = Interceptor { chain ->
-            val token = authPrefs.token
-            val request = if (token != null) {
-                chain.request().newBuilder()
-                    .addHeader("Authorization", "Bearer $token")
-                    .build()
-            } else {
-                chain.request()
-            }
-            chain.proceed(request)
-        }
+    private val refresher: TokenRefresher by lazy {
+        // A refresh that times out after it was sent may have rotated the token, and RefreshPolicy signs the
+        // phone out rather than replay it later; ten seconds is long enough for a slow mobile network.
+        TokenRefresher(baseClient.newBuilder().readTimeout(10, TimeUnit.SECONDS).build(), authPrefs)
+    }
 
-        // Called by OkHttp when a 401 is received — tries to refresh the token once.
-        // Uses a mutex so concurrent 401s don't race: the first caller refreshes,
-        // others wait and reuse the new token.
-        val tokenAuthenticator = Authenticator { _, response ->
-            val failedToken = response.request.header("Authorization")
-            if (failedToken == null) return@Authenticator null
+    /** Login, 2FA, logout and health — no authenticator. */
+    val authApiService: AuthApiService by lazy { retrofit(baseClient).create(AuthApiService::class.java) }
 
-            runBlocking {
-                refreshMutex.withLock {
-                    // Another thread may have already refreshed while we waited for the lock.
-                    // If the stored token changed, just retry with the new one.
-                    val currentToken = authPrefs.token
-                    if (currentToken != null && "Bearer $currentToken" != failedToken) {
-                        return@runBlocking response.request.newBuilder()
-                            .header("Authorization", "Bearer $currentToken")
-                            .build()
-                    }
-
-                    val currentRefreshToken = authPrefs.refreshToken ?: run {
-                        authPrefs.clearTokens()
-                        return@runBlocking null
-                    }
-
-                    val newTokens = try {
-                        val result = authApiService.refresh(RefreshRequest(currentRefreshToken))
-                        if (result.isSuccessful) result.body() else null
-                    } catch (_: Exception) {
-                        null
-                    }
-
-                    if (newTokens == null || newTokens.accessToken == null || newTokens.refreshToken == null) {
-                        authPrefs.clearTokens()
-                        return@runBlocking null
-                    }
-
-                    authPrefs.saveTokens(newTokens.accessToken, newTokens.refreshToken)
-
-                    response.request.newBuilder()
-                        .header("Authorization", "Bearer ${newTokens.accessToken}")
-                        .build()
-                }
-            }
-        }
-
-        val client = OkHttpClient.Builder()
+    val apiService: ApiService by lazy {
+        val client = baseClient.newBuilder()
             .addInterceptor(authInterceptor)
             .authenticator(tokenAuthenticator)
-            .addInterceptor(loggingInterceptor())
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
+        retrofit(client).create(ApiService::class.java)
+    }
 
-        return Retrofit.Builder()
+    private val authInterceptor = Interceptor { chain ->
+        val token = authPrefs.token
+        val request = if (token != null) {
+            chain.request().newBuilder().header("Authorization", "Bearer $token").build()
+        } else {
+            chain.request()
+        }
+        chain.proceed(request)
+    }
+
+    /**
+     * On a 401: if another call already refreshed, retry with that token; otherwise refresh once. A request
+     * that is still refused with a fresh token gives up instead of refreshing again — every refresh rotates
+     * the token, and a loop of them would only burn the server's throttle.
+     */
+    private val tokenAuthenticator = Authenticator { _, response ->
+        val failedAuthorization = response.request.header("Authorization") ?: return@Authenticator null
+        if (response.priorResponse != null) return@Authenticator null
+
+        synchronized(refreshLock) {
+            val current = authPrefs.token
+            if (current != null && "Bearer $current" != failedAuthorization) {
+                return@Authenticator response.request.withBearer(current)
+            }
+
+            val refreshToken = authPrefs.refreshToken ?: return@Authenticator null
+            when (val decision = refresher.refresh(refreshToken)) {
+                is RefreshDecision.Save -> response.request.withBearer(decision.accessToken)
+                else -> null
+            }
+        }
+    }
+
+    private fun Request.withBearer(token: String): Request =
+        newBuilder().header("Authorization", "Bearer $token").build()
+
+    private fun retrofit(client: OkHttpClient): Retrofit =
+        Retrofit.Builder()
             .baseUrl(Constants.API_BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-            .create(ApiService::class.java)
+
+    /**
+     * Request lines and status codes only, and only in debug. Never BODY: the login body is the user's
+     * password, the auth bodies are tokens, and a sync body is every app they used.
+     */
+    private fun loggingInterceptor() = HttpLoggingInterceptor().apply {
+        level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+        redactHeader("Authorization")
     }
 
-    private fun loggingInterceptor() = HttpLoggingInterceptor().apply {
-        level = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BODY
-        } else {
-            HttpLoggingInterceptor.Level.NONE
-        }
-    }
 }
