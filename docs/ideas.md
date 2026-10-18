@@ -1,0 +1,247 @@
+# Android tracker — ideas
+
+What could come next for the phone tracker, beyond the 2026-10-18 fixes (session building per app, the
+open-session cursor, the Room outbox, server-rule mirroring, auth that survives a bad network, 2FA, the status
+card). The desktop tracker's list is `../../RiderProjects/AdhdTimeOrganizer/review/ideas.md`; the ones that
+carry over are restated here with what changes on a phone.
+
+Each idea lists **why** it matters for an ADHD time organizer, **how** it could be built on what exists on both
+sides, and the **catches** worth deciding up front. Rough order: value first.
+
+Two constraints shape almost every idea below:
+
+- **The phone does not know what an app *means*.** Mapping a package to an activity happens only on the server
+  (`AndroidMappingRuleSet`). Any feature that needs "this is YouTube = Distraction" asks the server, or gets it
+  pushed down — it never re-implements the matcher.
+- **The phone has no push channel.** The server's notification pipeline delivers Web Push and email
+  (`Sydowwe.Notifications`, `PushSubscription`); nothing reaches this app. Phone-side nudges are local
+  notifications decided on the phone, or a new FCM channel on the server (a real project — see #10).
+
+---
+
+## 1. Focus-block nudge — "you planned Thesis until 11:30, Instagram is open"
+
+**Why.** The planner knows what the user meant to do right now; the phone sees them open the app that derails
+it. A phone is where drift happens fastest — one notification, one tap, twenty minutes. Catching it at the
+moment of opening is worth far more than seeing it on tomorrow's dashboard.
+
+**How.**
+- **Server:** `GET /api/activity-tracking/android/now` returning the planner block covering *now* (activity,
+  end time) and the user's **distraction list resolved to packages**: every exact-package android rule whose
+  target activity/category the user flagged as a distraction. Exact packages only — that is a set lookup, not a
+  matcher, so the single-matcher rule holds. Pattern rules stay server-side; the phone simply doesn't nudge on
+  them.
+- **Phone:** fetch it at block start (WorkManager one-off scheduled at the block's start) and cache it. Detecting
+  the open needs either polling `queryEvents` for the last few seconds every ~10 s while a block is active (a
+  short-lived foreground service with a "Focus block running" notification — honest and allowed), or an
+  `AccessibilityService` (instant, but a heavy permission that Play scrutinises — avoid).
+- Show a local notification: *"Planned: Thesis (until 11:30). You opened Instagram."* Actions: **Back to it**
+  (go home), **Switch plan** (deep link to the planner), **5 minutes** (snooze this package for the block).
+
+**Catches.**
+- Off by default; at most one nudge per package per block; never during a call (`AudioManager.mode`), never
+  while driving (Android Auto projection), respect DND.
+- The foreground service needs `FOREGROUND_SERVICE_SPECIAL_USE` (or `_DATA_SYNC`) on Android 14+ with a
+  declared reason — decide which before building.
+- Must not count time itself. The service only *watches*; sessions still come from the usage log.
+
+## 2. App-time budgets on the phone — "45 min of TikTok today, 15 left"
+
+**Why.** Budgets already exist server-side (P3-08, `ActivityDailyBudget`): a daily limit per activity or
+category, 80 % warning and limit notification, fed by every source including this sync. But the phone syncs
+every 15 minutes, so the "limit reached" push lands up to 15 minutes late — and as Web Push, not on the phone
+where the scrolling is happening.
+
+**How.**
+- **Server:** `GET /api/activity-tracking/android/budgets` — for each budget, the exact packages that resolve to
+  its activity/category (same exact-package restriction as #1), the limit, and today's total *excluding* the
+  phone's not-yet-synced time (the server can't know it).
+- **Phone:** add today's local, unsynced time per package from the outbox to the server's total, so the phone's
+  number is ahead of the server's. Warn locally at 80 % and 100 %. Optional: a gentle full-screen "you're over"
+  card when a budgeted app is opened past its limit (the same open detection as #1).
+- **Sync sooner near a limit:** when a budgeted app has been foreground for a while, request an expedited sync so
+  the server's budget notifications and the web dashboard catch up.
+
+**Catches.**
+- Double notification: the server also sends its budget push. Either the phone suppresses its own when it knows
+  the user has Web Push on the phone's browser, or the server learns that the phone handles budgets for
+  phone-only targets. Decide which one owns the notification.
+- Overlaps Digital Wellbeing's app timers (see #8); ours count by *activity* across devices, theirs by app on one
+  device. Say that in the UI.
+
+## 3. Home-screen widget and Quick Settings tile
+
+**Why.** The lowest-effort feedback loop on a phone. "Phone today: 2 h 10 m · Planned now: Thesis" next to the
+clock keeps the data in sight without opening anything. A tile gives one-tap pause (#6) and "Sync now".
+
+**How.**
+- **Widget (Glance):** today's phone total from the outbox (local, instant), today's top 3 apps, the current
+  planner block from the cached `/now` (#1). A widget's own update period is at least 30 minutes, so drive
+  updates from the sync worker instead.
+- **Tile (`TileService`):** state = tracking / paused; tap toggles pause; long-press opens the app.
+- **Server (optional):** a unified "today across devices" number from the unified dashboard endpoints, so the
+  widget can say "today: 6 h 40 m (all devices)".
+
+**Catches.** Local totals cover this phone only — label them. Glance adds Compose to the build; fine, but it is
+the first Compose in the project.
+
+## 4. Unlock count and first-pickup time
+
+**Why.** How often someone *picks up* the phone is a stronger compulsion signal than total minutes — 90 unlocks
+of 30 seconds each is a different day from one long video. "First pickup at 06:12, before getting up" is a
+morning-routine signal the morning briefing could use.
+
+**How.**
+- **Phone:** `KEYGUARD_HIDDEN` (18) is an unlock; `SCREEN_INTERACTIVE` (15) is a screen-on without unlock
+  (checking the time). Count both per hour in `SessionBuilder`'s pass (it already walks every event — add a
+  pure `PickupCounter` beside it) and store per-hour rows in the outbox DB.
+- **Server:** a new ingest shape — either a `pickups` array on the sync request (`{hourStartUtc, unlocks,
+  screenOns}`), stored in a small `android_pickup_hour` table in the `tracking` schema with the same retention
+  purge, or a nullable count on `TrackerSourceStatus`-style daily rows. The android focus-metrics dashboard gets
+  a pickups line; the morning briefing can say "first pickup 06:12".
+
+**Catches.**
+- Adding a field to the sync request is backwards compatible only if the server ignores unknown fields (it does,
+  System.Text.Json) and the old server is never sent anything that changes its validation — a new top-level
+  array is fine.
+- Dedup: hour rows must be idempotent on `(user, device, hourStart)` — upsert, not insert.
+
+## 5. Screen time before bed
+
+**Why.** ADHD and sleep are tightly linked, and late phone use is the most common delay. The server already knows
+the user's `DefaultBedTime` (it uses it for quiet hours and tracker-silence). "You used the phone 48 minutes
+after your bedtime last night" is a fact the user can't easily see anywhere else.
+
+**How.**
+- **Server only, mostly:** the android ledger already has the sessions. A daily computation of minutes of phone
+  use between the user's `DefaultBedTime` and the next `DefaultWakeUpTime` (already read by the tracker-silence
+  sweep), plus the last session's end — a line in the morning briefing and a weekly trend on the android
+  dashboard.
+- **Phone (optional):** a wind-down nudge at bedtime − 15 min if a budgeted/distraction app is open (reuse #1's
+  detection).
+
+**Catches.** Night-shift users: use their configured window, never a fixed 23:00. Alarm-clock / white-noise apps
+should not count — let ignore rules cover them (they already drop to `IsIgnored` on the server).
+
+## 6. Pause and privacy before upload
+
+**Why.** (From the desktop list.) A phone carries the most private usage there is — dating, health, banking,
+messaging. "It never leaves the phone" beats "it's deleted on arrival".
+
+**How.**
+- **Pause for…** 15 min / 1 h / until tomorrow, from the status screen, the tile (#3) and a notification action.
+  Implementation: a paused range in the outbox DB; `SyncEngine.record` drops sessions inside it (clip the ones
+  crossing its edges). The cursor still advances, so pausing never builds a backlog.
+- **Never-send list:** packages the user marks locally; their sessions are either dropped or sent as a generic
+  `"private"` package with no label, if the user wants totals to add up. Exact packages only.
+- **Sync server ignore rules down** — only exact-package `IsIgnored` rules, which are trivial to mirror; pattern
+  rules stay server-side (single-matcher rule).
+
+**Catches.** Dropping sessions silently changes totals; make "private" vs "drop" an explicit choice. Paused time
+must not look like the tracker went silent — send an empty sync anyway so `TrackerSourceStatus` stays fresh.
+
+## 7. Notification-interruption counts
+
+**Why.** Notifications are the main way a phone pulls someone out of focus. "Slack interrupted you 34 times
+today, 9 of them during your Thesis block" is directly actionable (mute it during blocks).
+
+**How.**
+- **Phone:** `NOTIFICATION_INTERRUPTION` (12) events carry the posting package. **Verify on real devices first**
+  that a non-system caller with usage access receives them — the constant is public but some event types are
+  filtered for third-party callers. The alternative is a `NotificationListenerService`, which sees every
+  notification *including its text* — a much bigger privacy ask; if used, read only the package and timestamp.
+- **Server:** per-hour per-package counts, same shape and dedup as #4. Overlay on the timeline: interruptions
+  during planned blocks.
+
+**Catches.** Never store notification content. A listener service is also a Play-policy-sensitive permission.
+
+## 8. Digital Wellbeing overlap
+
+**Why.** Users will compare our phone total with Digital Wellbeing's and they will differ. If we don't explain
+why, they'll distrust both.
+
+**How.**
+- Document the differences on the android dashboard's info tooltip and in the app: we drop glances under 5 s,
+  merge returns within 2 s, count split-screen apps both, don't count PiP, and end sessions at screen-off; DW has
+  its own rules and counts some system UI.
+- Offer "open Digital Wellbeing app timers" as a shortcut next to our budgets (#2) — DW's timers *block* the app,
+  ours nudge. They complement.
+- Optional: `UsageStatsManager.queryAndAggregateUsageStats` gives the OS's own per-app totals for a day; showing
+  "OS says 2 h 31 m, we counted 2 h 18 m" on the status screen is a cheap accuracy check (and a good bug detector).
+
+**Catches.** DW can't be read directly; aggregated stats are coarse (bucketed, sometimes off by an hour around
+day boundaries). Use them as a sanity check, never as data.
+
+## 9. Distribution, updates and client version
+
+**Why.** (From the desktop list.) Every fix only reaches a phone that gets the new APK. Today that means building
+it from Android Studio.
+
+**How.**
+- **Play Store (internal testing track)** is the easy update path, but `QUERY_ALL_PACKAGES` and
+  `PACKAGE_USAGE_STATS` need a declaration and justification; `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` too. A
+  self-hosted APK with an in-app "update available" check (version JSON on the server) avoids the review but
+  needs "install unknown apps".
+- **Send the client version** on every request (`X-Client-Version: android/1.1 (2)`). **Server:** store it on
+  `TrackerSourceStatus` next to `LastSeenAt` (the desktop idea, same column), show it in the sources panel, and
+  let the tracker-silence notification say "your phone tracker is out of date" when that's likely.
+- A minimum-version gate (426) for wire-contract changes.
+
+**Catches.** The release build needs a real signing key kept outside the repo; losing it means users must
+uninstall (and lose the outbox) to update.
+
+## 10. A push channel to the phone (FCM)
+
+**Why.** #1, #2 and the tracker-silence notification all want to reach *this* app. Today the server's pipeline
+can only reach a browser.
+
+**How.**
+- **Server:** a second delivery channel in `Sydowwe.Notifications` beside Web Push: an `FcmRegistration` entity
+  (token, device id, user), an FCM sender, and per-kind channel preferences. Budget and drift notifications could
+  then be delivered to the phone app instead of the browser.
+- **Phone:** Firebase Messaging, register the token after sign-in, show notifications with actions.
+
+**Catches.** A Google dependency in a framework module; a server credential to manage. Worth it only once two or
+more of #1/#2/#5 exist.
+
+## 11. "Sync blocked" notification
+
+**Why.** The status card explains a stall only when the user opens the app. Usage access revoked, signed out
+(including `LOST_REFRESH`), or nothing sent for a day — each silently stops the data, and the server's
+tracker-silence push needs 48 h and a browser.
+
+**How.** Local notification from `SyncEngine.run` when the report's state is `SIGNED_OUT` or `NO_USAGE_ACCESS`,
+or `WAITING` for more than 24 h with sessions pending. Once per condition, cleared when it resolves. Needs the
+`POST_NOTIFICATIONS` runtime permission (Android 13+), requested from the status screen with an explanation.
+
+**Catches.** Don't nag: once per condition per day at most.
+
+## 12. Browser-based sign-in
+
+**Why.** (From the desktop list.) Accounts created with Google have no password. The phone can't sign them in.
+
+**How.** Custom Tabs + an app-link redirect (`https://…/auth/android/callback`) or a custom scheme, PKCE, and a
+server endpoint pair to issue and exchange a one-time code for the usual extension token pair. Same server work
+as the desktop's loopback flow — build them together.
+
+**Catches.** Revisits the 2026-10-12 decision against pairing codes; decide it explicitly. App links need
+`assetlinks.json` on the server's domain.
+
+---
+
+## Smaller ideas
+
+- **Diagnostics export.** "Copy diagnostics" on the status screen: app version, Android version, OEM, device id,
+  outbox counts, cursor, last 20 sync reports (no package names). For bug reports.
+- **OEM battery-killer guidance.** On Xiaomi / Huawei / Samsung / OnePlus, link the specific "autostart" or
+  "never sleeping apps" setting (dontkillmyapp.com has the list). Battery-optimization exclusion alone doesn't
+  cover them.
+- **App hibernation.** An app never opened for months can be hibernated (Android 12+), which stops its jobs.
+  Check `PackageManagerCompat.getUnusedAppRestrictionsStatus` and offer the "pause app activity if unused"
+  setting from the status screen.
+- **Launcher time.** Time on the home screen is recorded as the launcher's package. Ship a default server-side
+  ignore suggestion for common launchers rather than filtering on the phone.
+- **Backfill on first sign-in.** The first run reads 7 days of the usage log; the OS sometimes keeps more.
+  `queryEvents` from 14 or 30 days back is free to try on first run.
+- **Expedited sync on app close.** When the status screen goes to the background, enqueue an expedited one-off
+  sync so what the user just saw counted is on the server a minute later rather than fifteen.
