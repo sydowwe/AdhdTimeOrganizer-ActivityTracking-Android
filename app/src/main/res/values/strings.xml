@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">TimeOrganizer Usage Tracker</string>
+
+    <!-- Permission card -->
+    <string name="permission_granted">Usage access granted</string>
+    <string name="permission_denied">Usage access not granted</string>
+    <string name="btn_grant_permission">Grant Usage Access</string>
+
+    <!-- Battery card -->
+    <string name="battery_optimized">Battery optimization active — sync may be delayed</string>
+    <string name="battery_not_optimized">Battery optimization excluded</string>
+    <string name="btn_exclude_battery">Exclude from Battery Optimization</string>
+
+    <!-- Sync status card -->
+    <string name="sync_never">Never synced</string>
+    <string name="sync_result_success">Success</string>
+    <string name="sync_result_failed">Failed</string>
+    <string name="sync_result_pending">Pending</string>
+    <string name="last_sync_label">Last sync: %1$s</string>
+    <string name="last_sync_result_label">Result: %1$s</string>
+
+    <!-- Backend card -->
+    <string name="backend_connected">Backend: Connected</string>
+    <string name="backend_unreachable">Backend: Unreachable</string>
+    <string name="backend_checking">Backend: Checking…</string>
+    <string name="backend_url_label">API: %1$s</string>
+
+    <!-- Manual sync -->
+    <string name="btn_sync_now">Sync Now</string>
+    <string name="sync_enqueued">Sync enqueued</string>
+
+    <!-- Auth -->
+    <string name="btn_logout">Sign Out</string>
+</resources>
