@@ -11,6 +11,25 @@
     <string name="battery_not_optimized">Battery optimization excluded</string>
     <string name="btn_exclude_battery">Exclude from Battery Optimization</string>
 
+    <!-- Notifications card -->
+    <string name="notifications_on">Notifications on — you\'ll hear when syncing stops</string>
+    <string name="notifications_off">Notifications off — the app can\'t tell you when syncing stops (signed out, usage access lost, a day without sending)</string>
+    <string name="btn_allow_notifications">Allow Notifications</string>
+
+    <!-- Notification channels -->
+    <string name="channel_sync_problems">Sync problems</string>
+    <string name="channel_sync_problems_description">When sessions stop being recorded or sent</string>
+
+    <!-- Sync blocked notification -->
+    <string name="notify_no_usage_access_title">Usage access is off</string>
+    <string name="notify_no_usage_access_text">Nothing new is being recorded. Tap to turn usage access back on.</string>
+    <string name="notify_session_ended_title">Signed out by the server</string>
+    <string name="notify_session_ended_text">Your session ended. Sign in again to keep syncing — usage is still recorded meanwhile.</string>
+    <string name="notify_signed_out_title">You\'re signed out</string>
+    <string name="notify_signed_out_text">Usage is recorded but not sent. Sign in to keep syncing.</string>
+    <string name="notify_waiting_title">Nothing sent for a day</string>
+    <string name="notify_waiting_text">%1$d sessions are waiting — offline, or the server can\'t be reached. Tap to see the status.</string>
+
     <!-- Sync status card -->
     <string name="sync_never">Nothing sent yet</string>
     <string name="last_sync_label">Last sent: %1$s</string>

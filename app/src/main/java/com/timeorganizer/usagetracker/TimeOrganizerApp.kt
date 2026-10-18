@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
+import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.worker.UsageSyncWorker
 import java.util.concurrent.TimeUnit
@@ -19,6 +20,7 @@ class TimeOrganizerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         RetrofitClient.init(this)
+        Notifications.createChannels(this)
         enqueuePeriodicSync(this)
     }
 

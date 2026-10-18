@@ -28,8 +28,11 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `auth/TokenRefresher.kt` | The refresh call (raw OkHttp, so it knows whether a failed request was written) |
 | `auth/KeystoreCipher.kt`, `auth/JwtSubject.kt` | AES-GCM with a Keystore key; reading `sub` to notice an account switch |
 | `data/api/` | Retrofit services, `RetrofitClient` (auth interceptor + authenticator), wire DTOs |
+| `notify/Notifications.kt` | Channels, the permission check every poster makes, notification ids |
+| `notify/SyncBlockedDecider.kt` | **Pure.** A run's facts + what was shown → post / clear / nothing |
+| `notify/SyncBlockedNotifier.kt` | Runs the decider after every `SyncEngine.run`, builds the notification, keeps its state |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
-| `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen |
+| `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (incl. the notification permission) |
 
 `app/schemas/` holds Room's exported schema. Commit it with any entity change and write a real migration.
 
@@ -115,6 +118,23 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   `commit()` — a rotated pair lost to `apply()` and a kill is a replay. Backup and device transfer exclude
   everything (`data_extraction_rules.xml`): a restored token or device id on a second phone breaks both rules above.
 - The authenticator refreshes at most once per request (`priorResponse`) and serializes refreshes on one lock.
+
+### Notifications
+- **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems" today.
+  A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
+  sync warnings. Never post on another feature's channel.
+- **`POST_NOTIFICATIONS` (API 33+) is asked for only from the status screen's Notifications card**, which says
+  in one line what it is for — never at launch. Once the system stops showing its dialog, the card opens the
+  app's notification settings instead. Every post goes through `Notifications.post`, which checks the
+  permission, the app switch and the channel.
+- **"Sync blocked" is one notification, posted once per condition** (`SyncBlockedDecider`): usage access off
+  (wins: it is the only one that loses data), signed out by the server, signed out by the user, or waiting
+  with sessions pending for 24 h — the clock restarts whenever a run sends anything. A changed condition
+  replaces it at once, a resolved one clears it, and while one persists it is posted again at most once a day.
+  A phone that was never signed in is setting up, not blocked. A tap opens the fix: usage-access settings,
+  sign-in, or the status screen.
+- The decision runs at the end of `SyncEngine.run`, so a fixed condition clears on the next sync (≤ 15 min),
+  not the moment it is fixed.
 
 ### Privacy and logging
 - No email, name, password or token in logs. The OkHttp logger is `BASIC` in debug and off in release, with

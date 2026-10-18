@@ -1,5 +1,6 @@
 package com.timeorganizer.usagetracker
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -8,6 +9,7 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
@@ -16,6 +18,7 @@ import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
+import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
 import com.timeorganizer.usagetracker.util.Constants
@@ -41,6 +44,18 @@ class MainActivity : AppCompatActivity() {
     // Battery card
     private lateinit var tvBatteryStatus: TextView
     private lateinit var btnExcludeBattery: Button
+
+    // Notifications card
+    private lateinit var tvNotificationStatus: TextView
+    private lateinit var btnAllowNotifications: Button
+
+    // Once the system has stopped showing its dialog, a denial answers at once; settings are the only way left.
+    private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            Notifications.openSettings(this)
+        }
+        updateNotificationCard()
+    }
 
     // Sync status card
     private lateinit var tvLastSync: TextView
@@ -72,6 +87,8 @@ class MainActivity : AppCompatActivity() {
         btnGrantPermission = findViewById(R.id.btnGrantPermission)
         tvBatteryStatus = findViewById(R.id.tvBatteryStatus)
         btnExcludeBattery = findViewById(R.id.btnExcludeBattery)
+        tvNotificationStatus = findViewById(R.id.tvNotificationStatus)
+        btnAllowNotifications = findViewById(R.id.btnAllowNotifications)
         tvLastSync = findViewById(R.id.tvLastSync)
         tvSyncResult = findViewById(R.id.tvSyncResult)
         tvBackendStatus = findViewById(R.id.tvBackendStatus)
@@ -85,6 +102,15 @@ class MainActivity : AppCompatActivity() {
 
         btnExcludeBattery.setOnClickListener {
             openBatteryOptimizationSettings()
+        }
+
+        btnAllowNotifications.setOnClickListener {
+            if (Notifications.hasPermission(this)) {
+                // Granted, but the app's notifications were turned off in settings.
+                Notifications.openSettings(this)
+            } else {
+                requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
 
         btnSyncNow.setOnClickListener {
@@ -116,6 +142,7 @@ class MainActivity : AppCompatActivity() {
         TimeOrganizerApp.enqueuePeriodicSync(this)
         updatePermissionCard()
         updateBatteryCard()
+        updateNotificationCard()
         updateSyncStatusCard()
         checkBackendHealth()
     }
@@ -139,6 +166,12 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.battery_optimized)
         }
         btnExcludeBattery.isEnabled = !isIgnoring
+    }
+
+    private fun updateNotificationCard() {
+        val allowed = Notifications.canPost(this, Notifications.CHANNEL_SYNC_PROBLEMS)
+        tvNotificationStatus.text = getString(if (allowed) R.string.notifications_on else R.string.notifications_off)
+        btnAllowNotifications.isEnabled = !allowed
     }
 
     private fun updateSyncStatusCard() {

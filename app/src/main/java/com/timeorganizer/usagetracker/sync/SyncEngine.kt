@@ -9,6 +9,7 @@ import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
+import com.timeorganizer.usagetracker.notify.SyncBlockedNotifier
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.PermissionHelper
@@ -34,6 +35,7 @@ class SyncEngine(context: Context) {
     private val prefs = SyncPreferences(appContext)
     private val authPrefs = AuthPreferences.get(appContext)
     private val collector = UsageStatsCollector(appContext)
+    private val notifier = SyncBlockedNotifier(appContext)
 
     private var clockAheadMs = 0L
 
@@ -72,6 +74,7 @@ class SyncEngine(context: Context) {
             clockAheadMs = clockAheadMs
         )
         prefs.lastReport = report
+        notifier.onReport(report, hasUsageAccess, authPrefs.signOutReason, nowMs)
         report
     }
 
