@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.worker
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
 import kotlinx.coroutines.CancellationException
 
@@ -18,10 +19,25 @@ class UsageSyncWorker(
 
     override suspend fun doWork(): Result = try {
         SyncEngine(applicationContext).run()
+        askEveningReview()
         Result.success()
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
         Result.retry()
+    }
+
+    /**
+     * After the sync, so the sessions the question is about were just sent. Never fails the run: a review that could
+     * not be asked is tried again at the next one, inside its window.
+     */
+    private suspend fun askEveningReview() {
+        try {
+            EveningReviewRunner(applicationContext).run()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // The sync succeeded; the review waits for the next run.
+        }
     }
 }

@@ -34,6 +34,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `watch/ForegroundTracker.kt`, `watch/WatchReasons.kt` | **Pure.** Events → "came to the front / left" on top of `SessionBuilder`; who asked to watch until when |
 | `watch/ForegroundWatcher.kt` | The API features use: `watch(reason, until)` / `stop(reason)`, listeners, `inFront` |
 | `watch/ForegroundWatchService.kt` | The `specialUse` foreground service that polls the usage log while a reason is active |
+| `review/EveningReviewDecider.kt`, `review/ReviewText.kt`, `review/RuleOutcome.kt` | **Pure.** When the evening review is due and when the moment is heard again; durations, the app line, the server's instants; a rule-create status → what the screen does |
+| `review/EveningReviewRunner.kt`, `review/EveningReviewNotifier.kt`, `review/ReviewPreferences.kt` | The review after each sync run: hear the moment, ask `agent-unmapped`, post the question; its switch and state |
+| `review/ReviewActivity.kt` | The review screen: one card per unmapped app — map to the suggestion, choose an activity, ignore, skip |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
 | `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (incl. the notification permission) |
 
@@ -123,8 +126,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - The authenticator refreshes at most once per request (`priorResponse`) and serializes refreshes on one lock.
 
 ### Notifications
-- **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems" and
-  the watcher's silent "Focus watch" today.
+- **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
+  watcher's silent "Focus watch" and the "Evening review" question today.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
 - **`POST_NOTIFICATIONS` (API 33+) is asked for only from the status screen's Notifications card**, which says
@@ -167,6 +170,28 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - The ongoing notification ("Focus watch on until 14:30 · Notices which app is in front so nudges arrive on
   time. Records nothing.") is on the silent "Focus watch" channel. Without `POST_NOTIFICATIONS` it is hidden but
   the service still runs.
+
+### Evening review of unmapped time
+- **The server decides what is unmapped and worth asking** (`GET /activity-tracking/android/agent-unmapped`: today on
+  the user's clock, resolved by `AndroidMappingRuleSet`; a package needs ≥ 5 min, at most 5, and under 15 min in all
+  `apps` is empty). The phone repeats none of it — empty means say nothing. Mapping stays server-only: the phone
+  sends a **package name and a target** (`POST …/agent-rules`, `{packageName, activityId | isIgnored}`) and the
+  server builds the exact-package rule, so a phone token can never author a matcher.
+- **Mapping pays off tonight.** The rule create also attributes the package's sessions already stored today to the
+  activity (the sync only attributes sessions it newly stores), and `attributedSeconds` is what the card reports.
+  Earlier days are not backfilled.
+- **When it runs:** from `UsageSyncWorker`, right after `SyncEngine.run`, so the sessions it asks about were just
+  sent. It is due on the first run at or after the **server's evening-shutdown moment** (`GET user/evening-shutdown-moment`:
+  bed time less the user's offset), for 3 h after; later than that the evening is skipped, not asked about at 2 a.m.
+  The moment is heard again once it has been used or is 6 h old; reviews are at least 12 h apart
+  (`EveningReviewDecider`). There is no alarm, so it lands up to ~15 min late.
+- **A review is stamped only once the server has answered** — "nothing worth asking" included — so a failed call
+  does not use the evening up; the next run tries again inside the window. A 404 (a server from before the routes)
+  counts as answered. The run never throws into the sync.
+- **Its own channel** (`evening_review`) and id; off with the switch on the status screen or by muting the channel.
+  It needs `POST_NOTIFICATIONS` like every poster, and does nothing (state untouched) without it.
+- The cards never log or keep package or activity names beyond the screen; the pick list is fetched on first use and
+  dropped when the server says an activity is gone (404).
 
 ### Privacy and logging
 - No email, name, password or token in logs. The OkHttp logger is `BASIC` in debug and off in release, with

@@ -18,7 +18,10 @@ import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.review.ReviewActivity
+import com.timeorganizer.usagetracker.review.ReviewPreferences
 import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
 import com.timeorganizer.usagetracker.util.Constants
@@ -57,6 +60,10 @@ class MainActivity : AppCompatActivity() {
         updateNotificationCard()
     }
 
+    // Evening review card
+    private lateinit var swEveningReview: MaterialSwitch
+    private lateinit var btnReviewNow: Button
+
     // Sync status card
     private lateinit var tvLastSync: TextView
     private lateinit var tvSyncResult: TextView
@@ -89,6 +96,8 @@ class MainActivity : AppCompatActivity() {
         btnExcludeBattery = findViewById(R.id.btnExcludeBattery)
         tvNotificationStatus = findViewById(R.id.tvNotificationStatus)
         btnAllowNotifications = findViewById(R.id.btnAllowNotifications)
+        swEveningReview = findViewById(R.id.swEveningReview)
+        btnReviewNow = findViewById(R.id.btnReviewNow)
         tvLastSync = findViewById(R.id.tvLastSync)
         tvSyncResult = findViewById(R.id.tvSyncResult)
         tvBackendStatus = findViewById(R.id.tvBackendStatus)
@@ -112,6 +121,11 @@ class MainActivity : AppCompatActivity() {
                 requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
+
+        val reviewPrefs = ReviewPreferences(this)
+        swEveningReview.isChecked = reviewPrefs.enabled
+        swEveningReview.setOnCheckedChangeListener { _, checked -> reviewPrefs.enabled = checked }
+        btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
 
         btnSyncNow.setOnClickListener {
             TimeOrganizerApp.enqueueSyncNow(this)

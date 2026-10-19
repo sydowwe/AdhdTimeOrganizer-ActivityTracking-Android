@@ -12,8 +12,8 @@
     <string name="btn_exclude_battery">Exclude from Battery Optimization</string>
 
     <!-- Notifications card -->
-    <string name="notifications_on">Notifications on — you\'ll hear when syncing stops</string>
-    <string name="notifications_off">Notifications off — the app can\'t tell you when syncing stops (signed out, usage access lost, a day without sending)</string>
+    <string name="notifications_on">Notifications on — you\'ll hear when syncing stops, and about the evening review</string>
+    <string name="notifications_off">Notifications off — the app can\'t tell you when syncing stops (signed out, usage access lost, a day without sending) or ask about the evening review</string>
     <string name="btn_allow_notifications">Allow Notifications</string>
 
     <!-- Notification channels -->
@@ -81,4 +81,39 @@
     <string name="two_factor_code_required">Enter the code</string>
     <string name="two_factor_invalid_code">That code didn\'t work. Try the current one.</string>
     <string name="two_factor_verify">Verify</string>
+
+    <!-- Evening review: notification -->
+    <string name="channel_evening_review">Evening review</string>
+    <string name="channel_evening_review_description">Once an evening: which apps took your phone time today without being mapped to an activity</string>
+    <string name="notify_review_title">%1$s of phone time today isn\'t mapped</string>
+    <string name="notify_review_text_more">%1$s and %2$d more. Tap to map them.</string>
+
+    <!-- Evening review: status card -->
+    <string name="review_card_title">Evening review</string>
+    <string name="review_card_switch">Ask each evening about unmapped phone time</string>
+    <string name="review_card_hint">At your evening-shutdown time: the apps that took the most of today without an activity, one tap each. Needs notifications.</string>
+    <string name="btn_review_now">Review now</string>
+
+    <!-- Evening review: screen -->
+    <string name="review_title">Unmapped phone time</string>
+    <string name="review_summary">%1$s of phone time today isn\'t mapped to an activity. Map the biggest ones — a tap puts their time into History right away.</string>
+    <string name="review_map_to">Map to %1$s</string>
+    <string name="review_pick">Choose activity</string>
+    <string name="review_ignore">Ignore</string>
+    <string name="review_skip">Skip</string>
+    <string name="review_done">Done</string>
+    <string name="review_retry">Try again</string>
+    <string name="review_saving">Saving…</string>
+    <string name="review_mapped">Mapped to %1$s</string>
+    <string name="review_mapped_added">Mapped to %1$s — %2$s added to History</string>
+    <string name="review_ignored">Ignored — it won\'t be asked about again</string>
+    <string name="review_choose_activity">Map to which activity?</string>
+    <string name="review_no_activities">You have no activities yet. Add some in the web app.</string>
+    <string name="review_nothing">Nothing to review — today\'s phone time is mapped, or too little is left to ask about.</string>
+    <string name="review_all_done">All done. Tomorrow\'s time will be mapped by these rules.</string>
+    <string name="review_offline">Can\'t reach the server. Check the connection.</string>
+    <string name="review_server_error">The server couldn\'t give today\'s list. Try again in a moment.</string>
+    <string name="review_already_mapped">That app was mapped meanwhile — reloaded.</string>
+    <string name="review_activity_gone">That activity no longer exists. Choose another.</string>
+    <string name="review_save_failed">Couldn\'t save — check the connection and try again.</string>
 </resources>

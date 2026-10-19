@@ -227,6 +227,21 @@ as the desktop's loopback flow — build them together.
 **Catches.** Revisits the 2026-10-12 decision against pairing codes; decide it explicitly. App links need
 `assetlinks.json` on the server's domain.
 
+## 13. Evening review of unmapped phone time — built 2026-10-19
+
+**Why.** Every nudge, budget and attribution depends on packages being mapped to activities, and unmapped phone
+time is invisible in History. A two-minute evening ritual — "1 h 40 m on your phone today isn't mapped: Reddit
+50 m, Chrome 30 m" — raises coverage where the time actually went, one tap per app.
+
+**What was built.** A local notification at the user's evening-shutdown moment opens a review screen: one card per
+unmapped app, mapped with a tap to the activity the user's timers suggest, to another they pick, ignored, or
+skipped. See `CLAUDE.md` → "Evening review" for the rules; the server side is the Tracking slice's
+`AndroidAgentUnmappedEndpoint` / `CreateAndroidAgentRuleEndpoint`.
+
+**Not built, still open.** A line about it in the web evening-shutdown push (the push would have to stop being
+"tomorrow only"; a web push also cannot deep-link into this app). A review for earlier days: the rule create
+backfills only the user's today. Mapping by app *label* or pattern stays a web-app thing on purpose.
+
 ---
 
 ## Smaller ideas

@@ -27,9 +27,13 @@ object Notifications {
     /** The foreground watcher's ongoing notification: silent, so muting it costs nothing else. */
     const val CHANNEL_FOREGROUND_WATCH = "foreground_watch"
 
+    /** The evening question about unmapped phone time: once a day, muted separately from the sync warnings. */
+    const val CHANNEL_EVENING_REVIEW = "evening_review"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
+    const val ID_EVENING_REVIEW = 3
 
     /** Idempotent: creating an existing channel only updates its name and description. */
     fun createChannels(context: Context) {
@@ -43,6 +47,10 @@ object Notifications {
                     .setName(context.getString(R.string.channel_foreground_watch))
                     .setDescription(context.getString(R.string.channel_foreground_watch_description))
                     .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_EVENING_REVIEW, NotificationManagerCompat.IMPORTANCE_DEFAULT)
+                    .setName(context.getString(R.string.channel_evening_review))
+                    .setDescription(context.getString(R.string.channel_evening_review_description))
                     .build()
             )
         )

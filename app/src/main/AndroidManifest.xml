@@ -48,6 +48,10 @@
             android:name=".LoginActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".review.ReviewActivity"
+            android:exported="false" />
+
         <!-- specialUse: no other type fits; the subtype is what Play's declaration review reads. -->
         <service
             android:name=".watch.ForegroundWatchService"
