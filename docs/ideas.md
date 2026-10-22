@@ -242,6 +242,33 @@ skipped. See `CLAUDE.md` → "Evening review" for the rules; the server side is 
 "tomorrow only"; a web push also cannot deep-link into this app). A review for earlier days: the rule create
 backfills only the user's today. Mapping by app *label* or pattern stays a web-app thing on purpose.
 
+## 14. A persistent "usage access is off" banner, and a way to manage each permission
+
+**Why.** Found on the phone 2026-10-22: with usage access revoked, the only sign on the status screen is one
+line inside the sync card ("Usage access is off — nothing new can be recorded"), easy to read past. It is the
+condition the whole app depends on, so it should be impossible to miss.
+
+**How.**
+- **Banner.** A red (`colorErrorContainer`) card pinned above the scroll on the status screen, visible whenever
+  `PermissionHelper.hasUsageStatsPermission` is false — re-checked in `onResume`, so it disappears the moment the
+  user comes back from the settings page. One line of what is lost and one button that opens
+  `Settings.ACTION_USAGE_ACCESS_SETTINGS` (`PermissionHelper.openUsageAccessSettings`), the same fix the "sync
+  blocked" notification (#11) taps through to. Same treatment, in amber, for notifications off while the evening
+  review is on.
+- **A "Manage" button on every permission card, granted or not.** Android gives an app no way to revoke its own
+  usage access, notification permission or battery exemption — only the user can, in system settings — so a
+  button can only *open* that page. Show it in the granted state too ("Usage access: on · Manage"), so a user who
+  wants to switch it off, or check it, finds the right page in one tap instead of digging through
+  Settings > Apps > Special access.
+
+**Catches.**
+- Nothing is lost while access is off, only delayed: the OS keeps the usage log, and the stretch is read once the
+  access is back (verified 2026-10-22). Word the banner as "not being read", not "not being recorded", and say
+  that data older than about a week is gone.
+- The banner must not stack with the "sync blocked" notification into a nag: the notification stays once a day,
+  the banner is simply state.
+- Only the open-settings button; never a toggle that looks like it revokes.
+
 ---
 
 ## Smaller ideas
@@ -254,8 +281,10 @@ backfills only the user's today. Mapping by app *label* or pattern stays a web-a
 - **App hibernation.** An app never opened for months can be hibernated (Android 12+), which stops its jobs.
   Check `PackageManagerCompat.getUnusedAppRestrictionsStatus` and offer the "pause app activity if unused"
   setting from the status screen.
-- **Launcher time.** Time on the home screen is recorded as the launcher's package. Ship a default server-side
-  ignore suggestion for common launchers rather than filtering on the phone.
+- **Launcher time — done 2026-10-22, on the phone.** Time on the home screen and in Recents was recorded as the
+  launcher's package (a few-second row between every two apps). `UsageStatsCollector.collect` now drops every
+  installed home app's sessions (`10a53b3`), instead of a server-side ignore suggestion per launcher. Rows sent
+  before that stay on the server.
 - **Backfill on first sign-in.** The first run reads 7 days of the usage log; the OS sometimes keeps more.
   `queryEvents` from 14 or 30 days back is free to try on first run.
 - **Expedited sync on app close.** When the status screen goes to the background, enqueue an expedited one-off
