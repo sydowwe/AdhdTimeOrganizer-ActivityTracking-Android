@@ -92,6 +92,11 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   return to the same app within 2 s with nothing else in between is the same sitting.
 - Screen off, keyguard and shutdown close every session; after a reboot an open session ends at the last event
   before it. **Split-screen counts both visible apps; picture-in-picture counts nothing.** Both deliberate.
+- **A stop with no pause before it counts as the pause.** Samsung's Recents sends the app it leaves straight to
+  `ACTIVITY_STOPPED` and never `ACTIVITY_PAUSED`; counting only pauses left that app "open" until the screen went
+  off (a 22 s sitting stored as 125 s). A stop that follows its own pause is ignored (`SessionBuilder.onStopped`).
+  `getInstanceId` is hidden API, so the match is by activity class, with a per-session count of pauses awaiting
+  their stop.
 - **The cursor rests at the start of the earliest still-open session**, never at "the latest event": the usage
   log's begin is inclusive, so the next read sees the resume again and builds the session whole. Moving it to
   the latest event of any kind lost the app in use at every sync.
