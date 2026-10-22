@@ -52,14 +52,48 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 ```
 
 - Results: `app/build/test-results/testDebugUnitTest/*.xml`. Gradle prints nothing per test.
-- **Don't install on the user's phone or start an emulator without asking.** The phone runs their real
-  tracker; a debug build signs with a different key, so installing it over a release build fails, and
-  uninstalling to make room loses the outbox.
+- **Don't install on the user's phone or start an emulator without asking** — unless they just asked for it
+  (`/test-release` or `scripts/test-release.ps1` is that ask). The phone runs their real tracker; a debug build
+  signs with a different key, so installing it over a release build fails, and uninstalling to make room loses
+  the outbox.
 - AGP 9 runs Kotlin built in (no `kotlin-android` plugin). KSP must be one that registers its output through
   the Android source sets — 2.3.12 is; 2.3.1 failed with "Using kotlin.sourceSets DSL … is not allowed".
-- `API_BASE_URL` in `util/Constants.kt` is production in every build type. Point it at `10.0.2.2:8081`
-  (emulator → host) by hand when testing against a local server; the debug build allows cleartext to it
-  (`src/debug/res/xml/network_security_config.xml`), release does not.
+- **`SERVER_ROOT` in `util/Constants.kt` is the test server (`https://test.backend.adhdtimeorganizer.com/`) on
+  `main`, in every build type** (since 2026-10-22). Production is switched in only for a real release, in its own
+  commit, and switched back after; until `prod-release` exists nothing ships to production. Point it at
+  `10.0.2.2:8081` (emulator → host) by hand for a local server; the debug build allows cleartext to it
+  (`src/debug/res/xml/network_security_config.xml`), release does not. `scripts/test-release.ps1` prints the URL it
+  built against and warns if it is production.
+
+## Versioning
+
+- **One place.** `versionCode` (an integer) and `versionName` (`"X.Y.Z"`) are literals in `app/build.gradle.kts`;
+  nothing else carries a version. Never edit them by hand — `scripts/test-release.ps1` is what changes them (the
+  `/test-release` command wraps it, so a session can call it too).
+- **`versionName` is X.Y.Z; `versionCode` is +1 on every bump** — never reused, never lowered (Android refuses a
+  downgrade with `INSTALL_FAILED_VERSION_DOWNGRADE`, and the next install over it would need an uninstall, which
+  deletes the outbox).
+  - **patch** (1.1.1 → 1.1.2): a fix, or a UI change with no new behaviour a user must learn.
+  - **minor** (1.1.2 → 1.2.0): a new feature, a new permission or switch, a new server route the app calls.
+  - **major** (1.2.0 → 2.0.0): the wire contract or the stored data changes incompatibly (a Room migration that
+    drops data, a server that must be deployed first for the app to work at all).
+- **A bump is one commit and one tag.** The commit is `chore: version X.Y.Z (code N)` and touches only
+  `app/build.gradle.kts`; the annotated tag `vX.Y.Z` is on it. The tree is clean before it, so the tag is exactly
+  what was built and installed. The script refuses a dirty tree (`-AllowDirty` overrides, and says the tag will not
+  contain the dirt).
+- **Test release** (`scripts/test-release.ps1`, for the phone on the desk, against `SERVER_ROOT` as it stands):
+  bump → `testDebugUnitTest` + `assembleDebug` → commit → tag → `adb install -r` → read the installed version back.
+  A failed build restores the version file and commits nothing. `-NoBump` rebuilds and reinstalls without a commit
+  or tag (dev iteration — most installs are this); bump when a build is worth naming, e.g. a fix you will verify on
+  the phone, or before handing a build to someone. `-Bump minor|major`, `-Version X.Y.Z`, `-NoInstall`, `-SkipTests`
+  and `-Serial` are there when needed. It **never uninstalls**; a signature mismatch stops with a message.
+- **Tags** are annotated, `v`-prefixed, and local. A tag that was never pushed may be moved (`git tag -f -a`); a
+  pushed one never is. Push only when the owner asks, by name (`git push origin vX.Y.Z`, never `--tags`).
+  `v1.0` is the first build, `v1.1` the durable-outbox rewrite.
+- **Production release** is a separate script (`prod-release`, **not written yet**). When it is: switch
+  `SERVER_ROOT` to production in its own commit; build and sign with the real release key (kept outside the repo —
+  an unsigned release cannot be installed, and a different key forces an uninstall); **deploy the server first**
+  (the auth lost-response recovery lives there); tag; switch `SERVER_ROOT` back to test.
 
 ## Rules that hold everywhere
 
