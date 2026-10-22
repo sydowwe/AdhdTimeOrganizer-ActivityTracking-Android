@@ -18,6 +18,7 @@ import com.timeorganizer.usagetracker.data.api.dto.LoginRequest
 import com.timeorganizer.usagetracker.data.api.dto.TwoFactorLoginRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.sync.SyncEngine
+import com.timeorganizer.usagetracker.util.applySystemBarInsets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,6 +49,7 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
+        applySystemBarInsets(findViewById(R.id.root))
 
         authPrefs = AuthPreferences.get(this)
 

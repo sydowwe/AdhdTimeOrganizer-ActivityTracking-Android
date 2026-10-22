@@ -38,6 +38,7 @@
     <string name="notify_waiting_text">%1$d sessions are waiting — offline, or the server can\'t be reached. Tap to see the status.</string>
 
     <!-- Sync status card -->
+    <string name="btn_refresh_status">Refresh</string>
     <string name="sync_never">Nothing sent yet</string>
     <string name="last_sync_label">Last sent: %1$s</string>
     <string name="sync_state_never">Waiting for the first sync</string>
@@ -46,7 +47,7 @@
     <string name="sync_state_waiting">Waiting — offline or the server is busy. Sessions are kept and sent later.</string>
     <string name="sync_state_signed_out">Signed out — sign in again. Sessions are kept until then.</string>
     <string name="sync_state_no_usage_access">Usage access is off — nothing new can be recorded</string>
-    <string name="sync_pending">%1$d sessions waiting to be sent</string>
+    <string name="sync_pending">%1$d sessions will be sent with the next sync</string>
     <string name="sync_dropped">The server ignored %1$d sessions (check the phone\'s clock)</string>
     <string name="sync_rejected">The server refused %1$d sessions as malformed; they were discarded</string>
     <string name="sync_clock_ahead">The phone\'s clock is %1$d minutes ahead of the server — sessions from the future are ignored</string>

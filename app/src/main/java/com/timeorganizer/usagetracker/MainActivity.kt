@@ -26,6 +26,8 @@ import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.PermissionHelper
+import com.timeorganizer.usagetracker.util.applySystemBarInsets
+import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -87,6 +89,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_main)
+        applySystemBarInsets(findViewById(R.id.root))
 
         prefs = SyncPreferences(this)
 
@@ -126,6 +129,12 @@ class MainActivity : AppCompatActivity() {
         swEveningReview.isChecked = reviewPrefs.enabled
         swEveningReview.setOnCheckedChangeListener { _, checked -> reviewPrefs.enabled = checked }
         btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
+
+        findViewById<Button>(R.id.btnRefreshStatus).setOnClickListener {
+            tvLastSync.text = ""
+            tvSyncResult.text = ""
+            updateSyncStatusCard()
+        }
 
         btnSyncNow.setOnClickListener {
             TimeOrganizerApp.enqueueSyncNow(this)
@@ -195,10 +204,15 @@ class MainActivity : AppCompatActivity() {
         } else {
             getString(R.string.last_sync_label, relativeTime(report.lastSentAtMs))
         }
-        tvSyncResult.text = describe(report)
+        tvSyncResult.text = describe(report, report.pending)
+        // The report's count is from the end of the last run; the outbox is what a sync would send now.
+        lifecycleScope.launch {
+            val unsent = withContext(Dispatchers.IO) { OutboxDatabase.get(applicationContext).outboxDao().unsentCount() }
+            tvSyncResult.text = describe(report, unsent)
+        }
     }
 
-    private fun describe(report: SyncReport): String {
+    private fun describe(report: SyncReport, pending: Int): String {
         val lines = mutableListOf(
             when (report.state) {
                 SyncState.NEVER -> getString(R.string.sync_state_never)
@@ -209,7 +223,7 @@ class MainActivity : AppCompatActivity() {
                 SyncState.NO_USAGE_ACCESS -> getString(R.string.sync_state_no_usage_access)
             }
         )
-        if (report.pending > 0) lines += getString(R.string.sync_pending, report.pending)
+        lines += getString(R.string.sync_pending, pending)
         if (report.sent.dropped > 0) lines += getString(R.string.sync_dropped, report.sent.dropped)
         if (report.rejected > 0) lines += getString(R.string.sync_rejected, report.rejected)
         if (report.clockAheadMs > Constants.CLOCK_AHEAD_WARNING_MS) {

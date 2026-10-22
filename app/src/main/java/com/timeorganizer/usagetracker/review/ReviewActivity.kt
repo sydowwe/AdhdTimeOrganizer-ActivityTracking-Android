@@ -23,6 +23,7 @@ import com.timeorganizer.usagetracker.data.api.dto.UnmappedAppDto
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.util.applySystemBarInsets
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -61,6 +62,7 @@ class ReviewActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_review)
+        applySystemBarInsets(findViewById(R.id.root))
         tvSummary = findViewById(R.id.tvReviewSummary)
         tvMessage = findViewById(R.id.tvReviewMessage)
         progress = findViewById(R.id.progressReview)
