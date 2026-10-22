@@ -96,6 +96,10 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   log's begin is inclusive, so the next read sees the resume again and builds the session whole. Moving it to
   the latest event of any kind lost the app in use at every sync.
 - Sessions under 5 s are not queued (client policy, `SyncLimits.MIN_SESSION_MS`).
+- **The home screen and Recents are not sent.** They are the launcher's activities, so the log counts them as an
+  app in front (a 6 s `com.sec.android.app.launcher` row between every two apps). `UsageStatsCollector.collect`
+  drops every installed home app's sessions after the build (`BuildResult.without`); the builder still sees their
+  events, so the merge rule treats the launcher as "another app in between". Earlier rows already on the server stay.
 
 ### Durability and threads
 - **Nothing is sent that is not in the outbox first**, and the outbox rows and the cursor commit in one Room

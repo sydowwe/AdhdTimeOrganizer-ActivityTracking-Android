@@ -199,6 +199,30 @@ class SessionBuilderTest {
     }
 
     @Test
+    fun sessionsOfTheNamedPackages_areLeftOut_andTheCursorStaysWhereItWas() {
+        // The home screen / Recents is a "session" to the usage log; it is not something the person used.
+        val result = build(
+            60_000,
+            resumed("home", "Recents", 0), paused("home", "Recents", 6_000),
+            resumed("chat", "List", 6_000), paused("chat", "List", 30_000),
+            resumed("home", "Launcher", 30_000)
+        )
+
+        val filtered = result.without(setOf("home"))
+
+        assertEquals(listOf(RawSession("chat", 6_000, 30_000)), filtered.sessions)
+        assertEquals(result.resumeFromMs, filtered.resumeFromMs)
+        assertEquals(30_000L, filtered.resumeFromMs)
+    }
+
+    @Test
+    fun leavingOutNothing_changesNothing() {
+        val result = build(60_000, resumed("chat", "List", 0), paused("chat", "List", 10_000))
+
+        assertEquals(result, result.without(emptySet()))
+    }
+
+    @Test
     fun noEvents_keepNothingAndMoveTheCursorToTheEnd() {
         val result = build(100_000)
 

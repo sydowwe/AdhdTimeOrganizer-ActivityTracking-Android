@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.usagestats
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 
 /**
@@ -17,10 +18,20 @@ class UsageStatsCollector(context: Context) {
     private val packageManager: PackageManager = context.packageManager
     private val appLabelCache = mutableMapOf<String, String?>()
 
+    /**
+     * The home screen and Recents are the launcher's activities, so the log counts them as an app in front. They
+     * are the gaps between apps, not something the person used: left out of what is sent (client policy, like
+     * `SyncLimits.MIN_SESSION_MS`). They still count as "another app" inside [SessionBuilder]'s merge rule.
+     */
+    private val homePackages: Set<String> by lazy {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet()
+    }
+
     fun collect(fromMs: Long, toMs: Long): BuildResult {
         val builder = SessionBuilder()
         if (!forEachEvent(fromMs, toMs, builder::onEvent)) return builder.build(fromMs)
-        return builder.build(toMs)
+        return builder.build(toMs).without(homePackages)
     }
 
     /** The events from [fromMs] (inclusive) to [toMs] (exclusive), translated the same way — for the watcher. */

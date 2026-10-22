@@ -151,4 +151,8 @@ data class RawSession(
 data class BuildResult(
     val sessions: List<RawSession>,
     val resumeFromMs: Long
-)
+) {
+    /** The same result without [packages]' sessions. Where the next query starts does not move. */
+    fun without(packages: Set<String>): BuildResult =
+        if (packages.isEmpty()) this else copy(sessions = sessions.filter { it.packageName !in packages })
+}
