@@ -49,7 +49,8 @@ function Fail([string] $message) {
     exit 1
 }
 
-function Git {
+# Not named Git: command names are case-insensitive, so `& git` inside a function called Git calls itself forever.
+function Invoke-Git {
     $output = & git -C $root @args 2>&1
     if ($LASTEXITCODE -ne 0) { Fail "git $($args -join ' ') failed:`n$output" }
     return $output
@@ -95,9 +96,9 @@ if ($NoBump) {
         $newName = $parts -join '.'
     }
     $tag = "v$newName"
-    if (Git tag -l $tag) { Fail "tag $tag already exists" }
+    if (Invoke-Git tag -l $tag) { Fail "tag $tag already exists" }
 
-    $dirty = Git status --porcelain --untracked-files=no
+    $dirty = Invoke-Git status --porcelain --untracked-files=no
     if ($dirty -and -not $AllowDirty) {
         Fail ("uncommitted changes would be in the APK but not in the tag:`n$($dirty -join "`n")`n" +
             'Commit them first, or pass -AllowDirty to tag anyway.')
@@ -183,11 +184,11 @@ $commit = $null
 if (-not $NoBump) {
     $message = "chore: version $newName (code $newCode)"
     if ($Trailer) { $message = "$message`n`n$Trailer" }
-    # Native call, not the Git helper: a function's $args mangles the "--" that limits the commit to one file.
+    # Native call, not Invoke-Git: a function's $args may swallow the "--" that limits the commit to one file.
     $commitOut = & git -C $root commit -m $message -- app/build.gradle.kts 2>&1
     if ($LASTEXITCODE -ne 0) { Fail "git commit failed:`n$commitOut" }
-    Git tag -a $tag -m "$newName (code $newCode)" | Out-Null
-    $commit = (Git rev-parse --short HEAD) | Select-Object -First 1
+    Invoke-Git tag -a $tag -m "$newName (code $newCode)" | Out-Null
+    $commit = (Invoke-Git rev-parse --short HEAD) | Select-Object -First 1
 }
 
 # ---- install ----------------------------------------------------------------------------------------------
