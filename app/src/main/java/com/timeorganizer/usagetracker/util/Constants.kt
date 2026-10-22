@@ -2,7 +2,7 @@ package com.timeorganizer.usagetracker.util
 
 object Constants {
 //    const val SERVER_ROOT = "http://10.0.2.2:8081/"
-    const val SERVER_ROOT = "https://backend.adhdtimeorganizer.com/"
+    const val SERVER_ROOT = "https://test.backend.adhdtimeorganizer.com/"
     const val API_BASE_URL = SERVER_ROOT + "api/"
 
     /** The anonymous liveness route — outside `/api` (`Program.HealthCheckPath`). */
