@@ -63,6 +63,7 @@ class UsageStatsCollector(context: Context) {
     private fun kindOf(eventType: Int): EventKind = when (eventType) {
         UsageEvents.Event.ACTIVITY_RESUMED -> EventKind.RESUMED
         UsageEvents.Event.ACTIVITY_PAUSED -> EventKind.PAUSED
+        UsageEvents.Event.ACTIVITY_STOPPED -> EventKind.STOPPED
         UsageEvents.Event.SCREEN_NON_INTERACTIVE,
         UsageEvents.Event.KEYGUARD_SHOWN,
         UsageEvents.Event.DEVICE_SHUTDOWN -> EventKind.CLOSE_ALL

@@ -7,6 +7,7 @@ class SessionBuilderTest {
 
     private fun resumed(pkg: String, cls: String, at: Long) = UsageEventRecord(EventKind.RESUMED, pkg, cls, at)
     private fun paused(pkg: String, cls: String, at: Long) = UsageEventRecord(EventKind.PAUSED, pkg, cls, at)
+    private fun stopped(pkg: String, cls: String, at: Long) = UsageEventRecord(EventKind.STOPPED, pkg, cls, at)
     private fun other(at: Long) = UsageEventRecord(EventKind.OTHER, "android", "", at)
     private fun closeAll(at: Long) = UsageEventRecord(EventKind.CLOSE_ALL, "android", "", at)
     private fun startup(at: Long) = UsageEventRecord(EventKind.DEVICE_STARTUP, "android", "", at)
@@ -145,6 +146,56 @@ class SessionBuilderTest {
         )
 
         assertEquals(listOf(RawSession("app", 0, 10_000), RawSession("app", 12_001, 30_000)), result.sessions)
+    }
+
+    /**
+     * Seen on a Samsung phone (2026-10-22): leaving an app through Recents emits `ACTIVITY_STOPPED` for it and
+     * never `ACTIVITY_PAUSED`, so the resume was never cancelled and the session ran on until the screen went off
+     * (a 22 s Discord sitting was stored as 125 s, a 1 s look at this app as 122 s).
+     */
+    @Test
+    fun anActivityStoppedWithoutAPause_endsTheSessionWhereItStopped() {
+        val result = build(
+            60_000,
+            resumed("discord", "Main", 0), stopped("discord", "Main", 10_000),
+            resumed("tracker", "Main", 10_000), stopped("tracker", "Main", 11_000)
+        )
+
+        assertEquals(listOf(RawSession("discord", 0, 10_000), RawSession("tracker", 10_000, 11_000)), result.sessions)
+        assertEquals(60_000L, result.resumeFromMs)
+    }
+
+    @Test
+    fun aStopThatFollowsItsPause_changesNothing() {
+        // The usual order: paused when it leaves the front, stopped a moment later.
+        val result = build(
+            60_000,
+            resumed("app", "A", 0), paused("app", "A", 10_000), stopped("app", "A", 10_500),
+            resumed("app", "A", 11_000), paused("app", "A", 30_000), stopped("app", "A", 30_500)
+        )
+
+        assertEquals(listOf(RawSession("app", 0, 30_000)), result.sessions)
+    }
+
+    @Test
+    fun aStopThatFollowsItsPause_doesNotEndAnotherInstanceOfTheSameActivity() {
+        val result = build(
+            60_000,
+            resumed("app", "Doc", 0), resumed("app", "Doc", 1_000),
+            paused("app", "Doc", 2_000), stopped("app", "Doc", 2_500),
+            paused("app", "Doc", 20_000), stopped("app", "Doc", 20_500)
+        )
+
+        assertEquals(listOf(RawSession("app", 0, 20_000)), result.sessions)
+    }
+
+    @Test
+    fun aStopWithNoOpenSession_isIgnored() {
+        // It was resumed before this window began, so it was already built whole.
+        val result = build(60_000, stopped("app", "A", 5_000))
+
+        assertEquals(emptyList<RawSession>(), result.sessions)
+        assertEquals(60_000L, result.resumeFromMs)
     }
 
     @Test

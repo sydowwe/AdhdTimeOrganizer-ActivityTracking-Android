@@ -8,6 +8,8 @@ package com.timeorganizer.usagetracker.usagestats
  *   builder counts each package's resumed activities and the app's session runs from its first resume until
  *   the last of them pauses. Keying on the package alone split a session at every screen change inside an
  *   app, and with multi-resume (Android 10+) the old activity's late pause closed the new one's session.
+ * - **A stop with no pause before it counts as the pause** (Samsung's Recents skips `ACTIVITY_PAUSED`; without
+ *   this the app stayed open until the screen went off).
  * - **A pause followed by a resume of the same app within [mergeGapMs]**, with no other app resumed in
  *   between, is one sitting rather than two.
  * - **Screen off, keyguard and shutdown close everything.** After `DEVICE_STARTUP`, whatever is still open is
@@ -22,6 +24,7 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
 
     private class OpenSession(val startMs: Long) {
         val resumedActivities = mutableMapOf<String, Int>()
+        val pausedAwaitingStop = mutableMapOf<String, Int>()
     }
 
     private val open = linkedMapOf<String, OpenSession>()
@@ -36,6 +39,7 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
         when (event.kind) {
             EventKind.RESUMED -> onResumed(event.packageName, event.className, event.timestampMs)
             EventKind.PAUSED -> onPaused(event.packageName, event.className, event.timestampMs)
+            EventKind.STOPPED -> onStopped(event.packageName, event.className, event.timestampMs)
             EventKind.CLOSE_ALL -> closeAll(event.timestampMs)
             EventKind.DEVICE_STARTUP -> {
                 val beforeBoot = lastEventMs
@@ -58,6 +62,8 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
     private fun onResumed(packageName: String, className: String, timestampMs: Long) {
         val session = open.getOrPut(packageName) { reopenOrStart(packageName, timestampMs) }
         session.resumedActivities.merge(className, 1, Int::plus)
+        // A pause followed by a resume has no stop in between, so its pending stop would eat a later real one.
+        session.pausedAwaitingStop.remove(className)
         lastResumeMs[packageName] = timestampMs
     }
 
@@ -78,7 +84,28 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
     private fun onPaused(packageName: String, className: String, timestampMs: Long) {
         // No open session: it was resumed before this window began, so it was already built whole.
         val session = open[packageName] ?: return
-        val count = session.resumedActivities[className] ?: return
+        if (!release(session, packageName, className, timestampMs)) return
+        session.pausedAwaitingStop.merge(className, 1, Int::plus)
+    }
+
+    /**
+     * Some launchers (Samsung's Recents) send the app they leave straight to `ACTIVITY_STOPPED` and never
+     * `ACTIVITY_PAUSED`. A stop that follows its own pause is already counted; one that does not is the pause.
+     */
+    private fun onStopped(packageName: String, className: String, timestampMs: Long) {
+        val session = open[packageName] ?: return
+        val awaiting = session.pausedAwaitingStop[className]
+        if (awaiting != null) {
+            if (awaiting > 1) session.pausedAwaitingStop[className] = awaiting - 1
+            else session.pausedAwaitingStop.remove(className)
+            return
+        }
+        release(session, packageName, className, timestampMs)
+    }
+
+    /** One resumed instance of [className] is gone; the session ends with the last one. `false` if none was counted. */
+    private fun release(session: OpenSession, packageName: String, className: String, timestampMs: Long): Boolean {
+        val count = session.resumedActivities[className] ?: return false
         if (count > 1) session.resumedActivities[className] = count - 1
         else session.resumedActivities.remove(className)
 
@@ -86,6 +113,7 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
             open.remove(packageName)
             close(packageName, session.startMs, timestampMs)
         }
+        return true
     }
 
     private fun closeAll(timestampMs: Long) {
@@ -105,7 +133,7 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
     }
 }
 
-enum class EventKind { RESUMED, PAUSED, CLOSE_ALL, DEVICE_STARTUP, OTHER }
+enum class EventKind { RESUMED, PAUSED, STOPPED, CLOSE_ALL, DEVICE_STARTUP, OTHER }
 
 data class UsageEventRecord(
     val kind: EventKind,
