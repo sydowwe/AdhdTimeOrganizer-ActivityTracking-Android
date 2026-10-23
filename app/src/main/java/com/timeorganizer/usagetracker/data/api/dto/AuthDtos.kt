@@ -1,8 +1,13 @@
 package com.timeorganizer.usagetracker.data.api.dto
 
+/**
+ * `client` names the tracker signing in. The server refuses a login without it, and the session it issues may call
+ * the phone's routes only (`/activity-tracking/android/...` and the shared ones).
+ */
 data class LoginRequest(
     val email: String,
-    val password: String
+    val password: String,
+    val client: String = "AndroidTracker"
 )
 
 data class RefreshRequest(
