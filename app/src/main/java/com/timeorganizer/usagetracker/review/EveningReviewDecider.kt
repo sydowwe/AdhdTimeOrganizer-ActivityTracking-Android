@@ -13,7 +13,7 @@ data class ReviewState(
 /**
  * When the evening review runs, and when the moment it waits for must be heard again — pure, so JVM tests pin it.
  *
- * The moment is the server's (`GET /user/evening-shutdown-moment`: bed time less the user's offset), so the phone
+ * The moment is the server's (`GET /tracker/evening-shutdown-moment`: bed time less the user's offset), so the phone
  * asks about unmapped time when the evening begins, not at an hour of its own. The sync worker calls in every
  * 15 minutes, so the review is not on a timer: it is due on the first run at or after the moment and still due for
  * [WINDOW_MS] after it. Past that the evening is over — a review at 2 a.m. is worse than none — and the next

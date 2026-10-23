@@ -18,17 +18,17 @@ import retrofit2.http.Url
  */
 interface AuthApiService {
 
-    @POST("auth/extension/login")
+    @POST("auth/tracker/login")
     suspend fun login(
         @Body request: LoginRequest
     ): Response<AuthResponse>
 
-    @POST("auth/login/2fa/extension")
+    @POST("auth/tracker/login/2fa")
     suspend fun loginTwoFactor(
         @Body request: TwoFactorLoginRequest
     ): Response<AuthResponse>
 
-    @POST("auth/extension/logout")
+    @POST("auth/tracker/logout")
     suspend fun logout(
         @Header("Authorization") authorization: String,
         @Body request: LogoutRequest

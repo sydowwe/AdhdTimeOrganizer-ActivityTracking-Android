@@ -59,7 +59,7 @@ class TokenRefresher(
     private fun attemptOnce(refreshToken: String): RefreshAttempt {
         val written = RequestWrittenListener()
         val request = Request.Builder()
-            .url(Constants.API_BASE_URL + "auth/extension/refresh")
+            .url(Constants.API_BASE_URL + "auth/tracker/refresh")
             .post(gson.toJson(RefreshRequest(refreshToken)).toRequestBody(JSON))
             .build()
 

@@ -1,6 +1,6 @@
 package com.timeorganizer.usagetracker.auth
 
-/** How one `/auth/extension/refresh` call ended. */
+/** How one `/auth/tracker/refresh` call ended. */
 sealed interface RefreshAttempt {
     data class Http(val statusCode: Int, val accessToken: String?, val refreshToken: String?) : RefreshAttempt
 

@@ -26,7 +26,7 @@ import retrofit2.Response
 
 /**
  * Password sign-in, then — for an account with two-factor authentication — the code step
- * (`/auth/login/2fa/extension` with the pending token the password step returned).
+ * (`/auth/tracker/login/2fa` with the pending token the password step returned).
  */
 class LoginActivity : AppCompatActivity() {
 

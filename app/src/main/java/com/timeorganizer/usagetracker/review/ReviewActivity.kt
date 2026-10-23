@@ -16,9 +16,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.timeorganizer.usagetracker.LoginActivity
 import com.timeorganizer.usagetracker.R
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
-import com.timeorganizer.usagetracker.data.api.dto.AgentActivityDto
-import com.timeorganizer.usagetracker.data.api.dto.CreateAgentRuleRequest
-import com.timeorganizer.usagetracker.data.api.dto.CreateAgentRuleResponse
+import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityDto
+import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleRequest
+import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleResponse
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedAppDto
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
@@ -35,7 +35,7 @@ import retrofit2.Response
  * the activity the user's timers suggest, pick another, ignore it, or skip it. Every answer is the server's rule
  * create, which also puts the package's time already stored today into History, so a tap pays off tonight.
  *
- * The list is the server's (`agent-unmapped`) and is read fresh each time the screen opens; the phone decides
+ * The list is the server's (`unmapped`) and is read fresh each time the screen opens; the phone decides
  * nothing about what is unmapped or worth asking. Nothing here is logged: package and activity names are personal.
  */
 class ReviewActivity : AppCompatActivity() {
@@ -47,7 +47,7 @@ class ReviewActivity : AppCompatActivity() {
     private lateinit var btnRetry: MaterialButton
 
     /** The pick list, fetched on the first "Choose activity" and kept until the server says one is gone. */
-    private var activities: List<AgentActivityDto>? = null
+    private var activities: List<TrackerActivityDto>? = null
 
     /** Whether any card was answered, so an emptied list reads "all done" rather than "nothing to review". */
     private var answeredAny = false
@@ -120,14 +120,14 @@ class ReviewActivity : AppCompatActivity() {
             if (suggestedId != null && suggestedName != null) {
                 visibility = View.VISIBLE
                 text = getString(R.string.review_map_to, suggestedName)
-                setOnClickListener { submit(card, CreateAgentRuleRequest(app.packageName, activityId = suggestedId), suggestedName) }
+                setOnClickListener { submit(card, CreateTrackerRuleRequest(app.packageName, activityId = suggestedId), suggestedName) }
             }
         }
         card.findViewById<View>(R.id.btnPick).setOnClickListener {
-            chooseActivity { choice -> submit(card, CreateAgentRuleRequest(app.packageName, activityId = choice.id), choice.name) }
+            chooseActivity { choice -> submit(card, CreateTrackerRuleRequest(app.packageName, activityId = choice.id), choice.name) }
         }
         card.findViewById<View>(R.id.btnIgnore).setOnClickListener {
-            submit(card, CreateAgentRuleRequest(app.packageName, isIgnored = true), activityName = null)
+            submit(card, CreateTrackerRuleRequest(app.packageName, isIgnored = true), activityName = null)
         }
         card.findViewById<View>(R.id.btnSkip).setOnClickListener {
             rows.removeView(card)
@@ -136,7 +136,7 @@ class ReviewActivity : AppCompatActivity() {
         return card
     }
 
-    private fun submit(card: View, request: CreateAgentRuleRequest, activityName: String?) {
+    private fun submit(card: View, request: CreateTrackerRuleRequest, activityName: String?) {
         setActionsEnabled(card, false)
         status(card, getString(R.string.review_saving))
 
@@ -167,14 +167,14 @@ class ReviewActivity : AppCompatActivity() {
         }
     }
 
-    private fun saved(body: CreateAgentRuleResponse?, activityName: String?): String = when {
+    private fun saved(body: CreateTrackerRuleResponse?, activityName: String?): String = when {
         activityName == null -> getString(R.string.review_ignored)
         body != null && body.attributedSeconds > 0 ->
             getString(R.string.review_mapped_added, activityName, ReviewText.duration(body.attributedSeconds.toLong()))
         else -> getString(R.string.review_mapped, activityName)
     }
 
-    private fun chooseActivity(onChosen: (AgentActivityDto) -> Unit) {
+    private fun chooseActivity(onChosen: (TrackerActivityDto) -> Unit) {
         lifecycleScope.launch {
             val list = activities ?: call { RetrofitClient.apiService.activities() }
                 ?.takeIf { it.isSuccessful }?.body()?.also { activities = it }

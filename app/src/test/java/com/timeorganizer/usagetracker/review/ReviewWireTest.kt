@@ -1,9 +1,9 @@
 package com.timeorganizer.usagetracker.review
 
 import com.google.gson.Gson
-import com.timeorganizer.usagetracker.data.api.dto.AgentActivityDto
-import com.timeorganizer.usagetracker.data.api.dto.CreateAgentRuleRequest
-import com.timeorganizer.usagetracker.data.api.dto.CreateAgentRuleResponse
+import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityDto
+import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleRequest
+import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleResponse
 import com.timeorganizer.usagetracker.data.api.dto.EveningMomentResponse
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.google.gson.reflect.TypeToken
@@ -15,9 +15,9 @@ import org.junit.Test
 
 /**
  * The review's wire shapes, as the server writes them (System.Text.Json, camelCase, the records of
- * `AdhdTimeOrganizer.Tracking/application/dto/response/android/AndroidAgent*Response.cs` and the host's
+ * `AdhdTimeOrganizer.Tracking/application/dto/response/android/AndroidTracker*Response.cs` and the host's
  * `EveningShutdownMomentResponse`). A renamed field reads as a default here and nothing complains: the review would
- * show no apps, or save no rule, with a 200 on the wire. The server's `AndroidAgent*Tests` deserialize the same records.
+ * show no apps, or save no rule, with a 200 on the wire. The server's `AndroidTracker*Tests` deserialize the same records.
  */
 class ReviewWireTest {
 
@@ -57,16 +57,16 @@ class ReviewWireTest {
 
     @Test
     fun activities_readIdAndName() {
-        val type = object : TypeToken<List<AgentActivityDto>>() {}.type
+        val type = object : TypeToken<List<TrackerActivityDto>>() {}.type
 
-        val list: List<AgentActivityDto> = gson.fromJson("""[{"id":7,"name":"Writing"},{"id":9,"name":"Thesis"}]""", type)
+        val list: List<TrackerActivityDto> = gson.fromJson("""[{"id":7,"name":"Writing"},{"id":9,"name":"Thesis"}]""", type)
 
-        assertEquals(listOf(AgentActivityDto(7, "Writing"), AgentActivityDto(9, "Thesis")), list)
+        assertEquals(listOf(TrackerActivityDto(7, "Writing"), TrackerActivityDto(9, "Thesis")), list)
     }
 
     @Test
     fun ruleResponse_readsTheRuleAndWhatItAdded() {
-        val response = gson.fromJson("""{"ruleId":15,"attributedSeconds":3000}""", CreateAgentRuleResponse::class.java)
+        val response = gson.fromJson("""{"ruleId":15,"attributedSeconds":3000}""", CreateTrackerRuleResponse::class.java)
 
         assertEquals(15L, response.ruleId)
         assertEquals(3000, response.attributedSeconds)
@@ -75,8 +75,8 @@ class ReviewWireTest {
     /** Exactly one of activityId / isIgnored goes out; the absent one must not be sent as null-and-set. */
     @Test
     fun ruleRequest_writesTheNamesTheServerBinds() {
-        val map = gson.toJsonTree(CreateAgentRuleRequest("com.reddit.frontpage", activityId = 42)).asJsonObject
-        val ignore = gson.toJsonTree(CreateAgentRuleRequest("com.reddit.frontpage", isIgnored = true)).asJsonObject
+        val map = gson.toJsonTree(CreateTrackerRuleRequest("com.reddit.frontpage", activityId = 42)).asJsonObject
+        val ignore = gson.toJsonTree(CreateTrackerRuleRequest("com.reddit.frontpage", isIgnored = true)).asJsonObject
 
         assertEquals("com.reddit.frontpage", map["packageName"].asString)
         assertEquals(42L, map["activityId"].asLong)

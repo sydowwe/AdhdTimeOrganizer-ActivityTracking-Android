@@ -1,7 +1,7 @@
 # AdhdTimeOrganizer — Android usage tracker
 
 Reads the phone's usage-event log (`UsageStatsManager`), builds per-app sessions, and sends them to the
-AdhdTimeOrganizer server (`POST /api/activity-tracking/android/sync`) every 15 minutes from WorkManager.
+AdhdTimeOrganizer server (`POST /api/tracker/android/sync`) every 15 minutes from WorkManager.
 Kotlin, Views (no Compose), Retrofit + OkHttp + Gson, Room, no DI container. minSdk 29, target 35.
 
 The server is `../../RiderProjects/AdhdTimeOrganizer` (Tracking slice: `AdhdTimeOrganizer.Tracking/`, start
@@ -35,7 +35,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `watch/ForegroundWatcher.kt` | The API features use: `watch(reason, until)` / `stop(reason)`, listeners, `inFront` |
 | `watch/ForegroundWatchService.kt` | The `specialUse` foreground service that polls the usage log while a reason is active |
 | `review/EveningReviewDecider.kt`, `review/ReviewText.kt`, `review/RuleOutcome.kt` | **Pure.** When the evening review is due and when the moment is heard again; durations, the app line, the server's instants; a rule-create status → what the screen does |
-| `review/EveningReviewRunner.kt`, `review/EveningReviewNotifier.kt`, `review/ReviewPreferences.kt` | The review after each sync run: hear the moment, ask `agent-unmapped`, post the question; its switch and state |
+| `review/EveningReviewRunner.kt`, `review/EveningReviewNotifier.kt`, `review/ReviewPreferences.kt` | The review after each sync run: hear the moment, ask `unmapped`, post the question; its switch and state |
 | `review/ReviewActivity.kt` | The review screen: one card per unmapped app — map to the suggestion, choose an activity, ignore, skip |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
 | `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (incl. the notification permission) |
@@ -215,16 +215,16 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   the service still runs.
 
 ### Evening review of unmapped time
-- **The server decides what is unmapped and worth asking** (`GET /activity-tracking/android/agent-unmapped`: today on
+- **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on
   the user's clock, resolved by `AndroidMappingRuleSet`; a package needs ≥ 5 min, at most 5, and under 15 min in all
   `apps` is empty). The phone repeats none of it — empty means say nothing. Mapping stays server-only: the phone
-  sends a **package name and a target** (`POST …/agent-rules`, `{packageName, activityId | isIgnored}`) and the
+  sends a **package name and a target** (`POST …/rules`, `{packageName, activityId | isIgnored}`) and the
   server builds the exact-package rule, so a phone token can never author a matcher.
 - **Mapping pays off tonight.** The rule create also attributes the package's sessions already stored today to the
   activity (the sync only attributes sessions it newly stores), and `attributedSeconds` is what the card reports.
   Earlier days are not backfilled.
 - **When it runs:** from `UsageSyncWorker`, right after `SyncEngine.run`, so the sessions it asks about were just
-  sent. It is due on the first run at or after the **server's evening-shutdown moment** (`GET user/evening-shutdown-moment`:
+  sent. It is due on the first run at or after the **server's evening-shutdown moment** (`GET tracker/evening-shutdown-moment`:
   bed time less the user's offset), for 3 h after; later than that the evening is skipped, not asked about at 2 a.m.
   The moment is heard again once it has been used or is 6 h old; reviews are at least 12 h apart
   (`EveningReviewDecider`). There is no alarm, so it lands up to ~15 min late.

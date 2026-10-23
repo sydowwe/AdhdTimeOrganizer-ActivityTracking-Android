@@ -15,7 +15,7 @@ data class RefreshRequest(
 )
 
 /**
- * `ExtensionLoginResponse`: either the token pair, or `requiresTwoFactor` with a `pendingAuthToken` for the
+ * `TrackerLoginResponse`: either the token pair, or `requiresTwoFactor` with a `pendingAuthToken` for the
  * second step. `requiresTwoFactorSetup` means the account must enable 2FA first, which only the web app can do.
  */
 data class AuthResponse(

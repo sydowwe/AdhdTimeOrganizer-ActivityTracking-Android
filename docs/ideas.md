@@ -26,7 +26,7 @@ it. A phone is where drift happens fastest — one notification, one tap, twenty
 moment of opening is worth far more than seeing it on tomorrow's dashboard.
 
 **How.**
-- **Server:** `GET /api/activity-tracking/android/now` returning the planner block covering *now* (activity,
+- **Server:** `GET /api/tracker/android/now` returning the planner block covering *now* (activity,
   end time) and the user's **distraction list resolved to packages**: every exact-package android rule whose
   target activity/category the user flagged as a distraction. Exact packages only — that is a set lookup, not a
   matcher, so the single-matcher rule holds. Pattern rules stay server-side; the phone simply doesn't nudge on
@@ -221,7 +221,7 @@ or `WAITING` for more than 24 h with sessions pending. Once per condition, clear
 **Why.** (From the desktop list.) Accounts created with Google have no password. The phone can't sign them in.
 
 **How.** Custom Tabs + an app-link redirect (`https://…/auth/android/callback`) or a custom scheme, PKCE, and a
-server endpoint pair to issue and exchange a one-time code for the usual extension token pair. Same server work
+server endpoint pair to issue and exchange a one-time code for the usual tracker token pair. Same server work
 as the desktop's loopback flow — build them together.
 
 **Catches.** Revisits the 2026-10-12 decision against pairing codes; decide it explicitly. App links need
@@ -236,7 +236,7 @@ time is invisible in History. A two-minute evening ritual — "1 h 40 m on your 
 **What was built.** A local notification at the user's evening-shutdown moment opens a review screen: one card per
 unmapped app, mapped with a tap to the activity the user's timers suggest, to another they pick, ignored, or
 skipped. See `CLAUDE.md` → "Evening review" for the rules; the server side is the Tracking slice's
-`AndroidAgentUnmappedEndpoint` / `CreateAndroidAgentRuleEndpoint`.
+`AndroidTrackerUnmappedEndpoint` / `CreateAndroidTrackerRuleEndpoint`.
 
 **Not built, still open.** A line about it in the web evening-shutdown push (the push would have to stop being
 "tomorrow only"; a web push also cannot deep-link into this app). A review for earlier days: the rule create
