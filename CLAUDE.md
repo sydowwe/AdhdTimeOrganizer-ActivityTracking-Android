@@ -38,7 +38,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `review/EveningReviewRunner.kt`, `review/EveningReviewNotifier.kt`, `review/ReviewPreferences.kt` | The review after each sync run: hear the moment, ask `unmapped`, post the question; its switch and state |
 | `review/ReviewActivity.kt` | The review screen: one card per unmapped app — map to the suggestion, choose an activity, ignore, skip |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
-| `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (incl. the notification permission) |
+| `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (red banner while usage access is off, amber while setup is unfinished) |
+| `SettingsActivity.kt` | The set-once things: usage access, battery-optimization exemption, notification permission — a check and "Manage" (the system page; an app can't revoke these itself) once granted. Opens by itself on first run |
 
 `app/schemas/` holds Room's exported schema. Commit it with any entity change and write a real migration.
 
@@ -173,9 +174,11 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   watcher's silent "Focus watch" and the "Evening review" question today.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
-- **`POST_NOTIFICATIONS` (API 33+) is asked for only from the status screen's Notifications card**, which says
-  in one line what it is for — never at launch. Once the system stops showing its dialog, the card opens the
-  app's notification settings instead. Every post goes through `Notifications.post`, which checks the
+- **`POST_NOTIFICATIONS` (API 33+) is asked for only from the settings screen's Notifications card**, which says
+  in one line what it is for — never as a system dialog at launch. The settings screen opens by itself once, on the
+  first open of the status screen after install; after that, the gear and the status screen's amber setup banner
+  (shown while the battery exemption or notifications are missing) lead to it. Once the system stops showing its
+  dialog, the card opens the app's notification settings instead. Every post goes through `Notifications.post`, which checks the
   permission, the app switch and the channel.
 - **"Sync blocked" is one notification, posted once per condition** (`SyncBlockedDecider`): usage access off
   (wins: it is the only one that loses data), signed out by the server, signed out by the user, or waiting

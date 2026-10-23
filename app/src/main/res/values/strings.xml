@@ -1,10 +1,26 @@
 <resources>
     <string name="app_name">TimeOrganizer Usage Tracker</string>
 
-    <!-- Permission card -->
-    <string name="permission_granted">Usage access granted</string>
-    <string name="permission_denied">Usage access not granted — nothing new is being recorded</string>
+    <!-- Usage access banner -->
+    <string name="usage_access_banner_title">Usage access is off</string>
+    <string name="usage_access_banner_text">Your app use isn\'t being read. Android keeps it for about a week, and it\'s picked up once access is back — anything older is gone.</string>
     <string name="btn_grant_permission">Grant Usage Access</string>
+
+    <!-- Setup banner (status screen) -->
+    <string name="setup_banner_title">Setup isn\'t finished</string>
+    <string name="setup_banner_battery">Battery optimization is on — syncs may be delayed</string>
+    <string name="setup_banner_notifications">Notifications are off — you won\'t hear when syncing stops</string>
+    <string name="btn_open_settings">Open settings</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_summary">Set these once so syncing runs on time and the app can tell you when it stops.</string>
+    <string name="settings_done">Done</string>
+    <string name="settings_manage">Manage</string>
+    <string name="settings_granted">Granted</string>
+    <string name="usage_access_title">Usage Access</string>
+    <string name="usage_access_on">Usage access on — the app reads which apps you use. Without it, nothing is read until it\'s back.</string>
+    <string name="usage_access_off">Usage access off — your app use isn\'t being read. Android keeps about a week of it.</string>
 
     <!-- Battery card -->
     <string name="battery_optimized">Battery optimization active — sync may be delayed</string>
@@ -29,7 +45,7 @@
 
     <!-- Sync blocked notification -->
     <string name="notify_no_usage_access_title">Usage access is off</string>
-    <string name="notify_no_usage_access_text">Nothing new is being recorded. Tap to turn usage access back on.</string>
+    <string name="notify_no_usage_access_text">Your app use isn\'t being read; Android keeps about a week of it. Tap to turn usage access back on.</string>
     <string name="notify_session_ended_title">Signed out by the server</string>
     <string name="notify_session_ended_text">Your session ended. Sign in again to keep syncing — usage is still recorded meanwhile.</string>
     <string name="notify_signed_out_title">You\'re signed out</string>
@@ -46,7 +62,7 @@
     <string name="sync_state_up_to_date">Up to date</string>
     <string name="sync_state_waiting">Waiting — offline or the server is busy. Sessions are kept and sent later.</string>
     <string name="sync_state_signed_out">Signed out — sign in again. Sessions are kept until then.</string>
-    <string name="sync_state_no_usage_access">Usage access is off — nothing new can be recorded</string>
+    <string name="sync_state_no_usage_access">Usage access is off — nothing new is being read</string>
     <string name="sync_pending">%1$d sessions will be sent with the next sync</string>
     <string name="sync_dropped">The server ignored %1$d sessions (check the phone\'s clock)</string>
     <string name="sync_rejected">The server refused %1$d sessions as malformed; they were discarded</string>
@@ -77,10 +93,16 @@
     <string name="login_failed_code">Sign-in failed (%1$d). Try again.</string>
     <string name="login_two_factor_setup_required">Your account must set up two-factor authentication. Do it in the web app, then sign in here.</string>
     <string name="login_session_ended">Your session ended. Sign in again — nothing recorded meanwhile is lost.</string>
-    <string name="two_factor_hint">Enter the code from your authenticator app, or a recovery code.</string>
-    <string name="two_factor_code">Code</string>
+    <string name="two_factor_hint">Enter the 6-digit code from your authenticator app.</string>
+    <string name="two_factor_recovery_hint">Enter one of the recovery codes you saved when you set up two-factor authentication.</string>
+    <string name="two_factor_otp_label">6-digit code</string>
+    <string name="two_factor_recovery_code">Recovery code</string>
+    <string name="two_factor_use_recovery">Use a recovery code</string>
+    <string name="two_factor_use_authenticator">Use the authenticator code</string>
     <string name="two_factor_code_required">Enter the code</string>
-    <string name="two_factor_invalid_code">That code didn\'t work. Try the current one.</string>
+    <string name="two_factor_otp_incomplete">Enter all 6 digits</string>
+    <string name="two_factor_invalid_code">That code didn\'t work. Each sign-in allows one try: tap Sign In, then enter the current code.</string>
+    <string name="login_sign_in">Sign In</string>
     <string name="two_factor_verify">Verify</string>
 
     <!-- Evening review: notification -->

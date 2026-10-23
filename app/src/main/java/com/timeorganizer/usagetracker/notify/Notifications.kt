@@ -18,7 +18,7 @@ import com.timeorganizer.usagetracker.R
  *
  * **One channel per purpose**, so someone can mute nudges without losing the sync warnings; a feature that
  * notifies adds its own channel to [createChannels] and its own id below. `POST_NOTIFICATIONS` (API 33+) is
- * asked for only from the status screen, never at launch.
+ * asked for only from the settings screen, never at launch.
  */
 object Notifications {
 

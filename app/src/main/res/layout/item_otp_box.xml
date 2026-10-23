@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shows one digit of etOtp; the field itself sits on top and takes the taps, so the boxes are only a picture -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp"
+    android:layout_height="56dp"
+    android:layout_weight="1"
+    android:layout_marginHorizontal="4dp"
+    android:background="@drawable/bg_otp_box"
+    android:gravity="center"
+    android:importantForAccessibility="no"
+    android:textAppearance="?attr/textAppearanceHeadlineSmall" />

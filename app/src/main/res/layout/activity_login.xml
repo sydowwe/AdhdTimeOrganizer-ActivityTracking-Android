@@ -77,11 +77,46 @@
             android:textAppearance="?attr/textAppearanceBodyMedium"
             android:layout_marginBottom="8dp" />
 
+        <!-- The authenticator code: six boxes drawn from one invisible field laid over them, so typing,
+             backspace, paste and autofill all go through a single EditText. Not saved across recreation,
+             or a restored six digits would submit again. -->
+        <FrameLayout
+            android:id="@+id/otpContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp">
+
+            <LinearLayout
+                android:id="@+id/otpBoxes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+
+            <EditText
+                android:id="@+id/etOtp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@null"
+                android:cursorVisible="false"
+                android:textColor="@android:color/transparent"
+                android:textColorHint="@android:color/transparent"
+                android:textColorHighlight="@android:color/transparent"
+                android:hint="@string/two_factor_otp_label"
+                android:inputType="number"
+                android:maxLength="6"
+                android:imeOptions="actionDone"
+                android:autofillHints="2faAppOTPCode"
+                android:importantForAutofill="yes"
+                android:saveEnabled="false" />
+
+        </FrameLayout>
+
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/tilCode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/two_factor_code"
+            android:hint="@string/two_factor_recovery_code"
             android:visibility="gone"
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_marginBottom="8dp">
@@ -96,6 +131,14 @@
 
         </com.google.android.material.textfield.TextInputLayout>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCodeMode"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/two_factor_use_recovery"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/tvError"
             android:layout_width="match_parent"
@@ -109,7 +152,7 @@
             android:id="@+id/btnLogin"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Sign In"
+            android:text="@string/login_sign_in"
             android:layout_marginTop="8dp" />
 
         <ProgressBar

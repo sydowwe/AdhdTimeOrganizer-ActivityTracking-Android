@@ -2,6 +2,7 @@ package com.timeorganizer.usagetracker.data.local
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.provider.Settings
 import com.timeorganizer.usagetracker.sync.SyncCounts
 import com.timeorganizer.usagetracker.sync.SyncReport
@@ -71,6 +72,19 @@ class SyncPreferences(context: Context) {
                 .putLong(KEY_CLOCK_AHEAD, report.clockAheadMs)
                 .apply()
         }
+
+    /** Calls [onChange] on the main thread whenever a run saves its report. The caller keeps the returned handle. */
+    fun observeReport(onChange: () -> Unit): SharedPreferences.OnSharedPreferenceChangeListener {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_AT) onChange()
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        return listener
+    }
+
+    fun stopObserving(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
+    }
 
     // ANDROID_ID is scoped to this app's signing key, user and device since Android 8.
     @SuppressLint("HardwareIds")

@@ -1,15 +1,12 @@
 package com.timeorganizer.usagetracker
 
-import android.Manifest
 import android.content.Intent
-import android.net.Uri
+import android.content.SharedPreferences
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
@@ -22,6 +19,7 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.review.ReviewActivity
 import com.timeorganizer.usagetracker.review.ReviewPreferences
+import com.timeorganizer.usagetracker.sync.SyncEngine
 import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
 import com.timeorganizer.usagetracker.util.Constants
@@ -42,25 +40,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SyncPreferences
     private lateinit var authPrefs: AuthPreferences
 
-    // Permission card
-    private lateinit var tvPermissionStatus: TextView
+    // Usage access banner
+    private lateinit var bannerUsageAccess: View
     private lateinit var btnGrantPermission: Button
 
-    // Battery card
-    private lateinit var tvBatteryStatus: TextView
-    private lateinit var btnExcludeBattery: Button
-
-    // Notifications card
-    private lateinit var tvNotificationStatus: TextView
-    private lateinit var btnAllowNotifications: Button
-
-    // Once the system has stopped showing its dialog, a denial answers at once; settings are the only way left.
-    private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-            Notifications.openSettings(this)
-        }
-        updateNotificationCard()
-    }
+    // Setup banner: battery exemption and notifications, both set on the settings screen
+    private lateinit var bannerSetup: View
+    private lateinit var tvSetupBanner: TextView
 
     // Evening review card
     private lateinit var swEveningReview: MaterialSwitch
@@ -93,12 +79,10 @@ class MainActivity : AppCompatActivity() {
 
         prefs = SyncPreferences(this)
 
-        tvPermissionStatus = findViewById(R.id.tvPermissionStatus)
+        bannerUsageAccess = findViewById(R.id.bannerUsageAccess)
         btnGrantPermission = findViewById(R.id.btnGrantPermission)
-        tvBatteryStatus = findViewById(R.id.tvBatteryStatus)
-        btnExcludeBattery = findViewById(R.id.btnExcludeBattery)
-        tvNotificationStatus = findViewById(R.id.tvNotificationStatus)
-        btnAllowNotifications = findViewById(R.id.btnAllowNotifications)
+        bannerSetup = findViewById(R.id.bannerSetup)
+        tvSetupBanner = findViewById(R.id.tvSetupBanner)
         swEveningReview = findViewById(R.id.swEveningReview)
         btnReviewNow = findViewById(R.id.btnReviewNow)
         tvLastSync = findViewById(R.id.tvLastSync)
@@ -112,18 +96,9 @@ class MainActivity : AppCompatActivity() {
             PermissionHelper.openUsageAccessSettings(this)
         }
 
-        btnExcludeBattery.setOnClickListener {
-            openBatteryOptimizationSettings()
-        }
-
-        btnAllowNotifications.setOnClickListener {
-            if (Notifications.hasPermission(this)) {
-                // Granted, but the app's notifications were turned off in settings.
-                Notifications.openSettings(this)
-            } else {
-                requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
+        findViewById<View>(R.id.btnSettings).setOnClickListener { startActivity(SettingsActivity.intent(this)) }
+        bannerSetup.setOnClickListener { startActivity(SettingsActivity.intent(this)) }
+        findViewById<View>(R.id.btnOpenSettings).setOnClickListener { startActivity(SettingsActivity.intent(this)) }
 
         val reviewPrefs = ReviewPreferences(this)
         swEveningReview.isChecked = reviewPrefs.enabled
@@ -133,7 +108,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnRefreshStatus).setOnClickListener {
             tvLastSync.text = ""
             tvSyncResult.text = ""
-            updateSyncStatusCard()
+            // Sessions reach the outbox only when the usage log is read, so read it first.
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) { SyncEngine(applicationContext).recordPending() }
+                updateSyncStatusCard()
+            }
         }
 
         btnSyncNow.setOnClickListener {
@@ -151,6 +130,25 @@ class MainActivity : AppCompatActivity() {
         WorkManager.getInstance(this)
             .getWorkInfosForUniqueWorkLiveData(Constants.SYNC_NOW_WORK_NAME)
             .observe(this) { updateSyncStatusCard() }
+
+        // The first open after install goes straight to the settings that are set once.
+        if (savedInstanceState == null && SettingsActivity.takeFirstRun(this)) {
+            startActivity(SettingsActivity.intent(this))
+        }
+    }
+
+    // A periodic run can finish while the screen is open; its report would otherwise wait for the next resume.
+    private var reportListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    override fun onStart() {
+        super.onStart()
+        if (::prefs.isInitialized) reportListener = prefs.observeReport { updateSyncStatusCard() }
+    }
+
+    override fun onStop() {
+        reportListener?.let(prefs::stopObserving)
+        reportListener = null
+        super.onStop()
     }
 
     override fun onResume() {
@@ -163,38 +161,29 @@ class MainActivity : AppCompatActivity() {
         }
         // A force-stop cancels WorkManager's schedule; opening the app is what restores it.
         TimeOrganizerApp.enqueuePeriodicSync(this)
-        updatePermissionCard()
-        updateBatteryCard()
-        updateNotificationCard()
+        updateUsageAccessBanner()
+        updateSetupBanner()
         updateSyncStatusCard()
         checkBackendHealth()
     }
 
-    private fun updatePermissionCard() {
+    // Without usage access nothing is recorded, so the banner stays until it is granted.
+    private fun updateUsageAccessBanner() {
         val granted = PermissionHelper.hasUsageStatsPermission(this)
-        tvPermissionStatus.text = if (granted) {
-            getString(R.string.permission_granted)
-        } else {
-            getString(R.string.permission_denied)
-        }
-        btnGrantPermission.isEnabled = !granted
+        bannerUsageAccess.visibility = if (granted) View.GONE else View.VISIBLE
     }
 
-    private fun updateBatteryCard() {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        val isIgnoring = pm.isIgnoringBatteryOptimizations(packageName)
-        tvBatteryStatus.text = if (isIgnoring) {
-            getString(R.string.battery_not_optimized)
-        } else {
-            getString(R.string.battery_optimized)
+    private fun updateSetupBanner() {
+        val missing = buildList {
+            if (!PermissionHelper.isIgnoringBatteryOptimizations(this@MainActivity)) {
+                add(getString(R.string.setup_banner_battery))
+            }
+            if (!Notifications.canPost(this@MainActivity, Notifications.CHANNEL_SYNC_PROBLEMS)) {
+                add(getString(R.string.setup_banner_notifications))
+            }
         }
-        btnExcludeBattery.isEnabled = !isIgnoring
-    }
-
-    private fun updateNotificationCard() {
-        val allowed = Notifications.canPost(this, Notifications.CHANNEL_SYNC_PROBLEMS)
-        tvNotificationStatus.text = getString(if (allowed) R.string.notifications_on else R.string.notifications_off)
-        btnAllowNotifications.isEnabled = !allowed
+        tvSetupBanner.text = missing.joinToString("\n")
+        bannerSetup.visibility = if (missing.isEmpty()) View.GONE else View.VISIBLE
     }
 
     private fun updateSyncStatusCard() {
@@ -276,13 +265,6 @@ class MainActivity : AppCompatActivity() {
 
         startActivity(Intent(this, LoginActivity::class.java))
         finish()
-    }
-
-    private fun openBatteryOptimizationSettings() {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-            data = Uri.parse("package:$packageName")
-        }
-        startActivity(intent)
     }
 
     private fun relativeTime(timestampMs: Long): String {

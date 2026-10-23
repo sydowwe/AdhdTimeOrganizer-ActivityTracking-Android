@@ -52,7 +52,7 @@ object ForegroundWatcher {
     /**
      * Watches for [reason] until [untilMs], or moves that reason's end. `false` when nothing is watched: the end
      * has passed, or Android refused to start the service — since Android 12 it starts from the background only
-     * for an app excluded from battery optimization, which the status screen asks for.
+     * for an app excluded from battery optimization, which the settings screen asks for.
      */
     @Synchronized
     fun watch(context: Context, reason: String, untilMs: Long): Boolean {

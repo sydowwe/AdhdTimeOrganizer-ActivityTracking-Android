@@ -78,6 +78,17 @@ class SyncEngine(context: Context) {
         report
     }
 
+    /**
+     * Reads the usage log into the outbox without sending, and returns how many sessions are waiting. It is the
+     * first half of [run], so it is as safe: the rows and the cursor commit together and a later run sends them.
+     */
+    suspend fun recordPending(): Int = lock.withLock {
+        val nowMs = System.currentTimeMillis()
+        if (PermissionHelper.hasUsageStatsPermission(appContext)) record(nowMs)
+        prune(nowMs)
+        dao.unsentCount()
+    }
+
     private suspend fun record(nowMs: Long) {
         // A clock moved backwards leaves the cursor in the future; read from now rather than from nowhere.
         val cursorMs = minOf(dao.cursorMs() ?: prefs.legacyCursorMs ?: (nowMs - Constants.FIRST_RUN_BACKFILL_MS), nowMs)

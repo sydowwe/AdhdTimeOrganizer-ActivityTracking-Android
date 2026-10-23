@@ -15,7 +15,7 @@
     <!-- Also what lets the foreground watcher start from the background (Android 12+). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- API 33+: asked for from the status screen only, never at launch -->
+    <!-- API 33+: asked for from the settings screen only, never at launch -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The foreground watcher; it runs only while a feature has asked to watch. -->
@@ -46,6 +46,10 @@
 
         <activity
             android:name=".LoginActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SettingsActivity"
             android:exported="false" />
 
         <activity
