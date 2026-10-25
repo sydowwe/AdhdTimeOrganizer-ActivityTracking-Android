@@ -132,10 +132,11 @@ messaging. "It never leaves the phone" beats "it's deleted on arrival".
 - **Pause for…** 15 min / 1 h / until tomorrow, from the status screen, the tile (#3) and a notification action.
   Implementation: a paused range in the outbox DB; `SyncEngine.record` drops sessions inside it (clip the ones
   crossing its edges). The cursor still advances, so pausing never builds a backlog.
-- **Never-send list:** packages the user marks locally; their sessions are either dropped or sent as a generic
-  `"private"` package with no label, if the user wants totals to add up. Exact packages only.
-- **Sync server ignore rules down** — only exact-package `IsIgnored` rules, which are trivial to mirror; pattern
-  rules stay server-side (single-matcher rule).
+- ~~**Never-send list**~~ and ~~**sync server ignore rules down**~~ — **done (prompt 26c, 2026-10-25)** as one
+  thing, decided with the owner: there is no phone-only kind of ignore. Ignoring is the server's ordinary rule
+  (`PUT tracker/android/ignored/{packageName}`), the phone downloads every rule (`GET tracker/android/rules`, exact
+  packages only since 26a) and drops the ignored packages before the outbox. See *Ignored apps* in `CLAUDE.md`. The
+  generic `"private"` package was not built.
 
 **Catches.** Dropping sessions silently changes totals; make "private" vs "drop" an explicit choice. Paused time
 must not look like the tracker went silent — send an empty sync anyway so `TrackerSourceStatus` stays fresh.

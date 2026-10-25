@@ -37,6 +37,10 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `review/EveningReviewDecider.kt`, `review/ReviewText.kt`, `review/RuleOutcome.kt` | **Pure.** When the evening review is due and when the moment is heard again; durations, the app line, the server's instants; a rule-create status → what the screen does |
 | `review/EveningReviewRunner.kt`, `review/EveningReviewNotifier.kt`, `review/ReviewPreferences.kt` | The review after each sync run: hear the moment, ask `unmapped`, post the question; its switch and state |
 | `review/ReviewActivity.kt` | The review screen: one card per unmapped app — map to the suggestion, choose an activity, ignore, skip |
+| `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
+| `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
+| `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
+| `util/InstalledApps.kt` | Labels, icons, launcher entries and the home apps from `PackageManager`, within what `<queries>` makes visible |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
 | `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (red banner while usage access is off, amber while setup is unfinished) |
 | `SettingsActivity.kt` | The set-once things: usage access, battery-optimization exemption, notification permission — a check and "Manage" (the system page; an app can't revoke these itself) once granted. Opens by itself on first run |
@@ -120,6 +124,11 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   `coveredBy` chip and the sync's attribution both use it). The app sends package + label and never decides
   what activity a session is. If a feature here needs to know (a nudge, a widget), the server has to tell it.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
+- **The sync, rules and ignore answers are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
+  byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
+  `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
+  against it and that this copy is identical (it finds the copy by name anywhere in this checkout — keep exactly one).
+  A renamed field reads as a default and nothing complains: change the file there, copy it here, follow it in the DTOs.
 
 ### Sessions and the cursor
 - All the accounting lives in `SessionBuilder`, which has no clock and no Android types. Keep it that way.
@@ -138,8 +147,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - Sessions under 5 s are not queued (client policy, `SyncLimits.MIN_SESSION_MS`).
 - **The home screen and Recents are not sent.** They are the launcher's activities, so the log counts them as an
   app in front (a 6 s `com.sec.android.app.launcher` row between every two apps). `UsageStatsCollector.collect`
-  drops every installed home app's sessions after the build (`BuildResult.without`); the builder still sees their
-  events, so the merge rule treats the launcher as "another app in between". Earlier rows already on the server stay.
+  drops every installed home app's sessions after the build (`BuildResult.forOutbox`, which drops the ignored apps
+  too); the builder still sees their events, so the merge rule treats the launcher as "another app in between".
+  Earlier rows already on the server stay.
 
 ### Durability and threads
 - **Nothing is sent that is not in the outbox first**, and the outbox rows and the cursor commit in one Room
@@ -221,8 +231,12 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on
   the user's clock, resolved by `AndroidMappingRuleSet`; a package needs ≥ 5 min, at most 5, and under 15 min in all
   `apps` is empty). The phone repeats none of it — empty means say nothing. Mapping stays server-only: the phone
-  sends a **package name and a target** (`POST …/rules`, `{packageName, activityId | isIgnored}`) and the
+  sends a **package name and an activity** (`POST …/rules`, `{packageName, activityId}`) and the
   server builds the exact-package rule, so a phone token can never author a matcher.
+- **Ignore is the one ignore** (*Ignored apps* below): the card asks first, in the same line the "Ignored apps" screen
+  uses, then goes through `IgnoreSync.ignore` — the phone stops recording the app at once and the server is asked by
+  `PUT ignored`. The route's `isIgnored` is not used any more. Offline, the card says it is ignored on the phone and
+  the server hears with the next sync.
 - **Mapping pays off tonight.** The rule create also attributes the package's sessions already stored today to the
   activity (the sync only attributes sessions it newly stores), and `attributedSeconds` is what the card reports.
   Earlier days are not backfilled.
@@ -238,6 +252,44 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   It needs `POST_NOTIFICATIONS` like every poster, and does nothing (state untouched) without it.
 - The cards never log or keep package or activity names beyond the screen; the pick list is fetched on first use and
   dropped when the server says an activity is gone (404).
+
+### Ignored apps
+- **One kind of ignore** (decided 2026-10-22): the server's ordinary exact-package ignore rule. There is no phone-only
+  ignore. Since 26a the server neither stores an ignored package's sessions (the sync's `ignored` count) nor keeps the
+  ones it had (`PUT` purges them) — that is the failsafe, and what makes an ignore survive a reinstall. The phone's
+  part is not to upload them at all.
+- **The phone holds exact package names from the server, never a matcher.** `GET tracker/android/rules` is every
+  active rule (`{packageName, appLabel, target: ignored | activity | roleCategory, targetName}`); the ignored set is
+  the `ignored` ones. Cached with its `ETag` in prefs (`IgnoreStore`, not Room: two small blobs), refreshed at the
+  start of every `SyncEngine.run` while signed in, before the usage log is read; a `304` keeps it.
+- **What the phone drops** (`IgnoreState.ignored`): `server ignored ∪ pending ignores − pending stops`. A pending op
+  is `(package, IGNORE | UNIGNORE, sinceMs)`. It clears when its call succeeds (the cached rules are patched at once,
+  and the `ETag` dropped, so the package doesn't fall out of the set until the next fetch) or when a fetched list
+  agrees. **A pending ignore older than 7 days stops counting** — the phone uploads the app again — and so does any op
+  the server refused (400 / 422); both stay listed as "couldn't save" until retried or a fetch agrees. A failed call
+  must not leave the phone dropping, forever, an app the server never heard about. A stop never expires: it already
+  records the app.
+- **The drop point** is `UsageStatsCollector.collect` → `BuildResult.forOutbox(home, ignored)`, after the build, like
+  the home apps. **Rows queued before the phone knew** are deleted from the outbox: on every run before sending
+  (`OutboxPurge` over `unsentPackages`, then `deleteUnsentOf`) and at once when the user ignores. Sent rows and the
+  cursor need nothing.
+- **Pending ops are sent by the sync run**, after the rules refresh. `IgnoreCallOutcome`: 2xx confirmed, 400 / 422
+  rejected, 401 stops the loop (the normal auth path), **everything else keeps the op** — offline, 5xx, 429, the 409
+  race on the server's unique index, and a 404 (a proxy, or a server from before 26a: deploy the server first). An
+  ignore from the screen or the review also tries the call at once.
+- **The "Ignored apps" screen** (`IgnoredAppsActivity`, from the status screen's card): the apps with ≥ 1 min in
+  front in the last 7 days (`queryAndAggregateUsageStats`) and a launcher entry, minus home apps and this app,
+  busiest first, top 30 then "Show all"; below them every ignored or pending app not in that list (unused lately or
+  uninstalled, with the server's label), so every ignore can be undone. Each row: icon, label, time this week, what
+  the rules make of it ("Mapped to Thesis", "Ignored", pending, couldn't save) and **Ignore** / **Stop ignoring**. No
+  installed-app list is uploaded. Both ask first in one line (`IgnoreDialogs`); an ignore of a mapped app says the
+  mapping stops.
+- **An account switch clears the rules and the pending ops** with the outbox (`SyncEngine.onSignedIn`).
+- **No `QUERY_ALL_PACKAGES`** (since 26c). Play restricts it to apps whose core purpose needs every package, and
+  nothing here does: the manifest's `<queries>` for `MAIN`/`LAUNCHER` and `MAIN`/`HOME` make every app with a launcher
+  entry and every home app visible, which is all the labels, icons, the screen and the home drop need. **The cost:**
+  an app with no launcher entry (a separate in-call screen, a system dialog) is invisible, so its sessions go out with
+  the package name as their label, and the screen never offers it (the evening review still can).
 
 ### Privacy and logging
 - No email, name, password or token in logs. The OkHttp logger is `BASIC` in debug and off in release, with

@@ -3,6 +3,10 @@
 -keepattributes Signature
 -keepattributes *Annotation*
 
+# Stored as JSON in prefs: renamed fields would make an updated app unable to read what the previous one wrote
+-keep class com.timeorganizer.usagetracker.ignore.PendingIgnoreOp { *; }
+-keep enum com.timeorganizer.usagetracker.ignore.IgnoreOpKind { *; }
+
 # Retrofit
 -keepattributes RuntimeVisibleAnnotations, RuntimeInvisibleAnnotations
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call

@@ -129,7 +129,8 @@
     <string name="review_saving">Saving…</string>
     <string name="review_mapped">Mapped to %1$s</string>
     <string name="review_mapped_added">Mapped to %1$s — %2$s added to History</string>
-    <string name="review_ignored">Ignored — it won\'t be asked about again</string>
+    <string name="review_ignored">Ignored — its time is deleted and it isn\'t recorded any more</string>
+    <string name="review_ignored_pending">Ignored on this phone — the server hears about it with the next sync</string>
     <string name="review_choose_activity">Map to which activity?</string>
     <string name="review_no_activities">You have no activities yet. Add some in the web app.</string>
     <string name="review_nothing">Nothing to review — today\'s phone time is mapped, or too little is left to ask about.</string>
@@ -139,4 +140,45 @@
     <string name="review_already_mapped">That app was mapped meanwhile — reloaded.</string>
     <string name="review_activity_gone">That activity no longer exists. Choose another.</string>
     <string name="review_save_failed">Couldn\'t save — check the connection and try again.</string>
+
+    <!-- Ignored apps: status card -->
+    <string name="ignored_card_hint">An ignored app isn\'t recorded on this phone, and the time already stored for it is deleted.</string>
+    <string name="btn_ignored_apps">Manage ignored apps</string>
+    <plurals name="ignored_count">
+        <item quantity="one">%1$d app is ignored</item>
+        <item quantity="other">%1$d apps are ignored</item>
+    </plurals>
+    <string name="ignored_count_none">No app is ignored</string>
+
+    <!-- Ignored apps: screen -->
+    <string name="ignored_title">Ignored apps</string>
+    <string name="ignored_summary">The apps you used in the last 7 days, busiest first. Ignore one and this phone stops recording it.</string>
+    <string name="ignored_others_header">Ignored, not used this week</string>
+    <string name="ignored_show_all">Show all (%1$d more)</string>
+    <string name="ignored_nothing_used">No app was used for a minute or more in the last 7 days.</string>
+    <string name="ignored_no_usage_access">Usage access is off, so this week\'s apps can\'t be listed.</string>
+    <string name="ignored_time_week">%1$s this week</string>
+    <string name="ignored_state_mapped">Mapped to %1$s</string>
+    <string name="ignored_state_ignored">Ignored</string>
+    <string name="ignored_state_ignoring">Ignored — the server hears about it with the next sync</string>
+    <string name="ignored_state_stopping">Recorded again — the server hears about it with the next sync</string>
+    <string name="ignored_state_ignore_failed">Couldn\'t save the ignore, so it\'s recorded again. Tap Ignore to retry.</string>
+    <string name="ignored_state_stop_failed">The server refused to stop ignoring it. Tap Stop ignoring to retry.</string>
+    <string name="ignore_action">Ignore</string>
+    <string name="stop_ignoring_action">Stop ignoring</string>
+    <string name="ignore_confirm_title">Ignore %1$s?</string>
+    <string name="ignore_confirm_text">%1$s\'s recorded time is deleted, and from now on its use isn\'t recorded. Stopping later won\'t bring that time back.</string>
+    <string name="ignore_confirm_mapped">It is mapped to %1$s now; that stops.</string>
+    <string name="stop_ignoring_confirm_title">Stop ignoring %1$s?</string>
+    <string name="stop_ignoring_confirm_text">From now on %1$s is recorded again. Time while it was ignored stays unrecorded.</string>
+    <string name="ignored_done">%1$s is ignored</string>
+    <string name="ignored_done_purged">%1$s is ignored — %2$d recorded sessions deleted</string>
+    <string name="ignored_done_pending">%1$s is ignored on this phone. The server hears about it with the next sync.</string>
+    <string name="ignored_refused">The server refused the ignore, so the app is still recorded.</string>
+    <string name="stopped_ignoring_done">%1$s is recorded again</string>
+    <string name="stopped_ignoring_pending">%1$s is recorded again. The server hears about it with the next sync.</string>
+    <string name="stopped_ignoring_refused">The server refused, so the app stays ignored.</string>
+
+    <!-- Sync status card -->
+    <string name="sync_ignored">%1$d sessions of ignored apps weren\'t stored</string>
 </resources>

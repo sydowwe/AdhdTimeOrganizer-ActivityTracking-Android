@@ -53,7 +53,8 @@ class SyncPreferences(context: Context) {
             sent = SyncCounts(
                 accepted = prefs.getInt(KEY_ACCEPTED, 0),
                 duplicates = prefs.getInt(KEY_DUPLICATES, 0),
-                dropped = prefs.getInt(KEY_DROPPED, 0)
+                dropped = prefs.getInt(KEY_DROPPED, 0),
+                ignored = prefs.getInt(KEY_IGNORED, 0)
             ),
             rejected = prefs.getInt(KEY_REJECTED, 0),
             pending = prefs.getInt(KEY_PENDING, 0),
@@ -67,6 +68,7 @@ class SyncPreferences(context: Context) {
                 .putInt(KEY_ACCEPTED, report.sent.accepted)
                 .putInt(KEY_DUPLICATES, report.sent.duplicates)
                 .putInt(KEY_DROPPED, report.sent.dropped)
+                .putInt(KEY_IGNORED, report.sent.ignored)
                 .putInt(KEY_REJECTED, report.rejected)
                 .putInt(KEY_PENDING, report.pending)
                 .putLong(KEY_CLOCK_AHEAD, report.clockAheadMs)
@@ -102,6 +104,7 @@ class SyncPreferences(context: Context) {
         const val KEY_ACCEPTED = "report_accepted"
         const val KEY_DUPLICATES = "report_duplicates"
         const val KEY_DROPPED = "report_dropped"
+        const val KEY_IGNORED = "report_ignored"
         const val KEY_REJECTED = "report_rejected"
         const val KEY_PENDING = "report_pending"
         const val KEY_CLOCK_AHEAD = "report_clock_ahead"

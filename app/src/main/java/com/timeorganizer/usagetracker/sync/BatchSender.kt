@@ -14,9 +14,9 @@ sealed interface BatchResult {
     data object Rejected : BatchResult
 }
 
-data class SyncCounts(val accepted: Int = 0, val duplicates: Int = 0, val dropped: Int = 0) {
+data class SyncCounts(val accepted: Int = 0, val duplicates: Int = 0, val dropped: Int = 0, val ignored: Int = 0) {
     operator fun plus(other: SyncCounts) =
-        SyncCounts(accepted + other.accepted, duplicates + other.duplicates, dropped + other.dropped)
+        SyncCounts(accepted + other.accepted, duplicates + other.duplicates, dropped + other.dropped, ignored + other.ignored)
 }
 
 object ResponseClassifier {

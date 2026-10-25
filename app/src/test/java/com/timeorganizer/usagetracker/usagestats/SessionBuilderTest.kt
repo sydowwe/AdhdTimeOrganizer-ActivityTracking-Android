@@ -215,6 +215,30 @@ class SessionBuilderTest {
         assertEquals(30_000L, filtered.resumeFromMs)
     }
 
+    /**
+     * The outbox gets neither the home screen nor an ignored app. Both are left out after the build, so an ignored app
+     * between two sittings of another still separates them, as any other app would — the phone neither records the
+     * ignored app nor stretches its neighbour over it.
+     */
+    @Test
+    fun theOutbox_leavesOutHomeAndIgnoredApps_andTheyStillSeparateSittings() {
+        val result = build(
+            120_000,
+            resumed("chat", "List", 0), paused("chat", "List", 10_000),
+            resumed("insta", "Feed", 10_500), paused("insta", "Feed", 11_000),
+            resumed("chat", "List", 11_200), paused("chat", "List", 30_000),
+            resumed("home", "Launcher", 30_000), paused("home", "Launcher", 36_000),
+            resumed("insta", "Feed", 36_000)
+        )
+
+        val queued = result.forOutbox(homePackages = setOf("home"), ignoredPackages = setOf("insta"))
+
+        assertEquals(listOf(RawSession("chat", 0, 10_000), RawSession("chat", 11_200, 30_000)), queued.sessions)
+        // An ignored app still open holds the cursor like any open session.
+        assertEquals(result.resumeFromMs, queued.resumeFromMs)
+        assertEquals(36_000L, queued.resumeFromMs)
+    }
+
     @Test
     fun leavingOutNothing_changesNothing() {
         val result = build(60_000, resumed("chat", "List", 0), paused("chat", "List", 10_000))

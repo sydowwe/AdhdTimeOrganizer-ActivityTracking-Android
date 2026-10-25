@@ -22,7 +22,11 @@ import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleResponse
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedAppDto
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
+import com.timeorganizer.usagetracker.ignore.IgnoreCallOutcome
+import com.timeorganizer.usagetracker.ignore.IgnoreDialogs
+import com.timeorganizer.usagetracker.ignore.IgnoreSync
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.util.InstalledApps
 import com.timeorganizer.usagetracker.util.applySystemBarInsets
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -32,8 +36,10 @@ import retrofit2.Response
 
 /**
  * The evening review: the apps that held the most of today's phone time without a rule, one card each — map it to
- * the activity the user's timers suggest, pick another, ignore it, or skip it. Every answer is the server's rule
- * create, which also puts the package's time already stored today into History, so a tap pays off tonight.
+ * the activity the user's timers suggest, pick another, ignore it, or skip it. A mapping is the server's rule
+ * create, which also puts the package's time already stored today into History, so a tap pays off tonight. Ignore is
+ * the one ignore the "Ignored apps" screen uses too ([IgnoreSync]): the phone stops recording the app at once and the
+ * server deletes what it stored.
  *
  * The list is the server's (`unmapped`) and is read fresh each time the screen opens; the phone decides
  * nothing about what is unmapped or worth asking. Nothing here is logged: package and activity names are personal.
@@ -127,7 +133,7 @@ class ReviewActivity : AppCompatActivity() {
             chooseActivity { choice -> submit(card, CreateTrackerRuleRequest(app.packageName, activityId = choice.id), choice.name) }
         }
         card.findViewById<View>(R.id.btnIgnore).setOnClickListener {
-            submit(card, CreateTrackerRuleRequest(app.packageName, isIgnored = true), activityName = null)
+            IgnoreDialogs.confirmIgnore(this, app.appLabel, mappedTo = null) { ignore(card, app) }
         }
         card.findViewById<View>(R.id.btnSkip).setOnClickListener {
             rows.removeView(card)
@@ -136,7 +142,30 @@ class ReviewActivity : AppCompatActivity() {
         return card
     }
 
-    private fun submit(card: View, request: CreateTrackerRuleRequest, activityName: String?) {
+    /** Not a rule create: the phone drops the app from now on even if the server can't be reached yet. */
+    private fun ignore(card: View, app: UnmappedAppDto) {
+        setActionsEnabled(card, false)
+        status(card, getString(R.string.review_saving))
+
+        lifecycleScope.launch {
+            val label = withContext(Dispatchers.IO) { InstalledApps(this@ReviewActivity).label(app.packageName) } ?: app.appLabel
+            val result = IgnoreSync(this@ReviewActivity).ignore(app.packageName, label)
+            if (result.outcome == IgnoreCallOutcome.REJECTED) {
+                status(card, getString(R.string.review_save_failed))
+                setActionsEnabled(card, true)
+                return@launch
+            }
+            card.findViewById<View>(R.id.rowActions).visibility = View.GONE
+            status(
+                card,
+                getString(if (result.outcome == IgnoreCallOutcome.CONFIRMED) R.string.review_ignored else R.string.review_ignored_pending)
+            )
+            answeredAny = true
+            afterRowSettled()
+        }
+    }
+
+    private fun submit(card: View, request: CreateTrackerRuleRequest, activityName: String) {
         setActionsEnabled(card, false)
         status(card, getString(R.string.review_saving))
 
@@ -167,8 +196,7 @@ class ReviewActivity : AppCompatActivity() {
         }
     }
 
-    private fun saved(body: CreateTrackerRuleResponse?, activityName: String?): String = when {
-        activityName == null -> getString(R.string.review_ignored)
+    private fun saved(body: CreateTrackerRuleResponse?, activityName: String): String = when {
         body != null && body.attributedSeconds > 0 ->
             getString(R.string.review_mapped_added, activityName, ReviewText.duration(body.attributedSeconds.toLong()))
         else -> getString(R.string.review_mapped, activityName)

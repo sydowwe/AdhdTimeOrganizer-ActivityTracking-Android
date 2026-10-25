@@ -16,6 +16,8 @@ import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.timeorganizer.usagetracker.ignore.IgnoreStore
+import com.timeorganizer.usagetracker.ignore.IgnoredAppsActivity
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.review.ReviewActivity
 import com.timeorganizer.usagetracker.review.ReviewPreferences
@@ -51,6 +53,9 @@ class MainActivity : AppCompatActivity() {
     // Evening review card
     private lateinit var swEveningReview: MaterialSwitch
     private lateinit var btnReviewNow: Button
+
+    // Ignored apps card
+    private lateinit var tvIgnoredCount: TextView
 
     // Sync status card
     private lateinit var tvLastSync: TextView
@@ -104,6 +109,9 @@ class MainActivity : AppCompatActivity() {
         swEveningReview.isChecked = reviewPrefs.enabled
         swEveningReview.setOnCheckedChangeListener { _, checked -> reviewPrefs.enabled = checked }
         btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
+
+        tvIgnoredCount = findViewById(R.id.tvIgnoredCount)
+        findViewById<View>(R.id.btnIgnoredApps).setOnClickListener { startActivity(IgnoredAppsActivity.intent(this)) }
 
         findViewById<Button>(R.id.btnRefreshStatus).setOnClickListener {
             tvLastSync.text = ""
@@ -164,7 +172,21 @@ class MainActivity : AppCompatActivity() {
         updateUsageAccessBanner()
         updateSetupBanner()
         updateSyncStatusCard()
+        updateIgnoredCard()
         checkBackendHealth()
+    }
+
+    private fun updateIgnoredCard() {
+        lifecycleScope.launch {
+            val count = withContext(Dispatchers.IO) {
+                IgnoreStore.get(applicationContext).state().ignored(System.currentTimeMillis()).size
+            }
+            tvIgnoredCount.text = if (count == 0) {
+                getString(R.string.ignored_count_none)
+            } else {
+                resources.getQuantityString(R.plurals.ignored_count, count, count)
+            }
+        }
     }
 
     // Without usage access nothing is recorded, so the banner stays until it is granted.
@@ -214,6 +236,7 @@ class MainActivity : AppCompatActivity() {
         )
         lines += getString(R.string.sync_pending, pending)
         if (report.sent.dropped > 0) lines += getString(R.string.sync_dropped, report.sent.dropped)
+        if (report.sent.ignored > 0) lines += getString(R.string.sync_ignored, report.sent.ignored)
         if (report.rejected > 0) lines += getString(R.string.sync_rejected, report.rejected)
         if (report.clockAheadMs > Constants.CLOCK_AHEAD_WARNING_MS) {
             lines += getString(R.string.sync_clock_ahead, TimeUnit.MILLISECONDS.toMinutes(report.clockAheadMs))

@@ -3,8 +3,7 @@ package com.timeorganizer.usagetracker.usagestats
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
+import com.timeorganizer.usagetracker.util.InstalledApps
 
 /**
  * Reads the OS usage-event log for a window and feeds it to [SessionBuilder]. Everything that decides what a
@@ -15,23 +14,17 @@ class UsageStatsCollector(context: Context) {
     private val usageStatsManager =
         context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
 
-    private val packageManager: PackageManager = context.packageManager
-    private val appLabelCache = mutableMapOf<String, String?>()
+    private val installedApps = InstalledApps(context)
 
     /**
-     * The home screen and Recents are the launcher's activities, so the log counts them as an app in front. They
-     * are the gaps between apps, not something the person used: left out of what is sent (client policy, like
-     * `SyncLimits.MIN_SESSION_MS`). They still count as "another app" inside [SessionBuilder]'s merge rule.
+     * The home screen and Recents are left out of what is sent (client policy, like `SyncLimits.MIN_SESSION_MS`), and
+     * so are the [ignoredPackages] (the user's ignore rules, `IgnoreState.ignored`). Both still count as "another app"
+     * inside [SessionBuilder]'s merge rule.
      */
-    private val homePackages: Set<String> by lazy {
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        packageManager.queryIntentActivities(home, 0).map { it.activityInfo.packageName }.toSet()
-    }
-
-    fun collect(fromMs: Long, toMs: Long): BuildResult {
+    fun collect(fromMs: Long, toMs: Long, ignoredPackages: Set<String> = emptySet()): BuildResult {
         val builder = SessionBuilder()
         if (!forEachEvent(fromMs, toMs, builder::onEvent)) return builder.build(fromMs)
-        return builder.build(toMs).without(homePackages)
+        return builder.build(toMs).forOutbox(installedApps.homePackages, ignoredPackages)
     }
 
     /** The events from [fromMs] (inclusive) to [toMs] (exclusive), translated the same way — for the watcher. */
@@ -59,17 +52,10 @@ class UsageStatsCollector(context: Context) {
 
     /**
      * The label as the launcher shows it, resolved when the session is built rather than when it is sent, so
-     * an app uninstalled in between still has its name. `null` when the package is already gone;
-     * `SyncLimits` falls back to the package name.
+     * an app uninstalled in between still has its name. `null` when the package is already gone, or has no launcher
+     * entry (the manifest's `<queries>` hide it); `SyncLimits` falls back to the package name.
      */
-    fun resolveLabel(packageName: String): String? = appLabelCache.getOrPut(packageName) {
-        try {
-            val appInfo = packageManager.getApplicationInfo(packageName, 0)
-            packageManager.getApplicationLabel(appInfo).toString()
-        } catch (_: PackageManager.NameNotFoundException) {
-            null
-        }
-    }
+    fun resolveLabel(packageName: String): String? = installedApps.label(packageName)
 
     private fun kindOf(eventType: Int): EventKind = when (eventType) {
         UsageEvents.Event.ACTIVITY_RESUMED -> EventKind.RESUMED

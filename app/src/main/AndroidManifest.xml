@@ -6,9 +6,21 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
 
-    <!-- Needed to resolve human-readable app labels for all installed packages -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
+    <!--
+        Package visibility without QUERY_ALL_PACKAGES (a permission Play restricts): every app with a launcher entry
+        (labels, icons, the "Ignored apps" list) and the home apps (left out of what is sent). An app with neither is
+        invisible: its sessions go out with the package name as their label.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
 
     <!-- WorkManager declares its own boot receiver. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -54,6 +66,10 @@
 
         <activity
             android:name=".review.ReviewActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ignore.IgnoredAppsActivity"
             android:exported="false" />
 
         <!-- specialUse: no other type fits; the subtype is what Play's declaration review reads. -->

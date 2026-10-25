@@ -27,13 +27,13 @@ data class TrackerActivityDto(
 )
 
 /**
- * `POST tracker/android/rules`: one package to an activity, or ignored. Exactly one of [activityId]
- * and [isIgnored] is set; the server builds the exact-package rule itself.
+ * `POST tracker/android/rules`: one package to an activity; the server builds the exact-package rule itself. The route
+ * also takes `isIgnored`, but the phone ignores only through `PUT tracker/android/ignored/{packageName}` — one ignore,
+ * which the phone also stops uploading (`ignore/IgnoreSync`).
  */
 data class CreateTrackerRuleRequest(
     val packageName: String,
-    val activityId: Long? = null,
-    val isIgnored: Boolean? = null
+    val activityId: Long
 )
 
 data class CreateTrackerRuleResponse(

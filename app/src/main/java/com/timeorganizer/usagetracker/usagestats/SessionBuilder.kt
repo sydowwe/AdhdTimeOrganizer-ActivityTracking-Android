@@ -155,4 +155,10 @@ data class BuildResult(
     /** The same result without [packages]' sessions. Where the next query starts does not move. */
     fun without(packages: Set<String>): BuildResult =
         if (packages.isEmpty()) this else copy(sessions = sessions.filter { it.packageName !in packages })
+
+    /**
+     * What may enter the outbox: neither the home screen nor an ignored app. Both are dropped after the build, so the
+     * builder still saw their events and treats them as "another app in between" for the merge rule.
+     */
+    fun forOutbox(homePackages: Set<String>, ignoredPackages: Set<String>): BuildResult = without(homePackages + ignoredPackages)
 }

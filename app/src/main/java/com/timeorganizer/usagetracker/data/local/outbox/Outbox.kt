@@ -74,6 +74,13 @@ abstract class OutboxDao {
     @Query("DELETE FROM pending_session WHERE id = :id")
     abstract suspend fun delete(id: Long)
 
+    @Query("SELECT DISTINCT packageName FROM pending_session WHERE sentAtMs IS NULL")
+    abstract suspend fun unsentPackages(): List<String>
+
+    /** An ignored package's queued sessions: recorded before the phone knew the rule, they must never leave. */
+    @Query("DELETE FROM pending_session WHERE sentAtMs IS NULL AND packageName IN (:packages)")
+    abstract suspend fun deleteUnsentOf(packages: List<String>): Int
+
     /** A sent row whose start is behind the cursor can never be rebuilt, so it no longer guards anything. */
     @Query("DELETE FROM pending_session WHERE sentAtMs IS NOT NULL AND startMs < :cursorMs")
     abstract suspend fun pruneSent(cursorMs: Long)

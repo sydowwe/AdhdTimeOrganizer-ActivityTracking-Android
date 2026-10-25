@@ -1,0 +1,19 @@
+{
+  "sync": {
+    "accepted": 3,
+    "duplicatesSkipped": 1,
+    "dropped": 0,
+    "ignored": 2,
+    "syncedUpToUtc": "2026-10-23T08:15:00.0000000Z"
+  },
+  "rules": [
+    { "packageName": "com.instagram.android", "appLabel": "Instagram", "target": "ignored", "targetName": null },
+    { "packageName": "com.reddit.frontpage", "appLabel": "Reddit", "target": "roleCategory", "targetName": "Leisure · Social" },
+    { "packageName": "com.spotify.music", "appLabel": null, "target": "activity", "targetName": "Reading" }
+  ],
+  "ignored": {
+    "ruleId": 41,
+    "purgedSessions": 12,
+    "previousTarget": { "target": "activity", "targetName": "Thesis" }
+  }
+}

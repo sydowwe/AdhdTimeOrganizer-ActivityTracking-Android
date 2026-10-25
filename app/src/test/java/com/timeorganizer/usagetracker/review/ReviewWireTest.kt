@@ -72,17 +72,15 @@ class ReviewWireTest {
         assertEquals(3000, response.attributedSeconds)
     }
 
-    /** Exactly one of activityId / isIgnored goes out; the absent one must not be sent as null-and-set. */
+    /** The review only maps through this route; it ignores through `PUT ignored` (`ignore/IgnoreSync`), so no `isIgnored`. */
     @Test
     fun ruleRequest_writesTheNamesTheServerBinds() {
         val map = gson.toJsonTree(CreateTrackerRuleRequest("com.reddit.frontpage", activityId = 42)).asJsonObject
-        val ignore = gson.toJsonTree(CreateTrackerRuleRequest("com.reddit.frontpage", isIgnored = true)).asJsonObject
 
+        assertEquals(setOf("packageName", "activityId"), map.keySet())
         assertEquals("com.reddit.frontpage", map["packageName"].asString)
         assertEquals(42L, map["activityId"].asLong)
         assertFalse(map.has("isIgnored"))
-        assertTrue(ignore["isIgnored"].asBoolean)
-        assertFalse(ignore.has("activityId"))
     }
 
     @Test

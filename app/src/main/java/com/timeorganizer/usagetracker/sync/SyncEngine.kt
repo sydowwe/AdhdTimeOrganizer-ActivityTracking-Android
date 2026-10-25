@@ -9,6 +9,9 @@ import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
+import com.timeorganizer.usagetracker.ignore.IgnoreStore
+import com.timeorganizer.usagetracker.ignore.IgnoreSync
+import com.timeorganizer.usagetracker.ignore.OutboxPurge
 import com.timeorganizer.usagetracker.notify.SyncBlockedNotifier
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.util.Constants
@@ -36,6 +39,8 @@ class SyncEngine(context: Context) {
     private val authPrefs = AuthPreferences.get(appContext)
     private val collector = UsageStatsCollector(appContext)
     private val notifier = SyncBlockedNotifier(appContext)
+    private val ignoreStore = IgnoreStore.get(appContext)
+    private val ignoreSync = IgnoreSync(appContext)
 
     private var clockAheadMs = 0L
 
@@ -44,9 +49,13 @@ class SyncEngine(context: Context) {
         val previous = prefs.lastReport
         clockAheadMs = previous.clockAheadMs
 
+        // The ignored set first, so this run's read already drops what the user ignored elsewhere.
+        if (authPrefs.isLoggedIn) syncIgnores(nowMs)
+
         val hasUsageAccess = PermissionHelper.hasUsageStatsPermission(appContext)
         if (hasUsageAccess) record(nowMs)
         prune(nowMs)
+        dropIgnoredFromOutbox(nowMs)
 
         rememberAccount()
         var sent = SyncCounts()
@@ -86,13 +95,25 @@ class SyncEngine(context: Context) {
         val nowMs = System.currentTimeMillis()
         if (PermissionHelper.hasUsageStatsPermission(appContext)) record(nowMs)
         prune(nowMs)
+        dropIgnoredFromOutbox(nowMs)
         dao.unsentCount()
+    }
+
+    /** The server's rules and the user's pending ignores. A failure leaves the cached set as it was; the run goes on. */
+    private suspend fun syncIgnores(nowMs: Long) {
+        try {
+            ignoreSync.syncWithServer(nowMs)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Recording and sending don't depend on it; the next run tries again.
+        }
     }
 
     private suspend fun record(nowMs: Long) {
         // A clock moved backwards leaves the cursor in the future; read from now rather than from nowhere.
         val cursorMs = minOf(dao.cursorMs() ?: prefs.legacyCursorMs ?: (nowMs - Constants.FIRST_RUN_BACKFILL_MS), nowMs)
-        val built = collector.collect(cursorMs, nowMs)
+        val built = collector.collect(cursorMs, nowMs, ignoreStore.state().ignored(nowMs))
 
         val rows = built.sessions.flatMap { session ->
             SyncLimits.prepare(session, collector.resolveLabel(session.packageName)).map {
@@ -106,6 +127,12 @@ class SyncEngine(context: Context) {
         dao.cursorMs()?.let { dao.pruneSent(it) }
         dao.pruneUnsentEndingBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
         dao.keepNewestUnsent(Constants.OUTBOX_MAX_UNSENT)
+    }
+
+    /** Rows queued before the phone learnt a package is ignored never leave. */
+    private suspend fun dropIgnoredFromOutbox(nowMs: Long) {
+        val doomed = OutboxPurge.packagesToDelete(dao.unsentPackages(), ignoreStore.state().ignored(nowMs))
+        doomed.chunked(SQL_VARIABLES_PER_QUERY).forEach { dao.deleteUnsentOf(it) }
     }
 
     private class SendOutcome(val counts: SyncCounts, val rejected: Int, val stoppedBy: BatchResult?, val anythingAnswered: Boolean)
@@ -163,7 +190,8 @@ class SyncEngine(context: Context) {
             SyncCounts(
                 accepted = body?.accepted ?: batch.size,
                 duplicates = body?.duplicatesSkipped ?: 0,
-                dropped = body?.dropped ?: 0
+                dropped = body?.dropped ?: 0,
+                ignored = body?.ignored ?: 0
             )
         )
     }
@@ -177,6 +205,9 @@ class SyncEngine(context: Context) {
     companion object {
         private val lock = Mutex()
         private const val PAGE_SIZE = 1_000
+
+        /** Under SQLite's oldest bound parameter limit (999). */
+        private const val SQL_VARIABLES_PER_QUERY = 500
         private val SETTLED = setOf(SyncState.SENT, SyncState.UP_TO_DATE)
 
         private val INSTANT: DateTimeFormatter =
@@ -184,14 +215,18 @@ class SyncEngine(context: Context) {
 
         /**
          * After a sign-in: when it is a different account from the one the outbox was recorded for, its queued
-         * sessions are dropped and recording starts from now — they are the previous person's phone use.
+         * sessions are dropped and recording starts from now — they are the previous person's phone use. So are the
+         * cached rules and the pending ignores: the previous person's ignores must not drop the new one's apps.
          */
         suspend fun onSignedIn(context: Context, accessToken: String) {
             val prefs = SyncPreferences(context)
             val account = JwtSubject.of(accessToken) ?: return
             val previous = prefs.accountId
             if (previous != null && previous != account) {
-                lock.withLock { OutboxDatabase.get(context).outboxDao().reset(System.currentTimeMillis()) }
+                lock.withLock {
+                    OutboxDatabase.get(context).outboxDao().reset(System.currentTimeMillis())
+                    IgnoreStore.get(context).clear()
+                }
             }
             prefs.accountId = account
         }
