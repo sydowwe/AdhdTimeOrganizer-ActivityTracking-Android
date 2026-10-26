@@ -10,6 +10,19 @@ import com.timeorganizer.usagetracker.data.api.dto.AndroidTrackerRuleDto
 import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageRequest
 import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageResponse
 import com.timeorganizer.usagetracker.data.api.dto.PreviousTargetDto
+import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkDto
+import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkRequest
+import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityRequest
+import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
+import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
+import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
+import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
+import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityDto
+import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityOptionsResponse
+import com.timeorganizer.usagetracker.data.api.dto.TrackerCategoryDto
+import com.timeorganizer.usagetracker.data.api.dto.TrackerProblem
+import com.timeorganizer.usagetracker.data.api.dto.TrackerProblemResponse
+import com.timeorganizer.usagetracker.data.api.dto.TrackerRoleDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -51,14 +64,64 @@ class WireSampleTest {
 
         assertEquals(
             listOf(
-                AndroidTrackerRuleDto("com.instagram.android", "Instagram", AndroidRuleTarget.IGNORED, null),
-                AndroidTrackerRuleDto("com.reddit.frontpage", "Reddit", AndroidRuleTarget.ROLE_CATEGORY, "Leisure · Social"),
-                AndroidTrackerRuleDto("com.spotify.music", null, AndroidRuleTarget.ACTIVITY, "Reading")
+                AndroidTrackerRuleDto("com.instagram.android", "Instagram", AndroidRuleTarget.IGNORED, null, ruleId = 7),
+                AndroidTrackerRuleDto(
+                    "com.reddit.frontpage", "Reddit", AndroidRuleTarget.ACTIVITY, "Scrolling", ruleId = 9, activityId = 31,
+                    categoryName = "Social", categoryDistraction = true, isDistraction = true
+                ),
+                AndroidTrackerRuleDto(
+                    "com.spotify.music", null, AndroidRuleTarget.ACTIVITY, "Reading", ruleId = 12, activityId = 30,
+                    activityArchived = true, ownDistraction = false
+                )
             ),
             rules
         )
         // And it means what the server meant: only the ignore rule's package is dropped.
         assertEquals(setOf("com.instagram.android"), IgnoreState(rules).serverIgnored)
+    }
+
+    /** A rules cache written before prompt 27 has none of the new fields: they read as "no id, not a distraction". */
+    @Test
+    fun aCachedRuleFromBeforePrompt27_readsWithDefaults() {
+        val rule = gson.fromJson("""{"packageName":"a","appLabel":null,"target":"activity","targetName":"X"}""", AndroidTrackerRuleDto::class.java)
+
+        assertEquals(0L, rule.ruleId)
+        assertNull(rule.activityId)
+        assertFalse(rule.isDistraction)
+    }
+
+    @Test
+    fun theActivitiesSample_readsEveryPart() {
+        val options = gson.fromJson(samples["activities"], TrackerActivityOptionsResponse::class.java)
+
+        assertEquals(listOf(TrackerActivityDto(30, "Reading", 3, null), TrackerActivityDto(31, "Scrolling", 4, 8)), options.activities)
+        assertEquals(listOf(TrackerRoleDto(3, "Hobby"), TrackerRoleDto(4, "Phone app")), options.roles)
+        assertEquals(listOf(TrackerCategoryDto(8, "Social", true)), options.categories)
+        assertEquals(4L, options.phoneAppRoleId)
+        assertEquals(listOf(AppCategoryLinkDto("Social", 4, 8)), options.appCategoryLinks)
+    }
+
+    @Test
+    fun theMappingAnswers_readEveryField() {
+        assertEquals(
+            CreateTrackerActivityResponse(32, 4, 13, 1800),
+            gson.fromJson(samples["activityCreated"], CreateTrackerActivityResponse::class.java)
+        )
+        assertEquals(TrackerProblemResponse(TrackerProblem.NAME_TAKEN, 31), gson.fromJson(samples["problem"], TrackerProblemResponse::class.java))
+        assertEquals(DistractionResponse(null, true), gson.fromJson(samples["distraction"], DistractionResponse::class.java))
+        assertEquals(AppCategoryLinkDto("Game", null, 8), gson.fromJson(samples["appCategoryLink"], AppCategoryLinkDto::class.java))
+    }
+
+    /** "Follow the category" is the server's `null`, which Gson writes by leaving the field out — the same thing there. */
+    @Test
+    fun theMappingRequests_writeTheServersNames() {
+        assertEquals(
+            setOf("name", "roleId", "categoryId", "isDistraction", "mapPackage", "appLabel", "backfillDays"),
+            gson.toJsonTree(CreateTrackerActivityRequest("Reddit", 4, 8, true, "com.reddit", "Reddit", 6)).asJsonObject.keySet()
+        )
+        assertFalse(gson.toJsonTree(SetDistractionRequest(null)).asJsonObject.has("isDistraction"))
+        assertEquals(setOf("activityId"), gson.toJsonTree(RepointTrackerRuleRequest(31)).asJsonObject.keySet())
+        assertEquals(setOf("roleId"), gson.toJsonTree(AppCategoryLinkRequest(4, null)).asJsonObject.keySet())
     }
 
     @Test

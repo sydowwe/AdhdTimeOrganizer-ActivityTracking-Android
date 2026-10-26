@@ -1,9 +1,12 @@
 package com.timeorganizer.usagetracker.util
 
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import com.timeorganizer.usagetracker.ignore.AppUsage
+import com.timeorganizer.usagetracker.mapping.AppCategory
 
 /**
  * What `PackageManager` says about other apps. The app sees only the packages its manifest's `<queries>` name — every
@@ -41,4 +44,26 @@ class InstalledApps(context: Context) {
     }
 
     fun hasLauncherEntry(packageName: String): Boolean = packageManager.getLaunchIntentForPackage(packageName) != null
+
+    /**
+     * The category the app declares for itself (`ApplicationInfo.category`), by the server's name (`mapping/AppCategory`);
+     * `null` when it declares none, is gone, or is not visible. The activity picker filters by it.
+     */
+    fun appCategory(packageName: String): String? = try {
+        AppCategory.of(packageManager.getApplicationInfo(packageName, 0).category)
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+
+    /**
+     * The apps with ≥ [minForegroundMs] in front in the [windowMs] before [nowMs] and a launcher entry, as the OS aggregates
+     * them — the "recently used" list the "Ignored apps" screen and "Mapped apps"' "Add app" both pick from. Needs usage access.
+     */
+    fun recentlyUsed(context: Context, nowMs: Long, windowMs: Long, minForegroundMs: Long): List<AppUsage> {
+        val manager = context.getSystemService(UsageStatsManager::class.java) ?: return emptyList()
+        return manager.queryAndAggregateUsageStats(nowMs - windowMs, nowMs).values
+            .filter { it.totalTimeInForeground >= minForegroundMs }
+            .filter { hasLauncherEntry(it.packageName) }
+            .map { AppUsage(it.packageName, label(it.packageName) ?: it.packageName, it.totalTimeInForeground) }
+    }
 }

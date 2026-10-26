@@ -39,7 +39,7 @@ class IgnoredAppsListTest {
         val state = IgnoreState(
             rules = listOf(
                 AndroidTrackerRuleDto("docs", "Docs", AndroidRuleTarget.ACTIVITY, "Thesis"),
-                AndroidTrackerRuleDto("reddit", "Reddit", AndroidRuleTarget.ROLE_CATEGORY, "Leisure · Social"),
+                AndroidTrackerRuleDto("reddit", "Reddit", AndroidRuleTarget.ACTIVITY, "Scrolling"),
                 AndroidTrackerRuleDto("insta", "Instagram", AndroidRuleTarget.IGNORED, null)
             )
         )
@@ -49,7 +49,7 @@ class IgnoredAppsListTest {
         ).recent.associateBy { it.packageName }
 
         assertEquals("Thesis", rows.getValue("docs").mappedTo)
-        assertEquals("Leisure · Social", rows.getValue("reddit").mappedTo)
+        assertEquals("Scrolling", rows.getValue("reddit").mappedTo)
         assertEquals(AppIgnoreState.IGNORED, rows.getValue("insta").state)
         assertNull(rows.getValue("insta").mappedTo)
         assertEquals(AppIgnoreState.NONE, rows.getValue("chat").state)

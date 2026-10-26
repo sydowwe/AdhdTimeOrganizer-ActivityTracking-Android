@@ -1,6 +1,5 @@
 package com.timeorganizer.usagetracker.ignore
 
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
@@ -101,13 +100,8 @@ class IgnoredAppsActivity : AppCompatActivity() {
     }
 
     /** The apps with ≥ 1 min in front in the window and a launcher entry, as the OS aggregates them. */
-    private fun recentUsage(nowMs: Long): List<AppUsage> {
-        val manager = getSystemService(UsageStatsManager::class.java) ?: return emptyList()
-        return manager.queryAndAggregateUsageStats(nowMs - IgnoredAppsList.WINDOW_MS, nowMs).values
-            .filter { it.totalTimeInForeground >= IgnoredAppsList.MIN_FOREGROUND_MS }
-            .filter { installedApps.hasLauncherEntry(it.packageName) }
-            .map { AppUsage(it.packageName, installedApps.label(it.packageName) ?: it.packageName, it.totalTimeInForeground) }
-    }
+    private fun recentUsage(nowMs: Long): List<AppUsage> =
+        installedApps.recentlyUsed(this, nowMs, IgnoredAppsList.WINDOW_MS, IgnoredAppsList.MIN_FOREGROUND_MS)
 
     private fun render(hasUsageAccess: Boolean) {
         val apps = IgnoredAppsList.build(usage, excluded, store.state(), System.currentTimeMillis())

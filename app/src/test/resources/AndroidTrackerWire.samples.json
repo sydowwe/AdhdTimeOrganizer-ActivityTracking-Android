@@ -7,13 +7,34 @@
     "syncedUpToUtc": "2026-10-23T08:15:00.0000000Z"
   },
   "rules": [
-    { "packageName": "com.instagram.android", "appLabel": "Instagram", "target": "ignored", "targetName": null },
-    { "packageName": "com.reddit.frontpage", "appLabel": "Reddit", "target": "roleCategory", "targetName": "Leisure · Social" },
-    { "packageName": "com.spotify.music", "appLabel": null, "target": "activity", "targetName": "Reading" }
+    { "ruleId": 7, "packageName": "com.instagram.android", "appLabel": "Instagram", "target": "ignored", "targetName": null, "activityId": null, "activityArchived": false, "categoryName": null, "ownDistraction": null, "categoryDistraction": null, "isDistraction": false },
+    { "ruleId": 9, "packageName": "com.reddit.frontpage", "appLabel": "Reddit", "target": "activity", "targetName": "Scrolling", "activityId": 31, "activityArchived": false, "categoryName": "Social", "ownDistraction": null, "categoryDistraction": true, "isDistraction": true },
+    { "ruleId": 12, "packageName": "com.spotify.music", "appLabel": null, "target": "activity", "targetName": "Reading", "activityId": 30, "activityArchived": true, "categoryName": null, "ownDistraction": false, "categoryDistraction": null, "isDistraction": false }
   ],
   "ignored": {
     "ruleId": 41,
     "purgedSessions": 12,
     "previousTarget": { "target": "activity", "targetName": "Thesis" }
-  }
+  },
+  "activities": {
+    "activities": [
+      { "id": 30, "name": "Reading", "roleId": 3, "categoryId": null },
+      { "id": 31, "name": "Scrolling", "roleId": 4, "categoryId": 8 }
+    ],
+    "roles": [
+      { "id": 3, "name": "Hobby" },
+      { "id": 4, "name": "Phone app" }
+    ],
+    "categories": [
+      { "id": 8, "name": "Social", "isDistraction": true }
+    ],
+    "phoneAppRoleId": 4,
+    "appCategoryLinks": [
+      { "appCategory": "Social", "roleId": 4, "categoryId": 8 }
+    ]
+  },
+  "activityCreated": { "activityId": 32, "roleId": 4, "ruleId": 13, "attributedSeconds": 1800 },
+  "problem": { "reason": "nameTaken", "activityId": 31 },
+  "distraction": { "ownDistraction": null, "isDistraction": true },
+  "appCategoryLink": { "appCategory": "Game", "roleId": null, "categoryId": 8 }
 }

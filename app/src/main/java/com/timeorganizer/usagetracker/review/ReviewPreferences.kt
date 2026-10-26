@@ -28,10 +28,27 @@ class ReviewPreferences(context: Context) {
             }.apply()
         }
 
+    /**
+     * The review's snoozed apps ([SnoozeState]): a string set of `"<untilMs>|<package>"` (a package never holds `|`), so
+     * nothing needs a Gson keep rule. A device's own preference: an account switch keeps it, as it keeps the switch.
+     */
+    var snoozes: SnoozeState
+        get() = SnoozeState(
+            prefs.getStringSet(KEY_SNOOZES, emptySet()).orEmpty().mapNotNull { entry ->
+                val until = entry.substringBefore('|').toLongOrNull()
+                val packageName = entry.substringAfter('|', "")
+                if (until == null || packageName.isEmpty()) null else packageName to until
+            }.toMap()
+        )
+        set(value) {
+            prefs.edit().putStringSet(KEY_SNOOZES, value.until.map { (packageName, until) -> "$until|$packageName" }.toSet()).apply()
+        }
+
     private companion object {
         const val KEY_ENABLED = "enabled"
         const val KEY_MOMENT = "moment"
         const val KEY_FETCHED_AT = "fetched_at"
         const val KEY_LAST_REVIEWED = "last_reviewed"
+        const val KEY_SNOOZES = "snoozes"
     }
 }

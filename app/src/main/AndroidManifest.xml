@@ -72,6 +72,10 @@
             android:name=".ignore.IgnoredAppsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".mapping.MappedAppsActivity"
+            android:exported="false" />
+
         <!-- specialUse: no other type fits; the subtype is what Play's declaration review reads. -->
         <service
             android:name=".watch.ForegroundWatchService"

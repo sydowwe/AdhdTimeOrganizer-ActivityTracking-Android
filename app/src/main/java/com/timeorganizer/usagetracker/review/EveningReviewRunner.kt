@@ -41,7 +41,8 @@ class EveningReviewRunner(context: Context) {
     /** True when the server answered, whether or not there was anything to ask. */
     private suspend fun review(): Boolean {
         val response = try {
-            RetrofitClient.apiService.unmappedToday()
+            // Snoozed apps out of the list *and* the threshold: a snoozed app must not be the reason a notification goes out.
+            RetrofitClient.apiService.unmappedToday(prefs.snoozes.active(System.currentTimeMillis()))
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

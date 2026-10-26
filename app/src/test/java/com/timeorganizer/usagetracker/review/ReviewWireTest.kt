@@ -56,12 +56,14 @@ class ReviewWireTest {
     }
 
     @Test
-    fun activities_readIdAndName() {
+    fun activities_readIdNameRoleAndCategory() {
         val type = object : TypeToken<List<TrackerActivityDto>>() {}.type
 
-        val list: List<TrackerActivityDto> = gson.fromJson("""[{"id":7,"name":"Writing"},{"id":9,"name":"Thesis"}]""", type)
+        val list: List<TrackerActivityDto> = gson.fromJson(
+            """[{"id":7,"name":"Writing","roleId":2,"categoryId":null},{"id":9,"name":"Thesis","roleId":2,"categoryId":5}]""", type
+        )
 
-        assertEquals(listOf(TrackerActivityDto(7, "Writing"), TrackerActivityDto(9, "Thesis")), list)
+        assertEquals(listOf(TrackerActivityDto(7, "Writing", 2, null), TrackerActivityDto(9, "Thesis", 2, 5)), list)
     }
 
     @Test
@@ -77,9 +79,10 @@ class ReviewWireTest {
     fun ruleRequest_writesTheNamesTheServerBinds() {
         val map = gson.toJsonTree(CreateTrackerRuleRequest("com.reddit.frontpage", activityId = 42)).asJsonObject
 
-        assertEquals(setOf("packageName", "activityId"), map.keySet())
+        assertEquals(setOf("packageName", "activityId", "backfillDays"), map.keySet())
         assertEquals("com.reddit.frontpage", map["packageName"].asString)
         assertEquals(42L, map["activityId"].asLong)
+        assertEquals(0, map["backfillDays"].asInt)
         assertFalse(map.has("isIgnored"))
     }
 

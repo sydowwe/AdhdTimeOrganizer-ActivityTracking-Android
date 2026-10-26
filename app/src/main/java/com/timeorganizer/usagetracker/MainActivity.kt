@@ -18,6 +18,7 @@ import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoredAppsActivity
+import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.review.ReviewActivity
 import com.timeorganizer.usagetracker.review.ReviewPreferences
@@ -109,6 +110,7 @@ class MainActivity : AppCompatActivity() {
         swEveningReview.isChecked = reviewPrefs.enabled
         swEveningReview.setOnCheckedChangeListener { _, checked -> reviewPrefs.enabled = checked }
         btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
+        findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
         tvIgnoredCount = findViewById(R.id.tvIgnoredCount)
         findViewById<View>(R.id.btnIgnoredApps).setOnClickListener { startActivity(IgnoredAppsActivity.intent(this)) }

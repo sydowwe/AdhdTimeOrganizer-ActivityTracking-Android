@@ -235,13 +235,19 @@ time is invisible in History. A two-minute evening ritual — "1 h 40 m on your 
 50 m, Chrome 30 m" — raises coverage where the time actually went, one tap per app.
 
 **What was built.** A local notification at the user's evening-shutdown moment opens a review screen: one card per
-unmapped app, mapped with a tap to the activity the user's timers suggest, to another they pick, ignored, or
-skipped. See `CLAUDE.md` → "Evening review" for the rules; the server side is the Tracking slice's
+unmapped app, mapped with a tap to the activity the user's timers suggest, to another they pick, ignored,
+snoozed or skipped. See `CLAUDE.md` → "Evening review" for the rules; the server side is the Tracking slice's
 `AndroidTrackerUnmappedEndpoint` / `CreateAndroidTrackerRuleEndpoint`.
 
+**Built since (prompt 27, 2026-10-26).** Mapping is managed from the phone. "+ New activity" in every picker (an
+existing role, "Phone app" by default, an optional existing category, the distraction flag as follow / yes / no). A
+"Mapped apps" screen to change, unlink or flag each mapping, and to map a recently used app before it is ever unmapped.
+App-category links filter the picker. "Also add this week's time" when mapping (today + 6 days before). Snooze on a
+review card. The review and "Mapped apps" are both on the status screen.
+
 **Not built, still open.** A line about it in the web evening-shutdown push (the push would have to stop being
-"tomorrow only"; a web push also cannot deep-link into this app). A review for earlier days: the rule create
-backfills only the user's today. Mapping by app *label* or pattern stays a web-app thing on purpose.
+"tomorrow only"; a web push also cannot deep-link into this app). Mapping by app *label* or pattern stays a web-app
+thing on purpose, and so do roles, categories and un-archiving an activity.
 
 
 

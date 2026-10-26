@@ -36,7 +36,10 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `watch/ForegroundWatchService.kt` | The `specialUse` foreground service that polls the usage log while a reason is active |
 | `review/EveningReviewDecider.kt`, `review/ReviewText.kt`, `review/RuleOutcome.kt` | **Pure.** When the evening review is due and when the moment is heard again; durations, the app line, the server's instants; a rule-create status → what the screen does |
 | `review/EveningReviewRunner.kt`, `review/EveningReviewNotifier.kt`, `review/ReviewPreferences.kt` | The review after each sync run: hear the moment, ask `unmapped`, post the question; its switch and state |
-| `review/ReviewActivity.kt` | The review screen: one card per unmapped app — map to the suggestion, choose an activity, ignore, skip |
+| `review/ReviewActivity.kt`, `review/SnoozeState.kt` | The review screen: one card per unmapped app — map to the suggestion, choose an activity, ignore, snooze, skip; **pure** snooze expiry |
+| `mapping/MappingRules.kt`, `mapping/MappingOutcome.kt`, `mapping/MappedAppsList.kt` | **Pure.** App categories, the "+ New activity" rules (name check, defaults, the three-way flag), the picker's filter; a mapping call's answer → what the screen does; the "Mapped apps" rows and "Add app"'s list |
+| `mapping/MappingCalls.kt`, `mapping/MappingDialogs.kt` | The calls and the problem body; the one `ActivityPicker`, `NewActivityDialog`, `AppCategoryLinksDialog`, `BackfillConfirm` |
+| `mapping/MappedAppsActivity.kt` | "Mapped apps": change / unlink / distraction per mapping, "Add app", "App categories" |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
@@ -124,7 +127,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   `coveredBy` chip and the sync's attribution both use it). The app sends package + label and never decides
   what activity a session is. If a feature here needs to know (a nudge, a widget), the server has to tell it.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
-- **The sync, rules and ignore answers are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
+- **The sync, rules, ignore and mapping answers** (`activities`, `activityCreated`, `problem`, `distraction`,
+  `appCategoryLink`) **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
   byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
   `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
   against it and that this copy is identical (it finds the copy by name anywhere in this checkout — keep exactly one).
@@ -231,15 +235,45 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on
   the user's clock, resolved by `AndroidMappingRuleSet`; a package needs ≥ 5 min, at most 5, and under 15 min in all
   `apps` is empty). The phone repeats none of it — empty means say nothing. Mapping stays server-only: the phone
-  sends a **package name and an activity** (`POST …/rules`, `{packageName, activityId}`) and the
+  sends a **package name and an activity** (`POST …/rules`, `{packageName, activityId, backfillDays}`) and the
   server builds the exact-package rule, so a phone token can never author a matcher.
+- **The one activity picker** (`ActivityPicker`, the card's "Choose activity" and every picker on "Mapped apps"):
+  `GET tracker/android/activities` (activities, roles, categories, the "Phone app" role id, the app-category links) is
+  read once per screen. An app whose own category (`ApplicationInfo.category`; Digital Wellbeing's can't be read) is
+  linked opens filtered to that role / category, with "Show all". "+ New activity" (`POST tracker/android/activities`,
+  optionally mapping the package in the same call) takes an **existing** role ("Phone app" by default — the server
+  makes it on the first create if it's missing) and an optional existing category: the phone never makes roles or
+  categories. A name an active activity has → "use it?"; an archived one's → "restore it on the web" (the phone never
+  un-archives).
+- **Snooze** ("ask again in a week") is the phone's alone (`SnoozeState` in `ReviewPreferences`): the active ones go as
+  `unmapped?exclude=` from the screen *and* the runner, so a snoozed app is out of the list and of the 15-minute
+  threshold. Mapping or ignoring an app clears its snooze.
 - **Ignore is the one ignore** (*Ignored apps* below): the card asks first, in the same line the "Ignored apps" screen
   uses, then goes through `IgnoreSync.ignore` — the phone stops recording the app at once and the server is asked by
   `PUT ignored`. The route's `isIgnored` is not used any more. Offline, the card says it is ignored on the phone and
   the server hears with the next sync.
 - **Mapping pays off tonight.** The rule create also attributes the package's sessions already stored today to the
   activity (the sync only attributes sessions it newly stores), and `attributedSeconds` is what the card reports.
-  Earlier days are not backfilled.
+  "Also add this week's time" (off by default; a box on the card, in "+ New activity", and in "Add app"'s confirm)
+  sends `backfillDays = 6`, the server's `AndroidRuleBackfill.MaxDays`: today and the six days before, only sessions
+  no earlier rule resolved.
+
+### Mapped apps
+- **`MappedAppsActivity`**, from the status screen beside "Review now": one row per **activity** rule of `GET rules`
+  (ignored apps are the "Ignored apps" screen's), by label; icon and label from `PackageManager`, else the server's
+  last label. Each row: the activity (· category, · archived) and its effective distraction flag, the server's.
+- **Change** re-points the rule (`PATCH rules/{id}`), **Unlink** switches it off (`DELETE rules/{id}`; the app comes
+  back in the evening review). Both apply from now on and say so: **time already in History stays where it is** —
+  History rows carry no source, so there is nothing to move.
+- **Distraction** sets the *activity's* own flag (`PATCH activities/{id}/distraction`: follow / yes / no). When
+  other apps map to the same activity, it says so first ("also applies to Reddit, Instagram and 2 more"). Category
+  flags stay a web job.
+- **Add app**: the week's apps (as the "Ignored apps" screen lists them) minus the mapped, the ignored, the home apps
+  and this app → the picker → "Map X to Y?" with the backfill box → `POST rules`.
+- **App categories** edits the links (`PUT app-category-links/{appCategory}`; both "any" deletes one). A link only
+  filters the picker and fills a new activity's defaults; it never attributes anything.
+- A `404` body's `reason` tells `ruleGone` (another device unlinked or ignored it: reload) from `activityGone`; a
+  `409`'s tells `nameTaken` / `nameArchived` / `alreadyMapped` (`MappingOutcome`). Every answer reloads the rules.
 - **When it runs:** from `UsageSyncWorker`, right after `SyncEngine.run`, so the sessions it asks about were just
   sent. It is due on the first run at or after the **server's evening-shutdown moment** (`GET tracker/evening-shutdown-moment`:
   bed time less the user's offset), for 3 h after; later than that the evening is skipped, not asked about at 2 a.m.
@@ -259,8 +293,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   ones it had (`PUT` purges them) — that is the failsafe, and what makes an ignore survive a reinstall. The phone's
   part is not to upload them at all.
 - **The phone holds exact package names from the server, never a matcher.** `GET tracker/android/rules` is every
-  active rule (`{packageName, appLabel, target: ignored | activity | roleCategory, targetName}`); the ignored set is
-  the `ignored` ones. Cached with its `ETag` in prefs (`IgnoreStore`, not Room: two small blobs), refreshed at the
+  active rule (`{packageName, appLabel, target: ignored | activity, targetName, ruleId, activityId, …}`); the ignored
+  set is the `ignored` ones. Since prompt 27 an android rule has no role / category target. A cache written before it
+  has no `ruleId` and reads as `0`; such a row isn't offered on "Mapped apps" until the next fetch replaces it. Cached with its `ETag` in prefs (`IgnoreStore`, not Room: two small blobs), refreshed at the
   start of every `SyncEngine.run` while signed in, before the usage log is read; a `304` keeps it.
 - **What the phone drops** (`IgnoreState.ignored`): `server ignored ∪ pending ignores − pending stops`. A pending op
   is `(package, IGNORE | UNIGNORE, sinceMs)`. It clears when its call succeeds (the cached rules are patched at once,

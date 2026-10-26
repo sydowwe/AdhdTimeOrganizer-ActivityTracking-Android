@@ -38,7 +38,7 @@ data class AppRow(
     /** Foreground time in the window; `null` for an ignored app that is not among the recent ones. */
     val foregroundMs: Long?,
     val state: AppIgnoreState,
-    /** The activity or "Role · Category" a mapping rule points the app at — what an ignore replaces. */
+    /** The activity a mapping rule points the app at — what an ignore replaces. */
     val mappedTo: String?
 )
 
@@ -87,7 +87,7 @@ object IgnoredAppsList {
 
     private fun row(packageName: String, label: String, foregroundMs: Long?, state: IgnoreState, nowMs: Long): AppRow {
         val rule = state.ruleFor(packageName)
-        val mappedTo = rule?.takeIf { it.target == AndroidRuleTarget.ACTIVITY || it.target == AndroidRuleTarget.ROLE_CATEGORY }?.targetName
+        val mappedTo = rule?.takeIf { it.target == AndroidRuleTarget.ACTIVITY }?.targetName
         return AppRow(packageName, label, foregroundMs, stateOf(packageName, state, nowMs), mappedTo)
     }
 }

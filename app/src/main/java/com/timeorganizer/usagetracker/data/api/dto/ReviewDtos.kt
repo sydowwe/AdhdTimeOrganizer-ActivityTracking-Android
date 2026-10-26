@@ -20,10 +20,13 @@ data class UnmappedAppDto(
     val suggestedActivityName: String?
 )
 
-/** `GET tracker/android/activities`: the pick list. */
+/** One activity of `GET tracker/android/activities` ([TrackerActivityOptionsResponse.activities]). */
 data class TrackerActivityDto(
     val id: Long,
-    val name: String
+    val name: String,
+    /** What the picker filters by (`mapping/ActivityPickerFilter`). */
+    val roleId: Long = 0,
+    val categoryId: Long? = null
 )
 
 /**
@@ -33,7 +36,9 @@ data class TrackerActivityDto(
  */
 data class CreateTrackerRuleRequest(
     val packageName: String,
-    val activityId: Long
+    val activityId: Long,
+    /** 0 = today only; `MappingRules.WEEK_BACKFILL_DAYS` is "also add this week's time". */
+    val backfillDays: Int = 0
 )
 
 data class CreateTrackerRuleResponse(

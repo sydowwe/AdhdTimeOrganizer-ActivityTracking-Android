@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -12,14 +13,15 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.timeorganizer.usagetracker.LoginActivity
 import com.timeorganizer.usagetracker.R
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
-import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityDto
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleRequest
-import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerRuleResponse
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedAppDto
+import com.timeorganizer.usagetracker.mapping.ActivityPicker
+import com.timeorganizer.usagetracker.mapping.MappingOptions
+import com.timeorganizer.usagetracker.mapping.MappingRules
+import com.timeorganizer.usagetracker.mapping.PickedActivity
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.ignore.IgnoreCallOutcome
@@ -52,8 +54,10 @@ class ReviewActivity : AppCompatActivity() {
     private lateinit var rows: LinearLayout
     private lateinit var btnRetry: MaterialButton
 
-    /** The pick list, fetched on the first "Choose activity" and kept until the server says one is gone. */
-    private var activities: List<TrackerActivityDto>? = null
+    /** The picker's options, fetched on the first "Choose activity" and kept until the server says one is gone. */
+    private val options = MappingOptions()
+    private val picker by lazy { ActivityPicker(this, options) }
+    private val reviewPrefs by lazy { ReviewPreferences(this) }
 
     /** Whether any card was answered, so an emptied list reads "all done" rather than "nothing to review". */
     private var answeredAny = false
@@ -91,7 +95,8 @@ class ReviewActivity : AppCompatActivity() {
         progress.visibility = View.VISIBLE
 
         lifecycleScope.launch {
-            val response = call { RetrofitClient.apiService.unmappedToday() }
+            val snoozed = reviewPrefs.snoozes.active(System.currentTimeMillis())
+            val response = call { RetrofitClient.apiService.unmappedToday(snoozed) }
             progress.visibility = View.GONE
 
             val today = response?.takeIf { it.isSuccessful }?.body()
@@ -120,26 +125,61 @@ class ReviewActivity : AppCompatActivity() {
         card.findViewById<TextView>(R.id.tvAppLabel).text = app.appLabel
         card.findViewById<TextView>(R.id.tvAppTime).text = ReviewText.duration(app.seconds)
 
+        val cbBackfill = card.findViewById<CheckBox>(R.id.cbBackfill)
+        fun backfillDays() = if (cbBackfill.isChecked) MappingRules.WEEK_BACKFILL_DAYS else 0
+
         val suggestedId = app.suggestedActivityId
         val suggestedName = app.suggestedActivityName
         card.findViewById<MaterialButton>(R.id.btnSuggested).apply {
             if (suggestedId != null && suggestedName != null) {
                 visibility = View.VISIBLE
                 text = getString(R.string.review_map_to, suggestedName)
-                setOnClickListener { submit(card, CreateTrackerRuleRequest(app.packageName, activityId = suggestedId), suggestedName) }
+                setOnClickListener {
+                    submit(card, app.packageName, CreateTrackerRuleRequest(app.packageName, suggestedId, backfillDays()), suggestedName)
+                }
             }
         }
         card.findViewById<View>(R.id.btnPick).setOnClickListener {
-            chooseActivity { choice -> submit(card, CreateTrackerRuleRequest(app.packageName, activityId = choice.id), choice.name) }
+            lifecycleScope.launch {
+                val category = withContext(Dispatchers.IO) { InstalledApps(this@ReviewActivity).appCategory(app.packageName) }
+                picker.pick(app.appLabel, category, mapPackage = app.packageName, backfillDays = backfillDays()) { choice ->
+                    when (choice) {
+                        is PickedActivity.Existing ->
+                            submit(card, app.packageName, CreateTrackerRuleRequest(app.packageName, choice.id, backfillDays()), choice.name)
+                        // "+ New activity" mapped the package in the same call.
+                        is PickedActivity.Created -> mapped(card, app.packageName, choice.name, choice.response.attributedSeconds)
+                    }
+                }
+            }
         }
         card.findViewById<View>(R.id.btnIgnore).setOnClickListener {
             IgnoreDialogs.confirmIgnore(this, app.appLabel, mappedTo = null) { ignore(card, app) }
+        }
+        card.findViewById<View>(R.id.btnSnooze).setOnClickListener {
+            // One device's "not now": kept here and sent as `exclude`, so the server leaves the app out for a week.
+            reviewPrefs.snoozes = reviewPrefs.snoozes.snooze(app.packageName, System.currentTimeMillis())
+            Toast.makeText(this, getString(R.string.review_snoozed, app.appLabel), Toast.LENGTH_SHORT).show()
+            rows.removeView(card)
+            afterRowSettled()
         }
         card.findViewById<View>(R.id.btnSkip).setOnClickListener {
             rows.removeView(card)
             afterRowSettled()
         }
         return card
+    }
+
+    /** The card is answered: the package is mapped, and a snooze on it has nothing left to hold back. */
+    private fun mapped(card: View, packageName: String, activityName: String, attributedSeconds: Int) {
+        reviewPrefs.snoozes = reviewPrefs.snoozes.clear(packageName)
+        card.findViewById<View>(R.id.rowActions).visibility = View.GONE
+        status(
+            card,
+            if (attributedSeconds > 0) getString(R.string.review_mapped_added, activityName, ReviewText.duration(attributedSeconds.toLong()))
+            else getString(R.string.review_mapped, activityName)
+        )
+        answeredAny = true
+        afterRowSettled()
     }
 
     /** Not a rule create: the phone drops the app from now on even if the server can't be reached yet. */
@@ -155,6 +195,7 @@ class ReviewActivity : AppCompatActivity() {
                 setActionsEnabled(card, true)
                 return@launch
             }
+            reviewPrefs.snoozes = reviewPrefs.snoozes.clear(app.packageName)
             card.findViewById<View>(R.id.rowActions).visibility = View.GONE
             status(
                 card,
@@ -165,26 +206,21 @@ class ReviewActivity : AppCompatActivity() {
         }
     }
 
-    private fun submit(card: View, request: CreateTrackerRuleRequest, activityName: String) {
+    private fun submit(card: View, packageName: String, request: CreateTrackerRuleRequest, activityName: String) {
         setActionsEnabled(card, false)
         status(card, getString(R.string.review_saving))
 
         lifecycleScope.launch {
             val response = call { RetrofitClient.apiService.createRule(request) }
             when (if (response == null) RuleOutcome.TRY_AGAIN else RuleOutcome.of(response.code())) {
-                RuleOutcome.SAVED -> {
-                    card.findViewById<View>(R.id.rowActions).visibility = View.GONE
-                    status(card, saved(response?.body(), activityName))
-                    answeredAny = true
-                    afterRowSettled()
-                }
+                RuleOutcome.SAVED -> mapped(card, packageName, activityName, response?.body()?.attributedSeconds ?: 0)
                 RuleOutcome.ALREADY_MAPPED -> {
                     // Another device got there first; the list is stale, not the tap wrong.
                     Toast.makeText(this@ReviewActivity, R.string.review_already_mapped, Toast.LENGTH_SHORT).show()
                     load()
                 }
                 RuleOutcome.ACTIVITY_GONE -> {
-                    activities = null
+                    options.invalidate()
                     status(card, getString(R.string.review_activity_gone))
                     setActionsEnabled(card, true)
                 }
@@ -193,31 +229,6 @@ class ReviewActivity : AppCompatActivity() {
                     setActionsEnabled(card, true)
                 }
             }
-        }
-    }
-
-    private fun saved(body: CreateTrackerRuleResponse?, activityName: String): String = when {
-        body != null && body.attributedSeconds > 0 ->
-            getString(R.string.review_mapped_added, activityName, ReviewText.duration(body.attributedSeconds.toLong()))
-        else -> getString(R.string.review_mapped, activityName)
-    }
-
-    private fun chooseActivity(onChosen: (TrackerActivityDto) -> Unit) {
-        lifecycleScope.launch {
-            val list = activities ?: call { RetrofitClient.apiService.activities() }
-                ?.takeIf { it.isSuccessful }?.body()?.also { activities = it }
-            if (list == null) {
-                Toast.makeText(this@ReviewActivity, R.string.review_offline, Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-            if (list.isEmpty()) {
-                Toast.makeText(this@ReviewActivity, R.string.review_no_activities, Toast.LENGTH_LONG).show()
-                return@launch
-            }
-            MaterialAlertDialogBuilder(this@ReviewActivity)
-                .setTitle(R.string.review_choose_activity)
-                .setItems(list.map { it.name }.toTypedArray()) { _, index -> onChosen(list[index]) }
-                .show()
         }
     }
 
@@ -242,7 +253,7 @@ class ReviewActivity : AppCompatActivity() {
     }
 
     private fun setActionsEnabled(card: View, enabled: Boolean) {
-        listOf(R.id.btnSuggested, R.id.btnPick, R.id.btnIgnore, R.id.btnSkip).forEach {
+        listOf(R.id.btnSuggested, R.id.cbBackfill, R.id.btnPick, R.id.btnIgnore, R.id.btnSnooze, R.id.btnSkip).forEach {
             card.findViewById<View>(it).isEnabled = enabled
         }
     }

@@ -181,4 +181,85 @@
 
     <!-- Sync status card -->
     <string name="sync_ignored">%1$d sessions of ignored apps weren\'t stored</string>
+
+    <!-- Mapping (prompt 27): the picker, a new activity, app-category links -->
+    <string name="review_snooze">Snooze</string>
+    <string name="review_snoozed">I\'ll ask about %1$s again in a week.</string>
+    <string name="backfill_week">Also add this week\'s time</string>
+    <string name="picker_new_activity">+ New activity</string>
+    <string name="picker_show_all">Show all activities (%1$d more)</string>
+    <string name="picker_title_filtered">Choose activity — %1$s apps</string>
+    <string-array name="app_category_names">
+        <item>Games</item>
+        <item>Audio</item>
+        <item>Video</item>
+        <item>Photos</item>
+        <item>Social</item>
+        <item>News</item>
+        <item>Maps</item>
+        <item>Productivity</item>
+        <item>Accessibility</item>
+    </string-array>
+    <string name="new_activity_title">New activity</string>
+    <string name="new_activity_name">Name</string>
+    <string name="new_activity_role">Role</string>
+    <string name="new_activity_category">Category</string>
+    <string name="new_activity_distraction">Distraction</string>
+    <string name="new_activity_phone_app_role">Phone app</string>
+    <string name="new_activity_no_category">No category</string>
+    <string name="new_activity_create">Create</string>
+    <string name="new_activity_name_required">Enter a name.</string>
+    <string name="new_activity_name_too_long">At most %1$d characters.</string>
+    <string name="new_activity_name_archived">An archived activity has this name. Restore it in the web app, or choose another name.</string>
+    <string name="new_activity_name_taken">You already have an activity called “%1$s”. Use it?</string>
+    <string name="new_activity_use_existing">Use it</string>
+    <string name="new_activity_options_gone">A role, category or activity was deleted meanwhile. Try again.</string>
+    <string name="new_activity_refused">The server refused this activity.</string>
+    <string name="distraction_yes">A distraction</string>
+    <string name="distraction_no">Not a distraction</string>
+    <string name="distraction_follow_none">Follow the category (none: not a distraction)</string>
+    <string name="distraction_follow_yes">Follow %1$s (a distraction)</string>
+    <string name="distraction_follow_no">Follow %1$s (not a distraction)</string>
+    <string name="links_title">App categories</string>
+    <string name="links_row">%1$s — %2$s</string>
+    <string name="links_not_linked">not linked</string>
+    <string name="links_any">Any</string>
+    <string name="links_editor_title">%1$s apps</string>
+    <string name="links_editor_hint">The activity picker opens filtered to these for apps of this category, and a new activity starts with them. Nothing is mapped by this alone.</string>
+    <string name="links_save">Save</string>
+    <string name="links_saved">Saved.</string>
+    <string name="map_confirm_title">Map %1$s to %2$s?</string>
+    <string name="map_confirm">Map</string>
+
+    <!-- Mapped apps (prompt 27) -->
+    <string name="btn_mapped_apps">Mapped apps</string>
+    <string name="mapped_title">Mapped apps</string>
+    <string name="mapped_summary">Each app\'s time goes to its activity. A change or an unlink applies from now on.</string>
+    <string name="mapped_nothing">No app is mapped yet. Add one here, or map one in the evening review.</string>
+    <string name="mapped_add_app">Add app</string>
+    <string name="mapped_change">Change</string>
+    <string name="mapped_unlink">Unlink</string>
+    <string name="mapped_distraction">Distraction</string>
+    <string name="mapped_archived">archived</string>
+    <string name="mapped_flag_follow_yes">A distraction (from %1$s)</string>
+    <string name="mapped_flag_follow_no">Not a distraction (from %1$s)</string>
+    <string name="mapped_flag_follow_none">Not a distraction (no category)</string>
+    <string name="history_stays">Time already in History stays where it is.</string>
+    <string name="change_confirm_title">Map %1$s to %2$s from now on?</string>
+    <string name="changed_done">%1$s now maps to %2$s</string>
+    <string name="unlink_confirm_title">Unlink %1$s?</string>
+    <string name="unlink_confirm_text">From now on its time isn\'t mapped, and the evening review asks about it again. Time already in History stays where it is.</string>
+    <string name="unlinked_done">%1$s is unlinked</string>
+    <string name="mapped_rule_gone">That mapping was changed on another device — reloaded.</string>
+    <string name="mapped_refused">The server refused the change.</string>
+    <string name="distraction_title">Is %1$s a distraction?</string>
+    <string name="distraction_shared">This is %1$s\'s flag, so it also applies to %2$s.</string>
+    <string name="sharers_two">%1$s and %2$s</string>
+    <string name="sharers_more">%1$s and %2$d more</string>
+    <string name="add_app_title">Map which app?</string>
+    <string name="add_app_row">%1$s — %2$s this week</string>
+    <string name="add_app_none">Every app used this week is mapped or ignored.</string>
+    <string name="add_app_no_usage_access">Usage access is off, so this week\'s apps can\'t be listed.</string>
+    <string name="mapped_done">%1$s mapped to %2$s</string>
+    <string name="mapped_done_added">%1$s mapped to %2$s — %3$s added to History</string>
 </resources>
