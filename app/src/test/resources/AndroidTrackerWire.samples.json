@@ -36,5 +36,14 @@
   "activityCreated": { "activityId": 32, "roleId": 4, "ruleId": 13, "attributedSeconds": 1800 },
   "problem": { "reason": "nameTaken", "activityId": 31 },
   "distraction": { "ownDistraction": null, "isDistraction": true },
-  "appCategoryLink": { "appCategory": "Game", "roleId": null, "categoryId": 8 }
+  "appCategoryLink": { "appCategory": "Game", "roleId": null, "categoryId": 8 },
+  "syncRequest": {
+    "sessions": [
+      { "packageName": "com.whatsapp", "appLabel": "WhatsApp", "sessionStartUtc": "2026-10-23T07:00:00.000Z", "sessionEndUtc": "2026-10-23T07:10:00.000Z", "durationSeconds": 600, "appCategory": "Social" },
+      { "packageName": "com.android.chrome", "appLabel": "Chrome", "sessionStartUtc": "2026-10-23T07:20:00.000Z", "sessionEndUtc": "2026-10-23T07:25:00.000Z", "durationSeconds": 300 }
+    ],
+    "syncedUpToUtc": "2026-10-23T08:15:00.000Z",
+    "deviceId": "pixel-8"
+  },
+  "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" }
 }

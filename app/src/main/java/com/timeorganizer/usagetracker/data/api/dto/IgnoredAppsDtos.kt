@@ -40,9 +40,14 @@ object AndroidRuleTarget {
     const val ACTIVITY = "activity"
 }
 
-/** `PUT tracker/android/ignored/{packageName}`. The package is the route's; the label is display only. */
+/**
+ * `PUT tracker/android/ignored/{packageName}`. The package is the route's; the label is display only. [appCategory] is
+ * as on a synced session ([AndroidSessionDto.appCategory]): an ignored app is never synced again, so this is the one
+ * time the server learns its category.
+ */
 data class IgnorePackageRequest(
-    val appLabel: String?
+    val appLabel: String?,
+    val appCategory: String? = null
 )
 
 data class IgnorePackageResponse(

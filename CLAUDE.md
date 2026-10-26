@@ -126,9 +126,17 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - **Activity mapping happens only on the server** (`AndroidMappingRuleSet`, the one matcher; the grid's
   `coveredBy` chip and the sync's attribution both use it). The app sends package + label and never decides
   what activity a session is. If a feature here needs to know (a nudge, a widget), the server has to tell it.
+- **Each session also carries the app's declared category** (`appCategory`, the server's member name from
+  `mapping/AppCategory`, read by `InstalledApps.appCategory` when the batch is **sent**, not stored in the outbox), and
+  so does the ignore call (`IgnorePackageRequest.appCategory`): an ignored app is never synced again. Only the phone can
+  read `ApplicationInfo.category`. The server keeps the last one per package (`AndroidReportedApp`) for the web's
+  apps-by-category view, and applies no link with it; the picker filter stays the phone's. `null` is left out by Gson and
+  read there as "declares none". So is an app uninstalled between its use and the send. A name the server doesn't know
+  costs only that report, never the batch. A new Android `CATEGORY_*` goes into the server's enum first.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
 - **The sync, rules, ignore and mapping answers** (`activities`, `activityCreated`, `problem`, `distraction`,
-  `appCategoryLink`) **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
+  `appCategoryLink`), **and the two requests that carry a category** (`syncRequest`, `ignoreRequest`, which
+  `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
   byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
   `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
   against it and that this copy is identical (it finds the copy by name anywhere in this checkout — keep exactly one).

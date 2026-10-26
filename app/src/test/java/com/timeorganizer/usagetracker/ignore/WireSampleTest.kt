@@ -5,6 +5,8 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import com.timeorganizer.usagetracker.data.api.dto.AndroidRuleTarget
+import com.timeorganizer.usagetracker.data.api.dto.AndroidSessionDto
+import com.timeorganizer.usagetracker.data.api.dto.AndroidSyncRequest
 import com.timeorganizer.usagetracker.data.api.dto.AndroidSyncResponse
 import com.timeorganizer.usagetracker.data.api.dto.AndroidTrackerRuleDto
 import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageRequest
@@ -23,6 +25,7 @@ import com.timeorganizer.usagetracker.data.api.dto.TrackerCategoryDto
 import com.timeorganizer.usagetracker.data.api.dto.TrackerProblem
 import com.timeorganizer.usagetracker.data.api.dto.TrackerProblemResponse
 import com.timeorganizer.usagetracker.data.api.dto.TrackerRoleDto
+import com.timeorganizer.usagetracker.mapping.AppCategory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -140,14 +143,45 @@ class WireSampleTest {
         assertNull(ignored.previousTarget)
     }
 
-    /** The package is the route's; the body carries only the label, and none at all when there is no label. */
+    /** The package is the route's; the body carries the label and the category, and leaves out whichever is unknown. */
     @Test
-    fun theIgnoreRequest_writesOnlyTheLabel() {
+    fun theIgnoreRequest_writesOnlyTheLabelAndCategory() {
         val withLabel = gson.toJsonTree(IgnorePackageRequest("Instagram")).asJsonObject
         val without = gson.toJsonTree(IgnorePackageRequest(null)).asJsonObject
 
         assertEquals(setOf("appLabel"), withLabel.keySet())
         assertEquals("Instagram", withLabel["appLabel"].asString)
         assertFalse(without.has("appLabel"))
+    }
+
+    /**
+     * The two requests that carry an app's category are written exactly as the samples spell them. The server reads a
+     * renamed `appCategory` as "declares none" without a word, so every app would land at the bottom of the web's view.
+     * A category the app doesn't declare is left out, which the server reads as the same "declares none".
+     */
+    @Test
+    fun theCategoryRequests_writeTheSamplesExactly() {
+        val sync = AndroidSyncRequest(
+            sessions = listOf(
+                AndroidSessionDto("com.whatsapp", "WhatsApp", "2026-10-23T07:00:00.000Z", "2026-10-23T07:10:00.000Z", 600, "Social"),
+                AndroidSessionDto("com.android.chrome", "Chrome", "2026-10-23T07:20:00.000Z", "2026-10-23T07:25:00.000Z", 300, null)
+            ),
+            syncedUpToUtc = "2026-10-23T08:15:00.000Z",
+            deviceId = "pixel-8"
+        )
+
+        assertEquals(samples["syncRequest"], gson.toJsonTree(sync))
+        assertEquals(samples["ignoreRequest"], gson.toJsonTree(IgnorePackageRequest("Instagram", "Social")))
+    }
+
+    /** The phone's names are the server's enum members, all nine. A tenth Android constant reads as no category. */
+    @Test
+    fun theCategoryNames_areTheServersMembers() {
+        assertEquals(
+            listOf("Game", "Audio", "Video", "Image", "Social", "News", "Maps", "Productivity", "Accessibility"),
+            AppCategory.NAMES
+        )
+        assertNull(AppCategory.of(9))
+        assertNull(AppCategory.of(-1))
     }
 }

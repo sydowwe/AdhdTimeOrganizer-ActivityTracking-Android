@@ -6,6 +6,7 @@ import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageRequest
 import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageResponse
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import com.timeorganizer.usagetracker.sync.SyncLimits
+import com.timeorganizer.usagetracker.util.InstalledApps
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,6 +25,7 @@ class IgnoreSync(context: Context) {
 
     private val store = IgnoreStore.get(context)
     private val outbox = OutboxDatabase.get(context).outboxDao()
+    private val installedApps = InstalledApps(context)
 
     /** Refresh the rules, then send the pending ops. Signed in only; never throws into the sync. */
     suspend fun syncWithServer(nowMs: Long) = withContext(Dispatchers.IO) {
@@ -63,7 +65,12 @@ class IgnoreSync(context: Context) {
 
     private suspend fun send(op: PendingIgnoreOp): IgnoreResult {
         val response: Response<*>? = when (op.kind) {
-            IgnoreOpKind.IGNORE -> call { RetrofitClient.apiService.ignorePackage(op.packageName, IgnorePackageRequest(op.appLabel)) }
+            // The category is read when sent, like the sync's: the one time an ignored app's category reaches the server.
+            IgnoreOpKind.IGNORE -> call {
+                RetrofitClient.apiService.ignorePackage(
+                    op.packageName, IgnorePackageRequest(op.appLabel, installedApps.appCategory(op.packageName))
+                )
+            }
             IgnoreOpKind.UNIGNORE -> call { RetrofitClient.apiService.stopIgnoringPackage(op.packageName) }
         }
         val outcome = IgnoreCallOutcome.of(response?.code())

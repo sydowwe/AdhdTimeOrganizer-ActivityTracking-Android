@@ -15,6 +15,7 @@ import com.timeorganizer.usagetracker.ignore.OutboxPurge
 import com.timeorganizer.usagetracker.notify.SyncBlockedNotifier
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.util.Constants
+import com.timeorganizer.usagetracker.util.InstalledApps
 import com.timeorganizer.usagetracker.util.PermissionHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -41,6 +42,7 @@ class SyncEngine(context: Context) {
     private val notifier = SyncBlockedNotifier(appContext)
     private val ignoreStore = IgnoreStore.get(appContext)
     private val ignoreSync = IgnoreSync(appContext)
+    private val installedApps = InstalledApps(appContext)
 
     private var clockAheadMs = 0L
 
@@ -159,6 +161,9 @@ class SyncEngine(context: Context) {
     }
 
     private suspend fun post(batch: List<PendingSessionEntity>, deviceId: String): BatchResult {
+        // Read when sent, not stored in the outbox: a category is a fact about the app, not the session. One lookup per
+        // package per batch. An app uninstalled since it was used reads as declaring none (InstalledApps.appCategory).
+        val categories = batch.map { it.packageName }.distinct().associateWith { installedApps.appCategory(it) }
         val request = AndroidSyncRequest(
             sessions = batch.map {
                 AndroidSessionDto(
@@ -166,7 +171,8 @@ class SyncEngine(context: Context) {
                     appLabel = it.appLabel,
                     sessionStartUtc = INSTANT.format(Instant.ofEpochMilli(it.startMs)),
                     sessionEndUtc = INSTANT.format(Instant.ofEpochMilli(it.endMs)),
-                    durationSeconds = (it.endMs - it.startMs) / 1000L
+                    durationSeconds = (it.endMs - it.startMs) / 1000L,
+                    appCategory = categories[it.packageName]
                 )
             },
             syncedUpToUtc = INSTANT.format(Instant.ofEpochMilli(batch.maxOf { it.endMs })),
