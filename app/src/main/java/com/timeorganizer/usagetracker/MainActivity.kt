@@ -15,7 +15,12 @@ import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.timeorganizer.usagetracker.breaks.BreakMonitor
+import com.timeorganizer.usagetracker.breaks.BreakPolicy
+import com.timeorganizer.usagetracker.breaks.BreakPreferences
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoredAppsActivity
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
@@ -112,6 +117,8 @@ class MainActivity : AppCompatActivity() {
         btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
         findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
+        setUpBreakCard()
+
         tvIgnoredCount = findViewById(R.id.tvIgnoredCount)
         findViewById<View>(R.id.btnIgnoredApps).setOnClickListener { startActivity(IgnoredAppsActivity.intent(this)) }
 
@@ -176,6 +183,32 @@ class MainActivity : AppCompatActivity() {
         updateSyncStatusCard()
         updateIgnoredCard()
         checkBackendHealth()
+    }
+
+    /** The break nudge's switch and length; each change is decided on at once, so switching it off clears a nudge. */
+    private fun setUpBreakCard() {
+        val breakPrefs = BreakPreferences(this)
+        val switch = findViewById<MaterialSwitch>(R.id.swBreakNudge)
+        switch.isChecked = breakPrefs.enabled
+        switch.setOnCheckedChangeListener { _, checked ->
+            breakPrefs.enabled = checked
+            BreakMonitor.kick(this)
+        }
+
+        val chips = findViewById<ChipGroup>(R.id.chipsBreakLength)
+        for (minutes in BreakPolicy.BREAK_MINUTES) {
+            chips.addView(Chip(this).apply {
+                id = View.generateViewId()
+                tag = minutes
+                text = getString(R.string.break_card_minutes, minutes)
+                isCheckable = true
+                isChecked = minutes == breakPrefs.breakMinutes
+            })
+        }
+        chips.setOnCheckedStateChangeListener { group, checkedIds ->
+            val minutes = checkedIds.firstOrNull()?.let { group.findViewById<Chip>(it).tag as Int } ?: return@setOnCheckedStateChangeListener
+            breakPrefs.breakMinutes = minutes
+        }
     }
 
     private fun updateIgnoredCard() {

@@ -40,6 +40,10 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `mapping/MappingRules.kt`, `mapping/MappingOutcome.kt`, `mapping/MappedAppsList.kt` | **Pure.** App categories, the "+ New activity" rules (name check, defaults, the three-way flag), the picker's filter; a mapping call's answer → what the screen does; the "Mapped apps" rows and "Add app"'s list |
 | `mapping/MappingCalls.kt`, `mapping/MappingDialogs.kt` | The calls and the problem body; the one `ActivityPicker`, `NewActivityDialog`, `AppCategoryLinksDialog`, `BackfillConfirm` |
 | `mapping/MappedAppsActivity.kt` | "Mapped apps": change / unlink / distraction per mapping, "Add app", "App categories" |
+| `now/NowFacts.kt` | **Pure.** `GET tracker/android/now` as the nudges read it: silence, the blocks covering now, the desk's last minute, idle, its busiest named work |
+| `now/NowClient.kt` | The one `/now` reader: in-memory answer reused 30 s, then `If-None-Match` → `304` |
+| `breaks/BreakPolicy.kt` | **Pure.** Breaks that don't end: `/now` + phone use from the log + silence + state → start / nudge / end; the buttons; how long to watch; `PhoneUse` from usage events |
+| `breaks/BreakMonitor.kt`, `breaks/BreakNotifier.kt`, `breaks/BreakActionReceiver.kt`, `breaks/BreakPreferences.kt` | Runs the policy (after each sync, on a pickup, on a button, when it asks to look again), arms the watcher, posts the nudge; its switch, length and state |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
@@ -134,8 +138,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   read there as "declares none". So is an app uninstalled between its use and the send. A name the server doesn't know
   costs only that report, never the batch. A new Android `CATEGORY_*` goes into the server's enum first.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
-- **The sync, rules, ignore and mapping answers** (`activities`, `activityCreated`, `problem`, `distraction`,
-  `appCategoryLink`), **and the two requests that carry a category** (`syncRequest`, `ignoreRequest`, which
+- **The sync, rules, ignore, mapping and `/now` answers** (`activities`, `activityCreated`, `problem`, `distraction`,
+  `appCategoryLink`, `now`), **and the two requests that carry a category** (`syncRequest`, `ignoreRequest`, which
   `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
   byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
   `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
@@ -193,7 +197,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
-  watcher's silent "Focus watch" and the "Evening review" question today.
+  watcher's silent "Focus watch", the "Evening review" question and the high-importance "Breaks" nudge today.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
 - **`POST_NOTIFICATIONS` (API 33+) is asked for only from the settings screen's Notifications card**, which says
@@ -238,6 +242,50 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - The ongoing notification ("Focus watch on until 14:30 · Notices which app is in front so nudges arrive on
   time. Records nothing.") is on the silent "Focus watch" channel. Without `POST_NOTIFICATIONS` it is hidden but
   the service still runs.
+
+### `/now` — what every nudge asks first
+- **`GET tracker/android/now`** is the server's view of right now: `silentReason` (an away day, quiet hours, absent — any
+  value, an unknown one included, means silent), the open blocks covering now and the next, the desk's last active minute
+  (`lastActiveAt`), `isIdle` and what its last five minutes resolved to (`recent`, busiest first, each with `onPlan`), and the
+  distraction packages. The phone decides nothing the server decides there: no matcher, no planner, no idle rule.
+- **Read through `NowClient` and `NowFacts`, nowhere else.** One answer is reused for 30 s (the server's `max-age`), then
+  asked for again with its `ETag`: an unchanged day is a `304`. In memory only, cleared on an account switch. An unreadable
+  field is absent, never guessed (an unparsable block is no plan). Pinned by the `now` entry of the wire sample
+  (`NowFactsTest`).
+
+### Break nudge (prompt 09, 2026-10-27)
+- **What it is:** the desk goes quiet, the phone comes out, and once the break has run its length — *"Break's been 25 m.
+  Thesis is still open on your desktop."* (or *"Email is planned until 11:30."*) — with **Back to it**, **5 more minutes**,
+  **I'm done for now**. Its own channel (`breaks`, high importance so it peeks over the app in front) and id. On by default;
+  the status screen's "Breaks" card has the switch and the length: 5 / 10 / 15 / 20 / **30**, default 10.
+- **All of it is `BreakPolicy`** (pure, `BreakPolicyTest`). A break **starts** when `/now` says the desk is idle, the phone
+  was in use no later than one break length after the desk's last minute (from 2 min before it, so a phone picked up at the
+  desk counts), and there is something to come back to: the desk's busiest named work (unmapped and ignored time has no
+  name), or a block covering now that had **begun before the desk stopped** (a lunch block that starts as the desk stops is
+  not a break from anything). It is **counted from the desk's last minute**. The name is the desk's work when it was on the
+  plan or nothing is planned, else the block's. A desk quiet for 2 h is not a break.
+- **One nudge**, at the length, only while the phone is in use — a phone put down hears it at its next pickup, with the
+  real length. Silenced it **waits**, never drops: the server's `silentReason`, a call (`AudioManager.mode`: in call,
+  in communication, ringing, call screening) or any DND filter (`currentInterruptionFilter`); none needs a permission.
+  Without an answer from the server nothing starts, ends or is posted.
+- **The end** clears the nudge: the desk used again (a newer `lastActiveAt` — the end the owner asked for), the block a
+  *planned* break names ends, or 2 h. **Back to it** and a swipe end the nudging for this break; **5 more minutes** is one
+  more nudge 5 min on; **I'm done for now** is silent until another block is current — or, with no block, until the desk is
+  used again — and a release never reopens on a pickup from before it. It lapses after 12 h whatever happens.
+- **Phone use comes from the usage log**, through `SessionBuilder` like the sessions (`PhoneUse.from`), read from an hour
+  before the desk's last minute: exact, survives a restart, works without the watcher. The watcher's own `inFront` counts
+  as in use too (its first read reaches 6 h back).
+- **When it runs (`BreakMonitor`):** after every sync run (the worker), on a pickup the watcher sees (an app to the front,
+  at most every 20 s), on a button, and when the policy asks to look again (each minute while the phone is in use or a
+  nudge is up) — that last one is an in-process delay, so it lives while the watcher's service keeps the process; the next
+  sync catches up otherwise. **The watcher is armed** with reason `break` through any block covering now, for 30 min after
+  desk use in the last 15 min, and while a break is open; an evaluation with no answer from the server leaves it as it was.
+  Off, signed out, or nothing to post with (permission, app notifications or the channel off): no break, no watch.
+- **Precision is the server's minute.** `isIdle` turns true 2–4 min after the user stands up (`DesktopIdleRule`); a phone
+  out before then is looked at again a minute later. Idle, a shut laptop and a stopped desktop tracker read the same — so a
+  phone used beside a dead desktop tracker can be nudged; without one, the desk is never recently active and nothing runs.
+- **Never logged:** the subject is the user's activity name. It is kept in `break_nudge` prefs while a break is open, and
+  an account switch resets it (`SyncEngine.onSignedIn`).
 
 ### Evening review of unmapped time
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on

@@ -30,10 +30,14 @@ object Notifications {
     /** The evening question about unmapped phone time: once a day, muted separately from the sync warnings. */
     const val CHANNEL_EVENING_REVIEW = "evening_review"
 
+    /** "Break's been 25 m": high importance, so it peeks over the app the break is being spent in. */
+    const val CHANNEL_BREAKS = "breaks"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
     const val ID_EVENING_REVIEW = 3
+    const val ID_BREAK = 4
 
     /** Idempotent: creating an existing channel only updates its name and description. */
     fun createChannels(context: Context) {
@@ -51,6 +55,10 @@ object Notifications {
                 NotificationChannelCompat.Builder(CHANNEL_EVENING_REVIEW, NotificationManagerCompat.IMPORTANCE_DEFAULT)
                     .setName(context.getString(R.string.channel_evening_review))
                     .setDescription(context.getString(R.string.channel_evening_review_description))
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_BREAKS, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_breaks))
+                    .setDescription(context.getString(R.string.channel_breaks_description))
                     .build()
             )
         )

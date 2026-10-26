@@ -83,8 +83,13 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="While the user has a focus block or a time chime running, checks every few seconds which app is in front (UsageStatsManager) so the app can nudge them when they drift. Records nothing; stops when the block ends." />
+                android:value="While the user has a focus block, a time chime or a break from their desk running, checks every few seconds which app is in front (UsageStatsManager) so the app can nudge them when they drift or a break runs long. Records nothing; stops when the block or break ends." />
         </service>
+
+        <!-- The break nudge's buttons; only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".breaks.BreakActionReceiver"
+            android:exported="false" />
 
         <!-- WorkManager initializer -->
         <provider

@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.worker
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
 import kotlinx.coroutines.CancellationException
@@ -20,6 +21,8 @@ class UsageSyncWorker(
     override suspend fun doWork(): Result = try {
         SyncEngine(applicationContext).run()
         askEveningReview()
+        // Re-arms the watcher for a block or recent desk work, and ends a break the desk has come back from. Never throws.
+        BreakMonitor.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

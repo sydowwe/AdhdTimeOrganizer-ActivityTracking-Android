@@ -17,6 +17,7 @@ import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
 import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
 import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityOptionsResponse
+import com.timeorganizer.usagetracker.data.api.dto.TrackerNowResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -109,6 +110,12 @@ interface ApiService {
     suspend fun stopIgnoringPackage(
         @Path("packageName") packageName: String
     ): Response<Unit>
+
+    /** What every nudge asks before it speaks: silence, the plan, the desk. 304 when [etag] still matches. */
+    @GET("tracker/android/now")
+    suspend fun now(
+        @Header("If-None-Match") etag: String?
+    ): Response<TrackerNowResponse>
 
     /** When the user's evening begins (bed time less their evening-shutdown offset); the review runs then. */
     @GET("tracker/evening-shutdown-moment")

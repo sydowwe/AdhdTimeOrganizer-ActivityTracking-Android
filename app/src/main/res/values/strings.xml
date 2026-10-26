@@ -117,6 +117,23 @@
     <string name="review_card_hint">At your evening-shutdown time: the apps that took the most of today without an activity, one tap each. Needs notifications.</string>
     <string name="btn_review_now">Review now</string>
 
+    <!-- Break nudge: notification -->
+    <string name="channel_breaks">Breaks</string>
+    <string name="channel_breaks_description">When a break from your desk has run past its length while you\'re on your phone</string>
+    <string name="notify_break_title">Break\'s been %1$s</string>
+    <string name="notify_break_text_desk">%1$s is still open on your desktop.</string>
+    <string name="notify_break_text_planned">%1$s is planned until %2$s.</string>
+    <string name="notify_break_back">Back to it</string>
+    <string name="notify_break_more">5 more minutes</string>
+    <string name="notify_break_done">I\'m done for now</string>
+
+    <!-- Break nudge: status card -->
+    <string name="break_card_title">Breaks</string>
+    <string name="break_card_switch">Nudge when a break from the desk runs long</string>
+    <string name="break_card_hint">When your desktop goes quiet and the phone comes out, during a planned block or after desk work: one nudge once the break is this long. Needs notifications and the desktop tracker.</string>
+    <string name="break_card_length">Break length</string>
+    <string name="break_card_minutes">%1$d min</string>
+
     <!-- Evening review: screen -->
     <string name="review_title">Unmapped phone time</string>
     <string name="review_summary">%1$s of phone time today isn\'t mapped to an activity. Map the biggest ones — a tap puts their time into History right away.</string>

@@ -249,6 +249,29 @@ review card. The review and "Mapped apps" are both on the status screen.
 "tomorrow only"; a web push also cannot deep-link into this app). Mapping by app *label* or pattern stays a web-app
 thing on purpose, and so do roles, categories and un-archiving an activity.
 
+## 14. Breaks that don't end — built 2026-10-27
+
+**Why.** A "quick break" from the desk turns into 40 minutes on the phone. Digital Wellbeing doesn't know about the desk
+and the desktop tracker doesn't know about the phone; the server sees both. The desk going quiet and the phone coming out
+is a break starting, with a known start and a known thing being left.
+
+**What was built.** The first phone reader of `/now` (`now/NowClient`, `NowFacts`) and a pure `BreakPolicy`: once the
+break has run its length (5–30 min, default 10, counted from the desk's last minute), one nudge — "Break's been 25 m.
+Thesis is still open on your desktop." — with Back to it / 5 more minutes / I'm done for now; silent during calls, DND,
+quiet hours, away days; cleared when the desk is used again. The watcher runs through planned blocks and for 30 min after
+desk use so a pickup is seen within seconds. See `CLAUDE.md` → "Break nudge". The server needed no new field: `/now`'s
+desk part (prompt 06) already said when the desk stopped, what it was and whether it was on the plan.
+
+**Not built, still open.**
+- A *planned* break. The planner has no break concept; a gap between two blocks could be one ("break until 11:00"), which
+  would set the length and the subject (the next block) instead of the setting.
+- Acting on "Back to it" beyond ending the nudging — e.g. opening the web app's timer for the block (`?track=<id>`), the
+  desktop start ramp's link.
+- Telling a dead desktop tracker from a break. `/now` can't (idle, a shut laptop and a stopped tracker look the same);
+  `TrackerSourceStatus` is hourly. A desk whose tracker stopped mid-block reads as a break that never ends.
+- A sooner end: the desk's return is seen within a minute while the phone is in use or a nudge is up, otherwise at the next
+  sync.
+
 
 
 ---

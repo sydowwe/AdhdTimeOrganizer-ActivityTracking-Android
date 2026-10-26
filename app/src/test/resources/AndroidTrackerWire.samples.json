@@ -37,6 +37,24 @@
   "problem": { "reason": "nameTaken", "activityId": 31 },
   "distraction": { "ownDistraction": null, "isDistraction": true },
   "appCategoryLink": { "appCategory": "Game", "roleId": null, "categoryId": 8 },
+  "now": {
+    "silentReason": null,
+    "plan": {
+      "current": [
+        { "plannerTaskId": 7, "activityId": 12, "activityName": "Thesis", "startsAt": "2026-10-18T09:00:00Z", "endsAt": "2026-10-18T11:30:00Z", "inProgress": true }
+      ],
+      "next": { "plannerTaskId": 8, "activityId": 15, "activityName": "Email", "startsAt": "2026-10-18T11:30:00Z", "endsAt": "2026-10-18T12:00:00Z", "inProgress": false }
+    },
+    "desktop": {
+      "lastActiveAt": "2026-10-18T10:04:00Z",
+      "isIdle": true,
+      "recent": [
+        { "target": "Activity", "activityId": 12, "name": "Thesis", "activeSeconds": 240, "onPlan": true },
+        { "target": null, "activityId": null, "name": null, "activeSeconds": 30, "onPlan": null }
+      ]
+    },
+    "distractionPackages": ["com.instagram.android", "com.reddit.frontpage"]
+  },
   "syncRequest": {
     "sessions": [
       { "packageName": "com.whatsapp", "appLabel": "WhatsApp", "sessionStartUtc": "2026-10-23T07:00:00.000Z", "sessionEndUtc": "2026-10-23T07:10:00.000Z", "durationSeconds": 600, "appCategory": "Social" },

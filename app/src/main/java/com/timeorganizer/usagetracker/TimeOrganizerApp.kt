@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
+import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.util.Constants
@@ -21,6 +22,7 @@ class TimeOrganizerApp : Application() {
         super.onCreate()
         RetrofitClient.init(this)
         Notifications.createChannels(this)
+        BreakMonitor.install(this)
         enqueuePeriodicSync(this)
     }
 

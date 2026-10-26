@@ -2,6 +2,7 @@ package com.timeorganizer.usagetracker.sync
 
 import android.content.Context
 import com.timeorganizer.usagetracker.auth.JwtSubject
+import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.AndroidSessionDto
 import com.timeorganizer.usagetracker.data.api.dto.AndroidSyncRequest
@@ -222,7 +223,8 @@ class SyncEngine(context: Context) {
         /**
          * After a sign-in: when it is a different account from the one the outbox was recorded for, its queued
          * sessions are dropped and recording starts from now — they are the previous person's phone use. So are the
-         * cached rules and the pending ignores: the previous person's ignores must not drop the new one's apps.
+         * cached rules and the pending ignores: the previous person's ignores must not drop the new one's apps. So is an
+         * open break: it names the previous person's activity.
          */
         suspend fun onSignedIn(context: Context, accessToken: String) {
             val prefs = SyncPreferences(context)
@@ -233,6 +235,7 @@ class SyncEngine(context: Context) {
                     OutboxDatabase.get(context).outboxDao().reset(System.currentTimeMillis())
                     IgnoreStore.get(context).clear()
                 }
+                BreakMonitor.reset(context)
             }
             prefs.accountId = account
         }
