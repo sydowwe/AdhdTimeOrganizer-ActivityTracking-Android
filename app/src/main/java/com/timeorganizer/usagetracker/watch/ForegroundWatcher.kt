@@ -23,6 +23,12 @@ object ForegroundWatcher {
         fun onForegroundChange(change: ForegroundChange)
     }
 
+    /**
+     * A [watch] with no end, until [stop]: for a feature that needs the front app whenever the screen is on (the time
+     * chime). The ongoing notification then says no end time.
+     */
+    const val INDEFINITELY = Long.MAX_VALUE
+
     private const val TAG = "ForegroundWatcher"
     private const val PREFS = "foreground_watch"
 

@@ -272,6 +272,29 @@ desk part (prompt 06) already said when the desk stopped, what it was and whethe
 - A sooner end: the desk's return is seen within a minute while the phone is in use or a nudge is up, otherwise at the next
   sync.
 
+## 15. Time chime in distracting apps — built 2026-10-27
+
+**Why.** Time blindness: twenty minutes of scrolling feels like three. A budget speaks once, at the limit; a soft chime at
+each interval of staying in the app keeps time visible without blocking anything.
+
+**What was built.** A short buzz and a self-clearing heads-up — "15 m on Reddit" — at each interval (5–30 min, default 15,
+never escalating) while the chosen apps stay in front; the chosen apps count as one stretch, a gap of up to 3 min pauses
+it, a longer one starts over; skipped during calls and DND. The apps are the server's distraction apps (followed as the
+flags change, each one can be unticked) plus any ticked by hand. See `CLAUDE.md` → "Time chime".
+
+**Not built, still open.** Everything is one setting for all chosen apps today; each of these could become per app:
+- **A separate count per app** instead of one stretch across the chosen apps (Reddit and Instagram each from zero).
+- **An interval per app** (5 min for TikTok, 30 for YouTube).
+- **The notification style per app** (heads-up or only a buzz). A vibration-only mode was considered and left out
+  (2026-10-27): it needs `VIBRATE` and its own checks of silent mode and the system's notification-vibration setting.
+- **Escalation**, either kind: chimes closer together the longer the stretch runs (15, then +10, then every 5), or a heavier
+  chime after an hour (one that stays until dismissed, a longer buzz). Left out because a chime that nags gets its channel
+  muted, and then it does nothing.
+- **The server's silence.** Quiet hours and away days don't mute the chime today (it never asks the server at chime time,
+  and scrolling past bedtime is exactly the time-blind stretch). Options: honour away days; or *strengthen* the chime after
+  the user's bedtime rather than mute it (#5's wind-down nudge).
+- **The reset gap as a setting** (3 min today, a constant).
+
 
 
 ---

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
+import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
 import kotlinx.coroutines.CancellationException
@@ -23,6 +24,8 @@ class UsageSyncWorker(
         askEveningReview()
         // Re-arms the watcher for a block or recent desk work, and ends a break the desk has come back from. Never throws.
         BreakMonitor.afterSync(applicationContext)
+        // Refreshes the distraction list and re-arms the watcher after a reboot. Never throws.
+        ChimeMonitor.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

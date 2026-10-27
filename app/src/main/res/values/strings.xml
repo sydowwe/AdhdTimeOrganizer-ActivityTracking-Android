@@ -134,6 +134,34 @@
     <string name="break_card_length">Break length</string>
     <string name="break_card_minutes">%1$d min</string>
 
+    <!-- Time chime: notification -->
+    <string name="channel_time_chime">Time chime</string>
+    <string name="channel_time_chime_description">A short buzz and a few seconds\' heads-up while you stay in an app you chose: how long you\'ve been in it</string>
+    <string name="notify_chime_title">%1$s on %2$s</string>
+    <string name="notify_chime_text">Leave for 3 minutes and the count starts over.</string>
+    <string name="notify_chime_text_with">Counted together with %1$s.</string>
+
+    <!-- Time chime: status card -->
+    <string name="chime_title">Time chime</string>
+    <string name="chime_card_switch">Chime while I stay in chosen apps</string>
+    <string name="chime_card_hint">A short buzz and \"15 m on Reddit\" at each interval you stay in the chosen apps — they count together. Leaving for 3 minutes starts over. Quiet during calls and Do Not Disturb. Needs notifications, and the battery exemption to notice the app in front.</string>
+    <string name="chime_card_interval">Every</string>
+    <string name="btn_chime_apps">Choose apps</string>
+    <string name="btn_chime_vibration">Vibration</string>
+    <plurals name="chime_count">
+        <item quantity="one">Chiming %1$d app</item>
+        <item quantity="other">Chiming %1$d apps</item>
+    </plurals>
+    <string name="chime_count_none">No app chosen yet</string>
+
+    <!-- Time chime: screen -->
+    <string name="chime_summary">The apps you used in the last 7 days, your distraction apps first. The chime counts the time in all chosen apps together.</string>
+    <string name="chime_follow_switch">Chime my distraction apps</string>
+    <string name="chime_follow_hint">The apps mapped to an activity you flagged as a distraction, kept up to date from the server. Untick one here to leave it out.</string>
+    <string name="chime_others_header">Chosen, not used this week</string>
+    <string name="chime_reason_distraction">Distraction app</string>
+    <string name="chime_reason_unticked">Distraction app, left out</string>
+
     <!-- Evening review: screen -->
     <string name="review_title">Unmapped phone time</string>
     <string name="review_summary">%1$s of phone time today isn\'t mapped to an activity. Map the biggest ones — a tap puts their time into History right away.</string>

@@ -167,7 +167,8 @@ class ForegroundWatchService : Service() {
     }
 
     private fun notification(endsAtMs: Long?): Notification {
-        val title = endsAtMs?.let { getString(R.string.watch_notification_title_until, DateFormat.getTimeFormat(this).format(Date(it))) }
+        val title = endsAtMs?.takeIf { it != ForegroundWatcher.INDEFINITELY }
+            ?.let { getString(R.string.watch_notification_title_until, DateFormat.getTimeFormat(this).format(Date(it))) }
             ?: getString(R.string.watch_notification_title)
         val open = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
 

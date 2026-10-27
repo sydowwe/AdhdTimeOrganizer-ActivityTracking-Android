@@ -21,6 +21,11 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.breaks.BreakPolicy
 import com.timeorganizer.usagetracker.breaks.BreakPreferences
+import com.timeorganizer.usagetracker.chime.ChimeAppsActivity
+import com.timeorganizer.usagetracker.chime.ChimeAppsList
+import com.timeorganizer.usagetracker.chime.ChimeMonitor
+import com.timeorganizer.usagetracker.chime.ChimePreferences
+import com.timeorganizer.usagetracker.chime.ChimeSchedule
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoredAppsActivity
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
@@ -31,6 +36,7 @@ import com.timeorganizer.usagetracker.sync.SyncEngine
 import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
 import com.timeorganizer.usagetracker.util.Constants
+import com.timeorganizer.usagetracker.util.InstalledApps
 import com.timeorganizer.usagetracker.util.PermissionHelper
 import com.timeorganizer.usagetracker.util.applySystemBarInsets
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
@@ -118,6 +124,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
         setUpBreakCard()
+        setUpChimeCard()
 
         tvIgnoredCount = findViewById(R.id.tvIgnoredCount)
         findViewById<View>(R.id.btnIgnoredApps).setOnClickListener { startActivity(IgnoredAppsActivity.intent(this)) }
@@ -182,6 +189,7 @@ class MainActivity : AppCompatActivity() {
         updateSetupBanner()
         updateSyncStatusCard()
         updateIgnoredCard()
+        updateChimeCard()
         checkBackendHealth()
     }
 
@@ -208,6 +216,55 @@ class MainActivity : AppCompatActivity() {
         chips.setOnCheckedStateChangeListener { group, checkedIds ->
             val minutes = checkedIds.firstOrNull()?.let { group.findViewById<Chip>(it).tag as Int } ?: return@setOnCheckedStateChangeListener
             breakPrefs.breakMinutes = minutes
+        }
+    }
+
+    /** The time chime's switch and interval; the apps are on their own screen, the vibration on the channel's system page. */
+    private fun setUpChimeCard() {
+        val chimePrefs = ChimePreferences(this)
+        val switch = findViewById<MaterialSwitch>(R.id.swTimeChime)
+        switch.isChecked = chimePrefs.enabled
+        switch.setOnCheckedChangeListener { _, checked ->
+            chimePrefs.enabled = checked
+            ChimeMonitor.kick(this)
+            updateChimeCard()
+        }
+
+        val chips = findViewById<ChipGroup>(R.id.chipsChimeInterval)
+        for (minutes in ChimeSchedule.INTERVAL_MINUTES) {
+            chips.addView(Chip(this).apply {
+                id = View.generateViewId()
+                tag = minutes
+                text = getString(R.string.break_card_minutes, minutes)
+                isCheckable = true
+                isChecked = minutes == chimePrefs.intervalMinutes
+            })
+        }
+        chips.setOnCheckedStateChangeListener { group, checkedIds ->
+            val minutes = checkedIds.firstOrNull()?.let { group.findViewById<Chip>(it).tag as Int } ?: return@setOnCheckedStateChangeListener
+            chimePrefs.intervalMinutes = minutes
+            ChimeMonitor.kick(this)
+        }
+
+        findViewById<View>(R.id.btnChimeApps).setOnClickListener { startActivity(ChimeAppsActivity.intent(this)) }
+        findViewById<View>(R.id.btnChimeVibration).setOnClickListener {
+            Notifications.openChannelSettings(this, Notifications.CHANNEL_TIME_CHIME)
+        }
+    }
+
+    private fun updateChimeCard() {
+        val chimePrefs = ChimePreferences(this)
+        val tvApps = findViewById<TextView>(R.id.tvChimeApps)
+        lifecycleScope.launch {
+            val count = withContext(Dispatchers.IO) {
+                val installed = InstalledApps(applicationContext)
+                ChimeAppsList.chimedCount(chimePrefs.choices, chimePrefs.distractions) { installed.label(it) != null }
+            }
+            tvApps.text = if (count == 0) {
+                getString(R.string.chime_count_none)
+            } else {
+                resources.getQuantityString(R.plurals.chime_count, count, count)
+            }
         }
     }
 

@@ -1,11 +1,9 @@
 package com.timeorganizer.usagetracker.breaks
 
-import android.app.NotificationManager
 import android.content.Context
-import android.media.AudioManager
-import android.os.Build
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.notify.PhoneSilence
 import com.timeorganizer.usagetracker.now.NowClient
 import com.timeorganizer.usagetracker.now.NowFacts
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
@@ -125,7 +123,7 @@ object BreakMonitor {
         val facts = if (enabled) NowClient.get(now) else null
         val phone = if (enabled) phoneUse(app, facts, now) else PhoneUse.NONE
 
-        val step = BreakPolicy.decide(prefs.state, BreakInput(now, facts, phone, locallySilent(app), enabled, prefs.breakMinutes))
+        val step = BreakPolicy.decide(prefs.state, BreakInput(now, facts, phone, PhoneSilence.now(app), enabled, prefs.breakMinutes))
         prefs.state = step.state
         when (val action = step.action) {
             is BreakAction.Post -> BreakNotifier.post(app, action.subject, action.breakMs)
@@ -165,17 +163,5 @@ object BreakMonitor {
         }
         val watched = ForegroundWatcher.running && ForegroundWatcher.inFront.isNotEmpty()
         return if (watched && !fromLog.inUse) fromLog.copy(inUse = true) else fromLog
-    }
-
-    /** In a call (or ringing), or Do Not Disturb in any form: the phone's own reasons to wait. Neither needs a permission. */
-    private fun locallySilent(app: Context): Boolean {
-        val mode = app.getSystemService(AudioManager::class.java)?.mode
-        val inCall = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION ||
-            mode == AudioManager.MODE_RINGTONE ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mode == AudioManager.MODE_CALL_SCREENING)
-        val filter = app.getSystemService(NotificationManager::class.java)?.currentInterruptionFilter
-        val dnd = filter != null && filter != NotificationManager.INTERRUPTION_FILTER_ALL &&
-            filter != NotificationManager.INTERRUPTION_FILTER_UNKNOWN
-        return inCall || dnd
     }
 }

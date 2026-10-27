@@ -33,11 +33,21 @@ object Notifications {
     /** "Break's been 25 m": high importance, so it peeks over the app the break is being spent in. */
     const val CHANNEL_BREAKS = "breaks"
 
+    /**
+     * "15 m on Reddit": high importance so it peeks over the app, a short vibration and no sound. A channel's vibration is
+     * fixed once created and then the user's; they turn it off in the channel's settings, which the status card opens.
+     */
+    const val CHANNEL_TIME_CHIME = "time_chime"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
     const val ID_EVENING_REVIEW = 3
     const val ID_BREAK = 4
+    const val ID_TIME_CHIME = 5
+
+    /** Two short taps. */
+    private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
 
     /** Idempotent: creating an existing channel only updates its name and description. */
     fun createChannels(context: Context) {
@@ -59,6 +69,14 @@ object Notifications {
                 NotificationChannelCompat.Builder(CHANNEL_BREAKS, NotificationManagerCompat.IMPORTANCE_HIGH)
                     .setName(context.getString(R.string.channel_breaks))
                     .setDescription(context.getString(R.string.channel_breaks_description))
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_TIME_CHIME, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_time_chime))
+                    .setDescription(context.getString(R.string.channel_time_chime_description))
+                    .setSound(null, null)
+                    .setVibrationEnabled(true)
+                    .setVibrationPattern(CHIME_VIBRATION)
+                    .setShowBadge(false)
                     .build()
             )
         )
@@ -92,6 +110,15 @@ object Notifications {
     fun openSettings(context: Context) {
         context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        })
+    }
+
+    /** One channel's system page: its vibration, sound and whether it shows at all. */
+    fun openChannelSettings(context: Context, channelId: String) {
+        context.startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         })
     }

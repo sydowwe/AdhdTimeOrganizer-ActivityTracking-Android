@@ -31,6 +31,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `notify/Notifications.kt` | Channels, the permission check every poster makes, notification ids |
 | `notify/SyncBlockedDecider.kt` | **Pure.** A run's facts + what was shown → post / clear / nothing |
 | `notify/SyncBlockedNotifier.kt` | Runs the decider after every `SyncEngine.run`, builds the notification, keeps its state |
+| `notify/PhoneSilence.kt` | The phone's own reasons for a nudge to keep quiet: a call (or ringing), any Do Not Disturb. Shared by every nudge |
 | `watch/ForegroundTracker.kt`, `watch/WatchReasons.kt` | **Pure.** Events → "came to the front / left" on top of `SessionBuilder`; who asked to watch until when |
 | `watch/ForegroundWatcher.kt` | The API features use: `watch(reason, until)` / `stop(reason)`, listeners, `inFront` |
 | `watch/ForegroundWatchService.kt` | The `specialUse` foreground service that polls the usage log while a reason is active |
@@ -44,6 +45,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `now/NowClient.kt` | The one `/now` reader: in-memory answer reused 30 s, then `If-None-Match` → `304` |
 | `breaks/BreakPolicy.kt` | **Pure.** Breaks that don't end: `/now` + phone use from the log + silence + state → start / nudge / end; the buttons; how long to watch; `PhoneUse` from usage events |
 | `breaks/BreakMonitor.kt`, `breaks/BreakNotifier.kt`, `breaks/BreakActionReceiver.kt`, `breaks/BreakPreferences.kt` | Runs the policy (after each sync, on a pickup, on a button, when it asks to look again), arms the watcher, posts the nudge; its switch, length and state |
+| `chime/ChimeSchedule.kt`, `chime/ChimeApps.kt` | **Pure.** The time chime: the chosen apps' sittings from the log → the stretch (gaps ≤ 3 min paused, longer ones start over) → chime now / when the next falls due; which apps are chosen (distraction flags + ticks − unticks) and the screen's rows |
+| `chime/ChimeMonitor.kt`, `chime/ChimeNotifier.kt`, `chime/ChimePreferences.kt`, `chime/ChimeAppsActivity.kt` | Runs the schedule (a chosen app to the front, the next chime due, after each sync), keeps the watcher on while the chime is, posts the chime; its switch, interval, choices, the kept distraction list and state; the "Time chime" screen |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
@@ -197,7 +200,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
-  watcher's silent "Focus watch", the "Evening review" question and the high-importance "Breaks" nudge today.
+  watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge and the
+  high-importance, vibrating, soundless "Time chime" today. A channel's sound and vibration are fixed once it exists:
+  getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
 - **`POST_NOTIFICATIONS` (API 33+) is asked for only from the settings screen's Notifications card**, which says
@@ -221,7 +226,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - **It runs only while some feature has asked**: `ForegroundWatcher.watch(context, reason, untilMs)` starts it or
   moves that reason's end, `stop(reason)` lets go, and the service stops itself when the last reason ends. Reasons
   are kept in prefs, so a sticky restart resumes them. Listeners get every change on a background thread; register
-  them in `TimeOrganizerApp.onCreate` so a restarted process has them too.
+  them in `TimeOrganizerApp.onCreate` so a restarted process has them too. `untilMs = ForegroundWatcher.INDEFINITELY`
+  watches until `stop` (the time chime); the ongoing notification then shows no end time.
 - **Starting it from the background needs the battery-optimization exemption** (Android 12+). Without it, and
   outside the app, `watch` returns `false` — a feature must cope with that, not assume the watch began.
 - **Mechanism (decided 2026-10-19):** a `specialUse` foreground service that polls `queryEvents` every 5 s while
@@ -286,6 +292,38 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   phone used beside a dead desktop tracker can be nudged; without one, the desk is never recently active and nothing runs.
 - **Never logged:** the subject is the user's activity name. It is kept in `break_nudge` prefs while a break is open, and
   an account switch resets it (`SyncEngine.onSignedIn`).
+
+### Time chime (prompt 11, 2026-10-27)
+- **What it is:** while you stay in the chosen apps, a short buzz and a heads-up that clears itself after 6 s — *"15 m on
+  Reddit"* — at each interval: 5 / 10 / **15** / 20 / 30 min, the same interval every time (the growing number is the
+  only escalation). No buttons, no tap target, no sound. Its own channel (`time_chime`) and id. **Off by default**; the
+  status screen's "Time chime" card has the switch, the interval, "Choose apps" and "Vibration" (the channel's system
+  page — there is no vibration-only mode and no in-app vibration switch).
+- **All of it is `ChimeSchedule`** (pure, `ChimeScheduleTest`). **The chosen apps count as one stretch** (10 min of
+  Reddit and 5 of Instagram is "15 m on Instagram", counted together with Reddit), split-screen overlap once. A gap out
+  of them — another app, home, the screen off — **of up to 3 min pauses the count** and isn't counted; **longer starts
+  over**. A chime only while one of them is in front. Missed marks are said once, for the latest. **A call or DND skips
+  the chime** (`PhoneSilence`) — it is not saved for later, unlike the break nudge's. The server's quiet hours and away
+  days do **not** mute it: it never asks the server at chime time.
+- **Which apps (`ChimeChoices`):** "Chime my distraction apps" (on by default) follows the server's distraction packages
+  (`/now`'s `distractionPackages`, exact names, kept in `time_chime` prefs so a restart offline still knows them, refreshed
+  after each sync while on and when the screen opens), **plus** apps ticked by hand, **minus** distraction apps unticked
+  by hand — an untick holds even when the server lists the app again. The screen is the week's apps (as "Ignored apps"
+  lists them), distraction ones first; below, chosen apps on this phone not used this week. A distraction package not
+  installed here (flagged from another device) is not shown or counted.
+- **Phone use comes from the usage log**, through `SessionBuilder` (`ChimeSchedule.sittings`, 6 h back), like the break
+  nudge: exact, survives a restart. The state kept is only the stretch's start and the time already chimed for.
+- **The watcher runs the whole time the chime is on** (reason `chime`, `INDEFINITELY`), so the first chime lands on time;
+  the cost is the silent "Focus watch on" notification all day. Armed again on every process start and after every
+  sync (so a reboot or force-stop is undone); let go when the chime is off, signed out, nothing is chosen, or it has
+  nothing to post with. `ChimeMonitor` runs on a chosen app coming to the front, at the next mark (an in-process delay,
+  alive while the watcher's service keeps the process), after each sync and on a setting change.
+- **Battery, estimated, not measured:** the chime adds no polling of its own — it is the watcher's ~0.1–0.3 mWh per
+  screen-on hour (under 0.01 % of a ~17 Wh battery), now for every screen-on hour instead of only blocks and breaks, plus
+  one read of 6 h of the log per chosen app coming to the front or per chime (milliseconds). Nothing runs with the
+  screen off.
+- **An account switch** clears the kept distraction list and the stretch; the ticks stay, they are this phone's.
+  Package names are never logged.
 
 ### Evening review of unmapped time
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on
