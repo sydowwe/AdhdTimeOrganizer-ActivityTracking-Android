@@ -24,7 +24,12 @@ object Notifications {
 
     const val CHANNEL_SYNC_PROBLEMS = "sync_problems"
 
-    /** The foreground watcher's ongoing notification: silent, so muting it costs nothing else. */
+    /**
+     * The foreground watcher's notification: silent, so muting it costs nothing else — the service runs on with the channel
+     * off. Low importance, not minimum: on a minimum channel Android raises a foreground service's notification back to
+     * low and shows its own "running in the background" notice. Only the user can minimise it, from the channel's page
+     * (the cards' "Hide Focus watch").
+     */
     const val CHANNEL_FOREGROUND_WATCH = "foreground_watch"
 
     /** The evening question about unmapped phone time: once a day, muted separately from the sync warnings. */

@@ -253,9 +253,14 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   ~1–5 ms of CPU. 720 polls a screen-on hour ≈ 1–4 s of CPU ≈ 0.1–0.3 mWh, under 0.01 % of a ~17 Wh battery
   per hour. The screen itself draws hundreds of times more. Nothing runs while the screen is off. Measure on the
   phone (`dumpsys batterystats`) only with the user's go-ahead.
-- The ongoing notification ("Focus watch on until 14:30 · Notices which app is in front so nudges arrive on
-  time. Records nothing.") is on the silent "Focus watch" channel. Without `POST_NOTIFICATIONS` it is hidden but
-  the service still runs.
+- The notification ("Focus watch on until 14:30 · Notices which app is in front so nudges arrive on
+  time. Records nothing.") is on the silent "Focus watch" channel. Without `POST_NOTIFICATIONS`, or with the channel
+  off, it is hidden but the service still runs. **It is not ongoing** (since 1.2.1, the owner: "a bit annoying"): on
+  Android 13+ a swipe hides it and the service runs on; it is posted again only when its line changes (a new end time),
+  so a reason with no end (the chime, the loop check) never brings it back. **The channel stays low importance**: on a
+  minimum one Android raises a foreground service's notification back to low and adds its own "running in the
+  background" notice. Only the user can minimise or turn off the channel; the Time chime and Loop check cards have
+  **Hide "Focus watch on"**, which opens its system page.
 
 ### `/now` — what every nudge asks first
 - **`GET tracker/android/now`** is the server's view of right now: `silentReason` (an away day, quiet hours, absent — any

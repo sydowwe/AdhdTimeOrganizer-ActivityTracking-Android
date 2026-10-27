@@ -182,6 +182,7 @@
     <string name="loop_card_hint">One check-in when the phone is unlocked 6 times in 10 minutes, or 6 apps are hopped through in 5 minutes with none used for over a minute. Put it away starts a quiet timer that sounds when it is up. Quiet during calls and Do Not Disturb. Needs notifications, and the battery exemption to notice pickups.</string>
     <string name="loop_card_away">Put away for</string>
     <string name="btn_loop_apps">Apps that don\'t count</string>
+    <string name="btn_hide_watch">Hide \"Focus watch on\"</string>
     <plurals name="loop_count_today">
         <item quantity="one">%1$d loop today</item>
         <item quantity="other">%1$d loops today</item>

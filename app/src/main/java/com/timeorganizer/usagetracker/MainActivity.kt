@@ -256,6 +256,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnChimeVibration).setOnClickListener {
             Notifications.openChannelSettings(this, Notifications.CHANNEL_TIME_CHIME)
         }
+        findViewById<View>(R.id.btnChimeHideWatch).setOnClickListener { openWatchChannel() }
     }
 
     private fun updateChimeCard() {
@@ -300,7 +301,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.btnLoopApps).setOnClickListener { startActivity(LoopAppsActivity.intent(this)) }
+        findViewById<View>(R.id.btnLoopHideWatch).setOnClickListener { openWatchChannel() }
     }
+
+    /**
+     * The watcher's channel page: turn it off, or minimise it — the app can't (see `Notifications.CHANNEL_FOREGROUND_WATCH`).
+     * The watch runs on either way. On the two cards whose features keep it on all day.
+     */
+    private fun openWatchChannel() = Notifications.openChannelSettings(this, Notifications.CHANNEL_FOREGROUND_WATCH)
 
     private fun updateLoopCard() {
         val tvToday = findViewById<TextView>(R.id.tvLoopToday)

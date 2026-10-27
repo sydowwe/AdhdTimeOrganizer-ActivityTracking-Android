@@ -96,8 +96,10 @@ class ForegroundWatchService : Service() {
 
     /** Keeps the notification's end time current and stops once the last reason has ended or been stopped. */
     private suspend fun followReasons() {
+        // Across changes of the reasons, not per change: a moved end of one reason that leaves the shown line as it was
+        // must not post it again — that would bring back a notification the user swiped away.
+        var shownEndMs: Long? = null
         ForegroundWatcher.reasonsFlow(this).collectLatest { reasons ->
-            var shownEndMs: Long? = null
             while (true) {
                 val now = System.currentTimeMillis()
                 val endsAtMs = reasons.endsAtMs(now)
@@ -176,7 +178,8 @@ class ForegroundWatchService : Service() {
             .setSmallIcon(R.drawable.ic_stat_focus_watch)
             .setContentTitle(title)
             .setContentText(getString(R.string.watch_notification_text))
-            .setOngoing(true)
+            // Not ongoing: since Android 13 a swipe hides it and the service runs on. It comes back only when its line
+            // changes (a new end time), never for a reason watching with no end (the chime, the loop check).
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
