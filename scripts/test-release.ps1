@@ -155,7 +155,8 @@ if (-not $NoBump) {
 Write-Host "test-release: $oldName ($oldCode) -> $newName ($newCode), server $serverRoot" -ForegroundColor Cyan
 Push-Location $root
 try {
-    $tasks = if ($SkipTests) { @('assembleDebug') } else { @('testDebugUnitTest', 'assembleDebug') }
+    # @(...) around the if: a one-element array coming out of it unwraps to a string, which @tasks splats per character.
+    $tasks = @(if ($SkipTests) { 'assembleDebug' } else { 'testDebugUnitTest', 'assembleDebug' })
     & .\gradlew.bat @tasks
     $gradleExit = $LASTEXITCODE
 } finally {
