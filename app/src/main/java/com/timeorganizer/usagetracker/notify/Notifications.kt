@@ -39,12 +39,26 @@ object Notifications {
      */
     const val CHANNEL_TIME_CHIME = "time_chime"
 
+    /**
+     * "6 pick-ups in 10 minutes. Put the phone away for 20?": high importance so it peeks over the app, the chime's short
+     * vibration and no sound — a question, not an alarm. Fixed once created, like every channel.
+     */
+    const val CHANNEL_LOOP_CHECK = "loop_check"
+
+    /**
+     * "Phone away: 20 min is up": default importance **with the default sound**, because the phone is put away when it
+     * comes. Its own channel, not the time chime's: the chime is the in-app clock.
+     */
+    const val CHANNEL_PHONE_AWAY = "phone_away"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
     const val ID_EVENING_REVIEW = 3
     const val ID_BREAK = 4
     const val ID_TIME_CHIME = 5
+    const val ID_LOOP_CHECK = 6
+    const val ID_PHONE_AWAY = 7
 
     /** Two short taps. */
     private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
@@ -76,6 +90,20 @@ object Notifications {
                     .setSound(null, null)
                     .setVibrationEnabled(true)
                     .setVibrationPattern(CHIME_VIBRATION)
+                    .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_LOOP_CHECK, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_loop_check))
+                    .setDescription(context.getString(R.string.channel_loop_check_description))
+                    .setSound(null, null)
+                    .setVibrationEnabled(true)
+                    .setVibrationPattern(CHIME_VIBRATION)
+                    .setShowBadge(false)
+                    .build(),
+                // The default sound comes with the default importance.
+                NotificationChannelCompat.Builder(CHANNEL_PHONE_AWAY, NotificationManagerCompat.IMPORTANCE_DEFAULT)
+                    .setName(context.getString(R.string.channel_phone_away))
+                    .setDescription(context.getString(R.string.channel_phone_away_description))
                     .setShowBadge(false)
                     .build()
             )

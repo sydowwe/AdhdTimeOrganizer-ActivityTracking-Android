@@ -65,6 +65,8 @@ class UsageStatsCollector(context: Context) {
         UsageEvents.Event.KEYGUARD_SHOWN,
         UsageEvents.Event.DEVICE_SHUTDOWN -> EventKind.CLOSE_ALL
         UsageEvents.Event.DEVICE_STARTUP -> EventKind.DEVICE_STARTUP
+        UsageEvents.Event.SCREEN_INTERACTIVE -> EventKind.SCREEN_ON
+        UsageEvents.Event.KEYGUARD_HIDDEN -> EventKind.UNLOCKED
         else -> EventKind.OTHER
     }
 }

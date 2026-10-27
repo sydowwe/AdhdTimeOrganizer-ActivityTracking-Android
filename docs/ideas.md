@@ -94,7 +94,10 @@ morning-routine signal the morning briefing could use.
 **How.**
 - **Phone:** `KEYGUARD_HIDDEN` (18) is an unlock; `SCREEN_INTERACTIVE` (15) is a screen-on without unlock
   (checking the time). Count both per hour in `SessionBuilder`'s pass (it already walks every event — add a
-  pure `PickupCounter` beside it) and store per-hour rows in the outbox DB.
+  pure `PickupCounter` beside it) and store per-hour rows in the outbox DB. **Since 12 (2026-10-27) the reading exists:**
+  `UsageStatsCollector` maps both (`EventKind.UNLOCKED` / `SCREEN_ON`) and the pure `usagestats/Pickups` turns them into
+  pickups, each unlocked or not; a `PickupCounter` only bins them per hour (mind its rule: a read that starts mid-pickup
+  leaves that pickup out). Send the loop check's stored loops in the same change (#16).
 - **Server:** a new ingest shape — either a `pickups` array on the sync request (`{hourStartUtc, unlocks,
   screenOns}`), stored in a small `android_pickup_hour` table in the `tracking` schema with the same retention
   purge, or a nullable count on `TrackerSourceStatus`-style daily rows. The android focus-metrics dashboard gets
@@ -294,6 +297,37 @@ flags change, each one can be unticked) plus any ticked by hand. See `CLAUDE.md`
   and scrolling past bedtime is exactly the time-blind stretch). Options: honour away days; or *strengthen* the chime after
   the user's bedtime rather than mute it (#5's wind-down nudge).
 - **The reset gap as a setting** (3 min today, a constant).
+
+## 16. Pick-up loop check — built 2026-10-27
+
+**Why.** Per-app totals hide the loop: pick up → feed → put down → pick up again 90 s later, six times in ten minutes, or a
+chain of apps hopped through without purpose. That pattern *is* the derailment, and spotting it needs no app→activity
+mapping at all.
+
+**What was built.** One check-in per loop — "6 pick-ups in 10 minutes · Want to put the phone away for 20?" with Put it
+away / I'm fine / Not today — when the phone is unlocked 6 times in 10 min, or 6 apps are hopped through in 5 min with none
+used over a minute. "Put it away" runs a "Phone away" timer (10 / 20 / 30 min) that sounds when it is up. Chat apps ticked
+under "Apps that don't count" make no pickups. Loops are kept on the phone for 30 days. Off by default; the watcher runs
+while it is on. See `CLAUDE.md` → "Loop check".
+
+**Not built, still open.**
+- **Send the loops to the server** for a dashboard ("3 loops today, mostly 21:00–23:00"). Planned with prompt 14 (pickups),
+  which changes the same sync request, the same wire sample in both repos and adds the same kind of `tracking` table, retention
+  and GDPR paths: one change instead of two.
+- **The thresholds as settings.** 6 unlocks / 10 min and 6 apps / 5 min / 60 s are constants, chosen conservative before any
+  data. Tune them from a week of stored loops first; a setting only if one size really doesn't fit.
+- **Telling a chat from a loop without the list.** The log can't (same timing). A `NotificationListenerService` (prompt 15's
+  notification interruptions) could see that a pickup followed a message, and not count it; it is a permission of its own.
+- **Pre-ticking the obvious chat apps** — the default SMS app (`RoleManager.ROLE_SMS`) and the dialer — instead of starting
+  with nothing ticked.
+- **Using the server's distraction flags** to weight a loop ("6 pick-ups, 5 of them Instagram"), or to check in sooner when the
+  loop is in distraction apps. Left out: the check must work without knowing what an app is, and the flags are the chime's
+  refresh today.
+- **An exact away timer** (on the minute) needs the "Alarms & reminders" permission on Android 14; the inexact one may come a
+  little late in Doze. A reboot during the timer loses its sound.
+- **The server's silence.** Like the chime, quiet hours and away days don't mute it; honouring away days is an option.
+- **Ending the away timer early** (a "Back now" on the card), or saying something when the phone is picked up during it.
+  Left out so the timer never shames.
 
 
 

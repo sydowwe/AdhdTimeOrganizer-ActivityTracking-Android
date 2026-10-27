@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
+import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
 import kotlinx.coroutines.CancellationException
@@ -26,6 +27,8 @@ class UsageSyncWorker(
         BreakMonitor.afterSync(applicationContext)
         // Refreshes the distraction list and re-arms the watcher after a reboot. Never throws.
         ChimeMonitor.afterSync(applicationContext)
+        // Closes a loop that is over and re-arms the watcher after a reboot. Never throws.
+        LoopMonitor.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

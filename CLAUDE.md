@@ -18,6 +18,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 |---|---|
 | `usagestats/SessionBuilder.kt` | **Pure.** Events → sessions; where the next read starts (`resumeFromMs`) |
 | `usagestats/UsageStatsCollector.kt` | Reads the usage log for a window, maps event types, resolves app labels |
+| `usagestats/Pickups.kt` | **Pure.** Events → pickups (screen on or unlock → screen off / keyguard), each unlocked or not. The loop check reads it; prompt 14's per-hour counts are meant to |
 | `sync/SyncLimits.kt` | **Pure.** The server's per-session rules, applied before a session is queued |
 | `sync/BatchSender.kt` | **Pure.** Batching, `ResponseClassifier` (status → sent / wait / auth / rejected), bisecting a refused batch |
 | `sync/SyncEngine.kt` | One run: usage log → outbox → server. Process-wide mutex. Writes the `SyncReport` the screen shows |
@@ -47,6 +48,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `breaks/BreakMonitor.kt`, `breaks/BreakNotifier.kt`, `breaks/BreakActionReceiver.kt`, `breaks/BreakPreferences.kt` | Runs the policy (after each sync, on a pickup, on a button, when it asks to look again), arms the watcher, posts the nudge; its switch, length and state |
 | `chime/ChimeSchedule.kt`, `chime/ChimeApps.kt` | **Pure.** The time chime: the chosen apps' sittings from the log → the stretch (gaps ≤ 3 min paused, longer ones start over) → chime now / when the next falls due; which apps are chosen (distraction flags + ticks − unticks) and the screen's rows |
 | `chime/ChimeMonitor.kt`, `chime/ChimeNotifier.kt`, `chime/ChimePreferences.kt`, `chime/ChimeAppsActivity.kt` | Runs the schedule (a chosen app to the front, the next chime due, after each sync), keeps the watcher on while the chime is, posts the chime; its switch, interval, choices, the kept distraction list and state; the "Time chime" screen |
+| `loops/LoopDetector.kt`, `loops/LoopPolicy.kt`, `loops/LoopApps.kt` | **Pure.** The loop check: pickups + sittings → a rule holding now (6 unlocks in 10 min, or 6 apps hopped in 5 min); the loop's state from look to look, the buttons, the away timer, "Not today"; the "Apps that don't count" rows |
+| `loops/LoopMonitor.kt`, `loops/LoopNotifier.kt`, `loops/LoopActionReceiver.kt`, `loops/LoopPreferences.kt`, `loops/LoopStore.kt`, `loops/LoopAppsActivity.kt` | Runs the check (any app to the front, after each sync, a button, the timer's alarm), keeps the watcher on while it is, posts the check-in and "Phone away … is up"; its switch, timer length, apps that don't count and state; the loops kept on the phone (`loops.db`); the "Apps that don't count" screen |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
@@ -55,7 +58,10 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (red banner while usage access is off, amber while setup is unfinished) |
 | `SettingsActivity.kt` | The set-once things: usage access, battery-optimization exemption, notification permission — a check and "Manage" (the system page; an app can't revoke these itself) once granted. Opens by itself on first run |
 
-`app/schemas/` holds Room's exported schema. Commit it with any entity change and write a real migration.
+`app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, and `loops.db` since prompt 12). Commit
+them with any entity change and write a real migration. **The first build of a new `@Database`** can fail
+`kspReleaseKotlin` with `JsonDecodingException: Expected start of the object '{', but had 'EOF'`: the debug and release KSP
+tasks race to write its new schema file. The file is fine once one of them has; run the build again.
 
 ## Building and testing
 
@@ -154,7 +160,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 - A session is an **app**, from its first resumed activity until the last one pauses — not an activity. A
   return to the same app within 2 s with nothing else in between is the same sitting.
 - Screen off, keyguard and shutdown close every session; after a reboot an open session ends at the last event
-  before it. **Split-screen counts both visible apps; picture-in-picture counts nothing.** Both deliberate.
+  before it. Screen on and unlock (`EventKind.SCREEN_ON` / `UNLOCKED`, read since prompt 12 for `Pickups`) change no
+  session: one starts with an app's resume, not with the screen (`PickupsTest.theSessionBuilder_ignoresScreenOnsAndUnlocks`). **Split-screen counts both visible apps; picture-in-picture counts nothing.** Both deliberate.
 - **A stop with no pause before it counts as the pause.** Samsung's Recents sends the app it leaves straight to
   `ACTIVITY_STOPPED` and never `ACTIVITY_PAUSED`; counting only pauses left that app "open" until the screen went
   off (a 22 s sitting stored as 125 s). A stop that follows its own pause is ignored (`SessionBuilder.onStopped`).
@@ -200,8 +207,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
-  watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge and the
-  high-importance, vibrating, soundless "Time chime" today. A channel's sound and vibration are fixed once it exists:
+  watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge, the
+  high-importance, vibrating, soundless "Time chime" and "Loop check", and "Phone away" (default importance, the
+  default sound) today. A channel's sound and vibration are fixed once it exists:
   getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
@@ -227,7 +235,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   moves that reason's end, `stop(reason)` lets go, and the service stops itself when the last reason ends. Reasons
   are kept in prefs, so a sticky restart resumes them. Listeners get every change on a background thread; register
   them in `TimeOrganizerApp.onCreate` so a restarted process has them too. `untilMs = ForegroundWatcher.INDEFINITELY`
-  watches until `stop` (the time chime); the ongoing notification then shows no end time.
+  watches until `stop` (the time chime, the loop check); the ongoing notification then shows no end time.
 - **Starting it from the background needs the battery-optimization exemption** (Android 12+). Without it, and
   outside the app, `watch` returns `false` — a feature must cope with that, not assume the watch began.
 - **Mechanism (decided 2026-10-19):** a `specialUse` foreground service that polls `queryEvents` every 5 s while
@@ -324,6 +332,52 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
   screen off.
 - **An account switch** clears the kept distraction list and the stretch; the ticks stay, they are this phone's.
   Package names are never logged.
+
+### Loop check (prompt 12, 2026-10-27)
+- **What it is:** one gentle check-in when the phone is being picked up in a loop — *"6 pick-ups in 10 minutes · Want to
+  put the phone away for 20?"* (or *"6 apps in 5 minutes"*) — with **Put it away**, **I'm fine**, **Not today**. It knows
+  nothing about what any app is (activity mapping stays the server's): only how the phone is used. Its own channel
+  (`loop_check`: high importance so it peeks over the app, the chime's short vibration, no sound) and id. **Off by
+  default**; the status screen's "Loop check" card has the switch, the away timer's length (10 / **20** / 30 min), "N loops
+  today" (or "Phone away until 14:30") and "Apps that don't count".
+- **The rules are `LoopDetector`** (pure, `LoopDetectorTest`, realistic event sequences), over a window ending now:
+  **6 unlocks in 10 min** (`KEYGUARD_HIDDEN`; no length rule — six in ten minutes are short already), or **6 different
+  apps in 5 min** in a run of sittings each ≤ 60 s going back from now (a longer one ends the run: that app was used for
+  something). **Only unlocks are pickups**, so an alarm snoozed over the lock screen, a call (the proximity sensor turns the
+  screen off and on), navigation showing over the lock screen and a glance at the clock never count. A phone with **no lock
+  screen** never logs an unlock: until one has been seen (`LoopPreferences.sawUnlock`), a screen-on that brought an app to
+  the front counts instead. The home screen, this app and apps with no launcher entry are never a loop's app; unlocking
+  only to look at the home screen still counts as a pickup.
+- **A chat looks exactly like a loop in the log** (six quick replies in ten minutes). **"Apps that don't count"** (ticked
+  by hand, nothing ticked by default, this phone's — an account switch keeps them) fixes it: a pickup that opens only
+  ticked apps is no pickup, and a hop to one is no hop (it still stays in the run). A pickup that also reaches a counted app
+  counts.
+- **One check-in per loop (`LoopPolicy`, `LoopPolicyTest`).** A loop begins when a rule holds and none is going on, goes on
+  while one keeps holding, and **ends 15 min after the last time one did**; the next loop gets its own check-in, and nothing
+  from before the last one's end counts. **A call or DND** when a loop begins skips its check-in (`PhoneSilence`) — not
+  postponed, like the chime. The server's quiet hours and away days don't mute it (as 11-8): bedtime scrolling is the case.
+- **The buttons.** **I'm fine** (and a swipe): silent until the loop ends. **Not today**: the loop ends, silent until the
+  next local midnight; unlocks from before midnight don't count after it. **Put it away**: the loop ends and the **away
+  timer** runs — no check-in meanwhile, nothing said if the phone is picked up during it, and when it is up *"20 min away is
+  up"* on the `phone_away` channel **with the default sound** (the phone is away). It is an inexact
+  `AlarmManager.setAndAllowWhileIdle` alarm: no permission (an exact one needs "Alarms & reminders" on Android 14), may come
+  a little late in Doze, never early. A reboot clears the alarm; the timer is then let go silently 30 min after its end.
+  Named "Phone away", never "chime": the time chime is another feature.
+- **Phone use comes from the usage log**, through `SessionBuilder` (`LoopDetector.sittings`) and `Pickups`, 1 h back. The
+  watcher is only the cue: **it runs the whole time the check is on** (reason `loop`, `INDEFINITELY`, as 11-4), and any app
+  coming to the front — after an unlock that is at least the home screen — wakes `LoopMonitor`; changes arriving while a look
+  is pending are one look. No look-again of its own: nothing changes without an app to the front, and a loop that is over is
+  closed at the next look or sync. Re-armed on every process start and after every sync; let go when off, signed out, or the
+  channel / notifications are off.
+- **Loops are stored on the phone only** (`loops.db`, its own Room database so the outbox's needs no migration; `PickupLoopEntity`):
+  start, end, rule, the most pickups and apps counted, and the answer (`ASKED` / `AWAY` / `FINE` / `NOT_TODAY` /
+  `SILENCED`) — **no package names**. 30 days. Nothing is sent: that waits for prompt 14 (a wire change in both repos). An
+  account switch clears them and the state.
+- **With the other nudges:** the check, the time chime and the break nudge each decide alone and post on their own channel;
+  none reads another's state. A loop in chosen apps can bring a chime too (rare: the chime needs ≥ 5 min in them), and a
+  loop during a break from the desk a break nudge as well.
+- **Battery, estimated, not measured:** the watcher's ~0.1–0.3 mWh per screen-on hour (as the chime's, none extra when both
+  are on), plus one read of an hour of the log per app coming to the front (milliseconds).
 
 ### Evening review of unmapped time
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on

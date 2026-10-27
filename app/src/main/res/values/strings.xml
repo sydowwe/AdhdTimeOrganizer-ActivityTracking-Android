@@ -162,6 +162,38 @@
     <string name="chime_reason_distraction">Distraction app</string>
     <string name="chime_reason_unticked">Distraction app, left out</string>
 
+    <!-- Loop check: notifications -->
+    <string name="channel_loop_check">Loop check</string>
+    <string name="channel_loop_check_description">A short buzz and a heads-up when the phone keeps being picked up, or apps hopped through, in a few minutes</string>
+    <string name="channel_phone_away">Phone away</string>
+    <string name="channel_phone_away_description">With sound, when the time you put the phone away for is up</string>
+    <string name="notify_loop_title_pickups">%1$d pick-ups in %2$d minutes</string>
+    <string name="notify_loop_title_hopping">%1$d apps in %2$d minutes</string>
+    <string name="notify_loop_text">Want to put the phone away for %1$d?</string>
+    <string name="notify_loop_away">Put it away</string>
+    <string name="notify_loop_fine">I\'m fine</string>
+    <string name="notify_loop_not_today">Not today</string>
+    <string name="notify_away_title">%1$d min away is up</string>
+    <string name="notify_away_text">Welcome back.</string>
+
+    <!-- Loop check: status card -->
+    <string name="loop_card_title">Loop check</string>
+    <string name="loop_card_switch">Check in when I keep picking the phone up</string>
+    <string name="loop_card_hint">One check-in when the phone is unlocked 6 times in 10 minutes, or 6 apps are hopped through in 5 minutes with none used for over a minute. Put it away starts a quiet timer that sounds when it is up. Quiet during calls and Do Not Disturb. Needs notifications, and the battery exemption to notice pickups.</string>
+    <string name="loop_card_away">Put away for</string>
+    <string name="btn_loop_apps">Apps that don\'t count</string>
+    <plurals name="loop_count_today">
+        <item quantity="one">%1$d loop today</item>
+        <item quantity="other">%1$d loops today</item>
+    </plurals>
+    <string name="loop_count_none">No loops today</string>
+    <string name="loop_away_until">Phone away until %1$s</string>
+
+    <!-- Loop check: screen -->
+    <string name="loop_apps_title">Apps that don\'t count</string>
+    <string name="loop_apps_summary">Tick your chat apps: a run of quick replies isn\'t a loop. A pickup that opens only ticked apps isn\'t counted, and neither is a hop to one. The apps you used in the last 7 days.</string>
+    <string name="loop_apps_others_header">Ticked, not used this week</string>
+
     <!-- Evening review: screen -->
     <string name="review_title">Unmapped phone time</string>
     <string name="review_summary">%1$s of phone time today isn\'t mapped to an activity. Map the biggest ones — a tap puts their time into History right away.</string>

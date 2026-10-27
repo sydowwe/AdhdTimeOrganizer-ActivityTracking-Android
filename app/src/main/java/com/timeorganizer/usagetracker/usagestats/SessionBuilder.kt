@@ -45,7 +45,8 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
                 val beforeBoot = lastEventMs
                 if (beforeBoot != null) closeAll(beforeBoot) else open.clear()
             }
-            EventKind.OTHER -> Unit
+            // Pickups (`Pickups`) read these; a session starts with an app's resume, not with the screen.
+            EventKind.SCREEN_ON, EventKind.UNLOCKED, EventKind.OTHER -> Unit
         }
         lastEventMs = maxOf(lastEventMs ?: event.timestampMs, event.timestampMs)
     }
@@ -133,7 +134,17 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
     }
 }
 
-enum class EventKind { RESUMED, PAUSED, STOPPED, CLOSE_ALL, DEVICE_STARTUP, OTHER }
+enum class EventKind {
+    RESUMED, PAUSED, STOPPED, CLOSE_ALL, DEVICE_STARTUP,
+
+    /** `SCREEN_INTERACTIVE`: the screen came on, unlocked or not. */
+    SCREEN_ON,
+
+    /** `KEYGUARD_HIDDEN`: the lock screen was dismissed. */
+    UNLOCKED,
+
+    OTHER
+}
 
 data class UsageEventRecord(
     val kind: EventKind,

@@ -28,6 +28,10 @@ import com.timeorganizer.usagetracker.chime.ChimePreferences
 import com.timeorganizer.usagetracker.chime.ChimeSchedule
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoredAppsActivity
+import com.timeorganizer.usagetracker.loops.LoopAppsActivity
+import com.timeorganizer.usagetracker.loops.LoopMonitor
+import com.timeorganizer.usagetracker.loops.LoopPolicy
+import com.timeorganizer.usagetracker.loops.LoopPreferences
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.review.ReviewActivity
@@ -125,6 +129,7 @@ class MainActivity : AppCompatActivity() {
 
         setUpBreakCard()
         setUpChimeCard()
+        setUpLoopCard()
 
         tvIgnoredCount = findViewById(R.id.tvIgnoredCount)
         findViewById<View>(R.id.btnIgnoredApps).setOnClickListener { startActivity(IgnoredAppsActivity.intent(this)) }
@@ -190,6 +195,7 @@ class MainActivity : AppCompatActivity() {
         updateSyncStatusCard()
         updateIgnoredCard()
         updateChimeCard()
+        updateLoopCard()
         checkBackendHealth()
     }
 
@@ -264,6 +270,48 @@ class MainActivity : AppCompatActivity() {
                 getString(R.string.chime_count_none)
             } else {
                 resources.getQuantityString(R.plurals.chime_count, count, count)
+            }
+        }
+    }
+
+    /** The loop check's switch and the away timer's length; the apps that don't count are on their own screen. */
+    private fun setUpLoopCard() {
+        val loopPrefs = LoopPreferences(this)
+        val switch = findViewById<MaterialSwitch>(R.id.swLoopCheck)
+        switch.isChecked = loopPrefs.enabled
+        switch.setOnCheckedChangeListener { _, checked ->
+            loopPrefs.enabled = checked
+            LoopMonitor.kick(this)
+        }
+
+        val chips = findViewById<ChipGroup>(R.id.chipsLoopAway)
+        for (minutes in LoopPolicy.AWAY_MINUTES) {
+            chips.addView(Chip(this).apply {
+                id = View.generateViewId()
+                tag = minutes
+                text = getString(R.string.break_card_minutes, minutes)
+                isCheckable = true
+                isChecked = minutes == loopPrefs.awayMinutes
+            })
+        }
+        chips.setOnCheckedStateChangeListener { group, checkedIds ->
+            val minutes = checkedIds.firstOrNull()?.let { group.findViewById<Chip>(it).tag as Int } ?: return@setOnCheckedStateChangeListener
+            loopPrefs.awayMinutes = minutes
+        }
+
+        findViewById<View>(R.id.btnLoopApps).setOnClickListener { startActivity(LoopAppsActivity.intent(this)) }
+    }
+
+    private fun updateLoopCard() {
+        val tvToday = findViewById<TextView>(R.id.tvLoopToday)
+        lifecycleScope.launch {
+            val today = withContext(Dispatchers.IO) { LoopMonitor.today(applicationContext) }
+            tvToday.text = when {
+                today.awayUntilMs != null -> getString(
+                    R.string.loop_away_until, android.text.format.DateFormat.getTimeFormat(this@MainActivity).format(Date(today.awayUntilMs))
+                )
+                today.loops == 0 -> getString(R.string.loop_count_none)
+                else -> resources.getQuantityString(R.plurals.loop_count_today, today.loops, today.loops)
             }
         }
     }
