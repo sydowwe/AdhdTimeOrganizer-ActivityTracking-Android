@@ -134,6 +134,21 @@
     <string name="break_card_length">Break length</string>
     <string name="break_card_minutes">%1$d min</string>
 
+    <!-- Drift nudge: notification -->
+    <string name="channel_drift">Drift nudge</string>
+    <string name="channel_drift_description">A short buzz and a heads-up when a distraction app is open during a planned block</string>
+    <string name="notify_drift_title">Planned: %1$s until %2$s</string>
+    <string name="notify_drift_title_unnamed">Something is planned until %1$s</string>
+    <string name="notify_drift_text">%1$s is open.</string>
+    <string name="notify_drift_back">Back to it</string>
+    <string name="notify_drift_switch_plan">Switch plan</string>
+    <string name="notify_drift_more">5 more minutes</string>
+
+    <!-- Drift nudge: status card -->
+    <string name="drift_card_title">Drift nudge</string>
+    <string name="drift_card_switch">Nudge when I open a distraction app during a planned block</string>
+    <string name="drift_card_hint">One nudge per block once your distraction apps have been open for 30 seconds in it (time in several adds up; a minute away starts over). Back to it goes to the home screen, Switch plan opens the planner, 5 more minutes asks once more. An app mapped to the block\'s own activity doesn\'t count. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
+
     <!-- Time chime: notification -->
     <string name="channel_time_chime">Time chime</string>
     <string name="channel_time_chime_description">A short buzz and a few seconds\' heads-up while you stay in an app you chose: how long you\'ve been in it</string>

@@ -2,9 +2,11 @@ package com.timeorganizer.usagetracker.chime
 
 import android.content.Context
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
+import com.timeorganizer.usagetracker.notify.NudgeFamily
+import com.timeorganizer.usagetracker.notify.NudgeGap
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.notify.PhoneSilence
-import com.timeorganizer.usagetracker.now.NowClient
+import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.watch.ForegroundChange
 import com.timeorganizer.usagetracker.watch.ForegroundWatcher
@@ -72,20 +74,11 @@ object ChimeMonitor {
     suspend fun afterSync(context: Context) {
         val app = context.applicationContext
         // Only while the chime is on. `/now` is shared and cached: after a sync this is usually the break nudge's answer.
-        if (ChimePreferences(app).enabled) refreshDistractions(app)
+        if (ChimePreferences(app).enabled) KeptDistractions.refresh(app)
         evaluateSafely(app)
     }
 
-    /** The server's distraction packages, kept for when it can't be asked. `false` when it couldn't be. Never throws. */
-    suspend fun refreshDistractions(context: Context): Boolean {
-        val app = context.applicationContext
-        if (!AuthPreferences.get(app).isLoggedIn) return false
-        val facts = NowClient.get() ?: return false
-        ChimePreferences(app).distractions = facts.distractionPackages
-        return true
-    }
-
-    /** An account switch: the distraction list and the stretch were the previous person's. */
+    /** An account switch: the stretch was the previous person's (the kept distraction list is cleared beside this). */
     suspend fun reset(context: Context) {
         val app = context.applicationContext
         mutex.withLock {
@@ -108,7 +101,7 @@ object ChimeMonitor {
     private suspend fun evaluate(app: Context) = mutex.withLock {
         val prefs = ChimePreferences(app)
         val now = System.currentTimeMillis()
-        val chosenNow = prefs.choices.chosen(prefs.distractions)
+        val chosenNow = prefs.choices.chosen(KeptDistractions.get(app))
         chosen = chosenNow
 
         val enabled = prefs.enabled && chosenNow.isNotEmpty() && AuthPreferences.get(app).isLoggedIn &&
@@ -126,9 +119,14 @@ object ChimeMonitor {
         } catch (_: SecurityException) {
             emptyList() // usage access is off; the status screen says so
         }
-        val step = ChimeSchedule.decide(prefs.state, ChimeInput(now, sittings, prefs.intervalMinutes, PhoneSilence.now(app)))
+        // Another nudge in the last 10 minutes skips a chime like a call does (`NudgeGap`): a late "15 m" is wrong by then.
+        val quiet = PhoneSilence.now(app) || NudgeGap.heldUntil(app, NudgeFamily.CHIME, now) != null
+        val step = ChimeSchedule.decide(prefs.state, ChimeInput(now, sittings, prefs.intervalMinutes, quiet))
         prefs.state = step.state
-        step.chime?.let { ChimeNotifier.post(app, it) }
+        step.chime?.let {
+            ChimeNotifier.post(app, it)
+            NudgeGap.posted(app, NudgeFamily.CHIME, now)
+        }
         replaceRecheck(app, step.recheckAtMs)
     }
 

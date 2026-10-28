@@ -17,7 +17,10 @@ enum class LoopAnswer {
     /** **Not today**. */
     NOT_TODAY,
 
-    /** A call or Do Not Disturb when it began: not asked, and not asked later either. */
+    /**
+     * A call or Do Not Disturb when it began, or another kind of nudge in the 10 minutes before (`NudgeGap`): not asked,
+     * and not asked later either.
+     */
     SILENCED
 }
 

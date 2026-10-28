@@ -2,6 +2,8 @@ package com.timeorganizer.usagetracker.loops
 
 import android.content.Context
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
+import com.timeorganizer.usagetracker.notify.NudgeFamily
+import com.timeorganizer.usagetracker.notify.NudgeGap
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.notify.PhoneSilence
 import com.timeorganizer.usagetracker.usagestats.Pickups
@@ -160,7 +162,9 @@ object LoopMonitor {
         val sittings = LoopDetector.sittings(events, now)
 
         val facts = LoopFacts(now, pickups, sittings, excluded(app, sittings), prefs.notCounted, prefs.sawUnlock)
-        apply(app, LoopPolicy.decide(prefs.state, facts, PhoneSilence.now(app)), now)
+        // Another nudge in the last 10 minutes skips the check-in like a call does (`NudgeGap`); the loop is still stored.
+        val quiet = PhoneSilence.now(app) || NudgeGap.heldUntil(app, NudgeFamily.LOOP, now) != null
+        apply(app, LoopPolicy.decide(prefs.state, facts, quiet), now)
     }
 
     /** Called under [mutex]: the state first, then what the step says to show. */
@@ -169,7 +173,10 @@ object LoopMonitor {
         prefs.state = step.state
         step.ended?.let { LoopDatabase.save(app, it, now) }
         if (step.cancelCheckIn) LoopNotifier.cancelCheckIn(app)
-        step.checkIn?.let { LoopNotifier.postCheckIn(app, it, prefs.awayMinutes) }
+        step.checkIn?.let {
+            LoopNotifier.postCheckIn(app, it, prefs.awayMinutes)
+            NudgeGap.posted(app, NudgeFamily.LOOP, now)
+        }
     }
 
     /** The home screen, this app, and every app without a launcher entry among [sittings]. */

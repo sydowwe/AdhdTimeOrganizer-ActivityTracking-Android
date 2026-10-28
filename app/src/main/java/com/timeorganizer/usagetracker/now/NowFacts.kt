@@ -1,5 +1,6 @@
 package com.timeorganizer.usagetracker.now
 
+import com.timeorganizer.usagetracker.data.api.dto.TrackerNowBlockDto
 import com.timeorganizer.usagetracker.data.api.dto.TrackerNowResponse
 import com.timeorganizer.usagetracker.review.ReviewText
 
@@ -10,7 +11,9 @@ data class NowBlock(
     val activityName: String,
     val startMs: Long,
     val endMs: Long,
-    val inProgress: Boolean
+    val inProgress: Boolean,
+    /** The block's activity; `null` when the wire had none. The drift nudge compares it with the apps' rules. */
+    val activityId: Long? = null
 )
 
 /** What the desk was doing in its last minutes: the busiest slice the server could name. */
@@ -37,7 +40,9 @@ data class NowFacts(
     val deskIdle: Boolean,
     /** The busiest named slice of the desk's last minutes; `null` when they were all unmapped or ignored. */
     val deskWork: DeskWork?,
-    val distractionPackages: Set<String>
+    val distractionPackages: Set<String>,
+    /** The first open block starting later today; `null` with none, or when it can't be read. */
+    val next: NowBlock? = null
 ) {
     companion object {
         fun from(response: TrackerNowResponse): NowFacts {
@@ -45,18 +50,25 @@ data class NowFacts(
             return NowFacts(
                 // Any reason, a new one included: being silent by mistake costs a nudge, speaking costs trust.
                 silent = response.silentReason != null,
-                current = response.plan?.current.orEmpty().mapNotNull { block ->
-                    val startMs = ReviewText.instantMs(block.startsAt) ?: return@mapNotNull null
-                    val endMs = ReviewText.instantMs(block.endsAt) ?: return@mapNotNull null
-                    NowBlock(block.plannerTaskId, block.activityName.orEmpty(), startMs, endMs, block.inProgress)
-                },
+                current = response.plan?.current.orEmpty().mapNotNull(::block),
                 deskLastActiveMs = ReviewText.instantMs(desktop?.lastActiveAt),
                 deskIdle = desktop?.isIdle ?: true,
                 // Busiest first on the wire; ignored and unmapped time has no name.
                 deskWork = desktop?.recent.orEmpty()
                     .firstOrNull { !it.name.isNullOrBlank() && it.target != TARGET_IGNORED }
                     ?.let { DeskWork(it.name!!, it.onPlan) },
-                distractionPackages = response.distractionPackages.orEmpty().toSet()
+                distractionPackages = response.distractionPackages.orEmpty().toSet(),
+                next = response.plan?.next?.let(::block)
+            )
+        }
+
+        /** `null` when an instant can't be read: an unreadable block is no plan. Gson leaves a missing id at `0`. */
+        private fun block(block: TrackerNowBlockDto): NowBlock? {
+            val startMs = ReviewText.instantMs(block.startsAt) ?: return null
+            val endMs = ReviewText.instantMs(block.endsAt) ?: return null
+            return NowBlock(
+                block.plannerTaskId, block.activityName.orEmpty(), startMs, endMs, block.inProgress,
+                block.activityId.takeIf { it > 0 }
             )
         }
 

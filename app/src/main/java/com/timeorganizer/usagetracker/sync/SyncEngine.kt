@@ -11,11 +11,13 @@ import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
+import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoreSync
 import com.timeorganizer.usagetracker.ignore.OutboxPurge
 import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.notify.SyncBlockedNotifier
+import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.InstalledApps
@@ -226,8 +228,9 @@ class SyncEngine(context: Context) {
          * After a sign-in: when it is a different account from the one the outbox was recorded for, its queued
          * sessions are dropped and recording starts from now — they are the previous person's phone use. So are the
          * cached rules and the pending ignores: the previous person's ignores must not drop the new one's apps. So is an
-         * open break: it names the previous person's activity. So is the time chime's distraction list (the ticks stay:
-         * they are this phone's). So are the loops the loop check saw (the apps that don't count stay, for the same reason).
+         * open break: it names the previous person's activity. So is the kept distraction list (the chime's ticks stay:
+         * they are this phone's). So are the loops the loop check saw (the apps that don't count stay, for the same reason),
+         * and the drift nudge's block.
          */
         suspend fun onSignedIn(context: Context, accessToken: String) {
             val prefs = SyncPreferences(context)
@@ -238,9 +241,11 @@ class SyncEngine(context: Context) {
                     OutboxDatabase.get(context).outboxDao().reset(System.currentTimeMillis())
                     IgnoreStore.get(context).clear()
                 }
+                KeptDistractions.clear(context)
                 BreakMonitor.reset(context)
                 ChimeMonitor.reset(context)
                 LoopMonitor.reset(context)
+                DriftMonitor.reset(context)
             }
             prefs.accountId = account
         }

@@ -3,8 +3,8 @@ package com.timeorganizer.usagetracker.chime
 import android.content.Context
 
 /**
- * The time chime's switch, interval, chosen apps, the server's last distraction list and the stretch being counted.
- * Plain keys and string sets, no JSON. Not backed up, like the rest. Package names say what someone does on the phone:
+ * The time chime's switch, interval, chosen apps and the stretch being counted. The server's distraction list is shared,
+ * in `now/KeptDistractions`. Plain keys and string sets, no JSON. Not backed up, like the rest. Package names say what someone does on the phone:
  * they stay here, never in a log.
  */
 class ChimePreferences(context: Context) {
@@ -40,22 +40,15 @@ class ChimePreferences(context: Context) {
                 .apply()
         }
 
-    /** The server's distraction packages as `/now` last gave them; kept, so a restart offline still knows them. */
-    var distractions: Set<String>
-        get() = stringSet(KEY_DISTRACTIONS)
-        set(value) {
-            prefs.edit().putStringSet(KEY_DISTRACTIONS, value).apply()
-        }
-
     var state: ChimeState
         get() = ChimeState(prefs.getLong(KEY_STRETCH_START, 0L), prefs.getLong(KEY_CHIMED, 0L))
         set(value) {
             prefs.edit().putLong(KEY_STRETCH_START, value.stretchStartMs).putLong(KEY_CHIMED, value.chimedMs).apply()
         }
 
-    /** An account switch: the distraction list and the stretch were the previous person's. The ticks are this phone's. */
+    /** An account switch: the stretch was the previous person's. The ticks are this phone's. */
     fun clearAccount() {
-        prefs.edit().remove(KEY_DISTRACTIONS).remove(KEY_STRETCH_START).remove(KEY_CHIMED).apply()
+        prefs.edit().remove(KEY_STRETCH_START).remove(KEY_CHIMED).apply()
     }
 
     // getStringSet's own set must not be changed or kept: copy it.
@@ -67,7 +60,6 @@ class ChimePreferences(context: Context) {
         const val KEY_FOLLOW = "follow_distractions"
         const val KEY_ADDED = "added"
         const val KEY_REMOVED = "removed"
-        const val KEY_DISTRACTIONS = "distractions"
         const val KEY_STRETCH_START = "stretch_start"
         const val KEY_CHIMED = "chimed"
     }

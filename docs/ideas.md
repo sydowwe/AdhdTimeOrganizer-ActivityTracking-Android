@@ -19,7 +19,23 @@ Two constraints shape almost every idea below:
 
 ---
 
-## 1. Focus-block nudge — "you planned Thesis until 11:30, Instagram is open"
+## 1. Focus-block nudge — "you planned Thesis until 11:30, Instagram is open" — built 2026-10-28 (prompt 08)
+
+**What was built.** The drift nudge: during a planned block, once `/now`'s distraction apps have been in front for 30 s
+(time in several adds up; a minute away starts over), one nudge per block — "Planned: Thesis until 11:30 · Instagram is
+open." — with Back to it (home screen) / Switch plan (the web planner) / 5 more minutes. An app mapped to the block's own
+activity doesn't count. Held, never dropped, during calls, DND, car mode, quiet hours, a "Phone away" timer and the 10 min
+after another kind of nudge (the new shared gap). Off by default. See `CLAUDE.md` → "Drift nudge" and "Nudges together".
+The design below is kept as it was written; where it differs (one nudge per block, not per package; the watcher instead of
+a WorkManager job at the block's start) the built one is in `CLAUDE.md`.
+
+**Not built, still open.**
+- **Apps mapped to another activity** (Email during a Thesis block) as drift. Left out: judging "off plan" fairly needs the
+  server's per-minute verdict, which the phone's time doesn't get until the sync; unmapped apps stay neither on nor off.
+- **The grace and the gap as settings** (30 s and 1 min are constants), and a grace per app.
+- **Car mode for the other nudges**: only drift reads it today; the chime and the loop check might want it too.
+- **Activity Recognition for driving** (Play services + a permission) if car mode proves too narrow.
+- **Opening the block's timer** from Back to it (`?track=<id>`, as the start ramp's Start now does).
 
 **Why.** The planner knows what the user meant to do right now; the phone sees them open the app that derails
 it. A phone is where drift happens fastest — one notification, one tap, twenty minutes. Catching it at the
@@ -321,8 +337,8 @@ while it is on. See `CLAUDE.md` → "Loop check".
 - **Pre-ticking the obvious chat apps** — the default SMS app (`RoleManager.ROLE_SMS`) and the dialer — instead of starting
   with nothing ticked.
 - **Using the server's distraction flags** to weight a loop ("6 pick-ups, 5 of them Instagram"), or to check in sooner when the
-  loop is in distraction apps. Left out: the check must work without knowing what an app is, and the flags are the chime's
-  refresh today.
+  loop is in distraction apps. Left out: the check must work without knowing what an app is. (The flags are kept for every
+  nudge in `now/KeptDistractions` since prompt 08.)
 - **An exact away timer** (on the minute) needs the "Alarms & reminders" permission on Android 14; the inexact one may come a
   little late in Doze. A reboot during the timer loses its sound.
 - **The server's silence.** Like the chime, quiet hours and away days don't mute it; honouring away days is an option.

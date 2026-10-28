@@ -12,6 +12,7 @@ import androidx.work.WorkRequest
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
+import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.util.Constants
@@ -27,6 +28,7 @@ class TimeOrganizerApp : Application() {
         BreakMonitor.install(this)
         ChimeMonitor.install(this)
         LoopMonitor.install(this)
+        DriftMonitor.install(this)
         enqueuePeriodicSync(this)
     }
 

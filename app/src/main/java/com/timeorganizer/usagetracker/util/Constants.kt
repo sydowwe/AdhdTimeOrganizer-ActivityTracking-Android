@@ -5,6 +5,13 @@ object Constants {
     const val SERVER_ROOT = "https://test.backend.adhdtimeorganizer.com/"
     const val API_BASE_URL = SERVER_ROOT + "api/"
 
+    /**
+     * The web app that goes with [SERVER_ROOT] (its own origin: the API is not the web app). Switched with it for a
+     * production release (`https://adhdtimeorganizer.com/`). The drift nudge's "Switch plan" opens its day planner.
+     */
+//    const val WEB_APP_ROOT = "https://10.0.2.2:3001/"
+    const val WEB_APP_ROOT = "https://test.adhdtimeorganizer.com/"
+
     /** The anonymous liveness route — outside `/api` (`Program.HealthCheckPath`). */
     const val HEALTH_URL = SERVER_ROOT + "health"
 

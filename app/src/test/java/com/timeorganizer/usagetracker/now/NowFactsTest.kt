@@ -35,13 +35,28 @@ class NowFactsTest {
 
         assertFalse(facts.silent)
         assertEquals(
-            listOf(NowBlock(7, "Thesis", ms("2026-10-18T09:00:00Z"), ms("2026-10-18T11:30:00Z"), inProgress = true)),
+            listOf(NowBlock(7, "Thesis", ms("2026-10-18T09:00:00Z"), ms("2026-10-18T11:30:00Z"), inProgress = true, activityId = 12)),
             facts.current
+        )
+        assertEquals(
+            NowBlock(8, "Email", ms("2026-10-18T11:30:00Z"), ms("2026-10-18T12:00:00Z"), inProgress = false, activityId = 15),
+            facts.next
         )
         assertEquals(ms("2026-10-18T10:04:00Z"), facts.deskLastActiveMs)
         assertTrue(facts.deskIdle)
         assertEquals(DeskWork("Thesis", onPlan = true), facts.deskWork)
         assertEquals(setOf("com.instagram.android", "com.reddit.frontpage"), facts.distractionPackages)
+    }
+
+    @Test
+    fun aBlockWithoutAnActivity_hasNone_andAnUnreadableNextIsNoNext() {
+        val facts = parse(
+            """{"plan":{"current":[{"plannerTaskId":1,"activityName":"X","startsAt":"2026-10-18T09:00:00Z","endsAt":"2026-10-18T10:00:00Z","inProgress":false}],
+              "next":{"plannerTaskId":2,"activityId":3,"activityName":"Y","startsAt":"later","endsAt":null,"inProgress":false}}}"""
+        )
+
+        assertNull("a missing id reads as 0 through Gson, and 0 is no activity", facts.current.single().activityId)
+        assertNull(facts.next)
     }
 
     @Test

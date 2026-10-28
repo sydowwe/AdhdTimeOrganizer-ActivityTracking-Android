@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
+import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
@@ -29,6 +30,8 @@ class UsageSyncWorker(
         ChimeMonitor.afterSync(applicationContext)
         // Closes a loop that is over and re-arms the watcher after a reboot. Never throws.
         LoopMonitor.afterSync(applicationContext)
+        // Arms the watcher through a block (or one starting soon) and withdraws a nudge whose block is over. Never throws.
+        DriftMonitor.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

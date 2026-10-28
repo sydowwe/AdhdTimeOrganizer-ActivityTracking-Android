@@ -26,6 +26,8 @@ import com.timeorganizer.usagetracker.chime.ChimeAppsList
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.chime.ChimePreferences
 import com.timeorganizer.usagetracker.chime.ChimeSchedule
+import com.timeorganizer.usagetracker.drift.DriftMonitor
+import com.timeorganizer.usagetracker.drift.DriftPreferences
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoredAppsActivity
 import com.timeorganizer.usagetracker.loops.LoopAppsActivity
@@ -33,6 +35,7 @@ import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.loops.LoopPolicy
 import com.timeorganizer.usagetracker.loops.LoopPreferences
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
+import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.review.ReviewActivity
 import com.timeorganizer.usagetracker.review.ReviewPreferences
@@ -128,6 +131,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
         setUpBreakCard()
+        setUpDriftCard()
         setUpChimeCard()
         setUpLoopCard()
 
@@ -225,6 +229,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** The drift nudge's switch, decided on at once: turning it off withdraws a nudge and lets the watcher go. */
+    private fun setUpDriftCard() {
+        val driftPrefs = DriftPreferences(this)
+        val switch = findViewById<MaterialSwitch>(R.id.swDriftNudge)
+        switch.isChecked = driftPrefs.enabled
+        switch.setOnCheckedChangeListener { _, checked ->
+            driftPrefs.enabled = checked
+            DriftMonitor.kick(this)
+        }
+    }
+
     /** The time chime's switch and interval; the apps are on their own screen, the vibration on the channel's system page. */
     private fun setUpChimeCard() {
         val chimePrefs = ChimePreferences(this)
@@ -265,7 +280,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val count = withContext(Dispatchers.IO) {
                 val installed = InstalledApps(applicationContext)
-                ChimeAppsList.chimedCount(chimePrefs.choices, chimePrefs.distractions) { installed.label(it) != null }
+                ChimeAppsList.chimedCount(chimePrefs.choices, KeptDistractions.get(applicationContext)) { installed.label(it) != null }
             }
             tvApps.text = if (count == 0) {
                 getString(R.string.chime_count_none)

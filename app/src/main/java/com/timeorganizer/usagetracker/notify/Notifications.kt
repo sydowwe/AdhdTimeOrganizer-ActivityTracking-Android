@@ -56,6 +56,12 @@ object Notifications {
      */
     const val CHANNEL_PHONE_AWAY = "phone_away"
 
+    /**
+     * "Planned: Thesis until 11:30 · Instagram is open.": high importance so it peeks over the app, the chime's short
+     * vibration and no sound, like the loop check — a question, not an alarm. Fixed once created.
+     */
+    const val CHANNEL_DRIFT = "drift"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
@@ -64,6 +70,7 @@ object Notifications {
     const val ID_TIME_CHIME = 5
     const val ID_LOOP_CHECK = 6
     const val ID_PHONE_AWAY = 7
+    const val ID_DRIFT = 8
 
     /** Two short taps. */
     private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
@@ -109,6 +116,14 @@ object Notifications {
                 NotificationChannelCompat.Builder(CHANNEL_PHONE_AWAY, NotificationManagerCompat.IMPORTANCE_DEFAULT)
                     .setName(context.getString(R.string.channel_phone_away))
                     .setDescription(context.getString(R.string.channel_phone_away_description))
+                    .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_DRIFT, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_drift))
+                    .setDescription(context.getString(R.string.channel_drift_description))
+                    .setSound(null, null)
+                    .setVibrationEnabled(true)
+                    .setVibrationPattern(CHIME_VIBRATION)
                     .setShowBadge(false)
                     .build()
             )

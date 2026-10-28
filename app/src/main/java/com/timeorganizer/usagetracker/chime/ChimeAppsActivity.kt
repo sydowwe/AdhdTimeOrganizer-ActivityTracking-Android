@@ -21,6 +21,7 @@ import com.timeorganizer.usagetracker.R
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.ignore.AppUsage
 import com.timeorganizer.usagetracker.ignore.IgnoredAppsList
+import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.review.ReviewText
 import com.timeorganizer.usagetracker.util.InstalledApps
 import com.timeorganizer.usagetracker.util.PermissionHelper
@@ -97,14 +98,14 @@ class ChimeAppsActivity : AppCompatActivity() {
             render()
 
             // The cached list may be a sync old, or empty before the chime was ever on.
-            if (ChimeMonitor.refreshDistractions(this@ChimeAppsActivity)) ChimeMonitor.kick(this@ChimeAppsActivity)
+            if (KeptDistractions.refresh(this@ChimeAppsActivity)) ChimeMonitor.kick(this@ChimeAppsActivity)
             progress.visibility = View.GONE
             render()
         }
     }
 
     private fun render() {
-        val apps = ChimeAppsList.build(usage, excluded, prefs.choices, prefs.distractions) { installedApps.label(it) }
+        val apps = ChimeAppsList.build(usage, excluded, prefs.choices, KeptDistractions.get(this)) { installedApps.label(it) }
         val items = buildList {
             apps.recent.forEach { add(ListItem.App(it)) }
             if (apps.others.isNotEmpty()) {
@@ -120,7 +121,7 @@ class ChimeAppsActivity : AppCompatActivity() {
 
     private fun onSwitch(row: ChimeAppRow, on: Boolean) {
         if (on == row.chimed) return
-        prefs.choices = prefs.choices.set(row.packageName, on, prefs.distractions)
+        prefs.choices = prefs.choices.set(row.packageName, on, KeptDistractions.get(this))
         changed()
     }
 

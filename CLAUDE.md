@@ -32,7 +32,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `notify/Notifications.kt` | Channels, the permission check every poster makes, notification ids |
 | `notify/SyncBlockedDecider.kt` | **Pure.** A run's facts + what was shown → post / clear / nothing |
 | `notify/SyncBlockedNotifier.kt` | Runs the decider after every `SyncEngine.run`, builds the notification, keeps its state |
-| `notify/PhoneSilence.kt` | The phone's own reasons for a nudge to keep quiet: a call (or ringing), any Do Not Disturb. Shared by every nudge |
+| `notify/PhoneSilence.kt` | The phone's own reasons for a nudge to keep quiet: a call (or ringing), any Do Not Disturb (every nudge); car mode (`driving`, the drift nudge only) |
+| `notify/NudgeGap.kt` | Nudges of different kinds keep 10 min apart: when each family last posted (prefs) and **pure** `heldUntil` |
 | `watch/ForegroundTracker.kt`, `watch/WatchReasons.kt` | **Pure.** Events → "came to the front / left" on top of `SessionBuilder`; who asked to watch until when |
 | `watch/ForegroundWatcher.kt` | The API features use: `watch(reason, until)` / `stop(reason)`, listeners, `inFront` |
 | `watch/ForegroundWatchService.kt` | The `specialUse` foreground service that polls the usage log while a reason is active |
@@ -42,8 +43,11 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `mapping/MappingRules.kt`, `mapping/MappingOutcome.kt`, `mapping/MappedAppsList.kt` | **Pure.** App categories, the "+ New activity" rules (name check, defaults, the three-way flag), the picker's filter; a mapping call's answer → what the screen does; the "Mapped apps" rows and "Add app"'s list |
 | `mapping/MappingCalls.kt`, `mapping/MappingDialogs.kt` | The calls and the problem body; the one `ActivityPicker`, `NewActivityDialog`, `AppCategoryLinksDialog`, `BackfillConfirm` |
 | `mapping/MappedAppsActivity.kt` | "Mapped apps": change / unlink / distraction per mapping, "Add app", "App categories" |
-| `now/NowFacts.kt` | **Pure.** `GET tracker/android/now` as the nudges read it: silence, the blocks covering now, the desk's last minute, idle, its busiest named work |
+| `now/NowFacts.kt` | **Pure.** `GET tracker/android/now` as the nudges read it: silence, the blocks covering now (with their activity) and the next, the desk's last minute, idle, its busiest named work |
 | `now/NowClient.kt` | The one `/now` reader: in-memory answer reused 30 s, then `If-None-Match` → `304` |
+| `now/KeptDistractions.kt` | `/now`'s distraction packages kept in prefs for a restart offline; shared by the chime and the drift nudge |
+| `drift/DriftPolicy.kt` | **Pure.** The drift nudge: the distraction apps' time in front inside a block (30 s grace, a minute's gap pauses it) → nudge / hold / withdraw; the buttons; how long to watch; sittings from the log |
+| `drift/DriftMonitor.kt`, `drift/DriftNotifier.kt`, `drift/DriftActionReceiver.kt`, `drift/DriftActionActivity.kt`, `drift/DriftPreferences.kt` | Runs the policy (a distraction app to the front, a look-again, after each sync, a button), arms the watcher through blocks, posts the nudge; "5 more minutes" and the swipe (receiver), "Back to it" and "Switch plan" (an unseen activity, so it may open the home screen or the browser); its switch and state |
 | `breaks/BreakPolicy.kt` | **Pure.** Breaks that don't end: `/now` + phone use from the log + silence + state → start / nudge / end; the buttons; how long to watch; `PhoneUse` from usage events |
 | `breaks/BreakMonitor.kt`, `breaks/BreakNotifier.kt`, `breaks/BreakActionReceiver.kt`, `breaks/BreakPreferences.kt` | Runs the policy (after each sync, on a pickup, on a button, when it asks to look again), arms the watcher, posts the nudge; its switch, length and state |
 | `chime/ChimeSchedule.kt`, `chime/ChimeApps.kt` | **Pure.** The time chime: the chosen apps' sittings from the log → the stretch (gaps ≤ 3 min paused, longer ones start over) → chime now / when the next falls due; which apps are chosen (distraction flags + ticks − unticks) and the screen's rows |
@@ -85,6 +89,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   `10.0.2.2:8081` (emulator → host) by hand for a local server; the debug build allows cleartext to it
   (`src/debug/res/xml/network_security_config.xml`), release does not. `scripts/test-release.ps1` prints the URL it
   built against and warns if it is production.
+- **`WEB_APP_ROOT` beside it is the web app that goes with that server** (`https://test.adhdtimeorganizer.com/` on
+  `main`; production is `https://adhdtimeorganizer.com/`), its own origin — the API is not the web app. The drift
+  nudge's "Switch plan" opens its `day-planner`. Switch both together.
 
 ## Versioning
 
@@ -208,8 +215,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
   watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge, the
-  high-importance, vibrating, soundless "Time chime" and "Loop check", and "Phone away" (default importance, the
-  default sound) today. A channel's sound and vibration are fixed once it exists:
+  high-importance, vibrating, soundless "Time chime", "Loop check" and "Drift nudge", and "Phone away" (default
+  importance, the default sound) today. A channel's sound and vibration are fixed once it exists:
   getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
@@ -264,13 +271,17 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 
 ### `/now` — what every nudge asks first
 - **`GET tracker/android/now`** is the server's view of right now: `silentReason` (an away day, quiet hours, absent — any
-  value, an unknown one included, means silent), the open blocks covering now and the next, the desk's last active minute
+  value, an unknown one included, means silent), the open blocks covering now and the next (each with its `activityId`,
+  read since prompt 08), the desk's last active minute
   (`lastActiveAt`), `isIdle` and what its last five minutes resolved to (`recent`, busiest first, each with `onPlan`), and the
   distraction packages. The phone decides nothing the server decides there: no matcher, no planner, no idle rule.
 - **Read through `NowClient` and `NowFacts`, nowhere else.** One answer is reused for 30 s (the server's `max-age`), then
   asked for again with its `ETag`: an unchanged day is a `304`. In memory only, cleared on an account switch. An unreadable
   field is absent, never guessed (an unparsable block is no plan). Pinned by the `now` entry of the wire sample
   (`NowFactsTest`).
+- **The distraction packages are also kept in prefs** (`KeptDistractions`, since prompt 08; the chime kept its own copy
+  before, taken over on the first read), so a restart offline still knows them. Refreshed after each sync while the chime
+  is on, and by every drift evaluation that got an answer; cleared on an account switch.
 
 ### Break nudge (prompt 09, 2026-10-27)
 - **What it is:** the desk goes quiet, the phone comes out, and once the break has run its length — *"Break's been 25 m.
@@ -306,6 +317,44 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **Never logged:** the subject is the user's activity name. It is kept in `break_nudge` prefs while a break is open, and
   an account switch resets it (`SyncEngine.onSignedIn`).
 
+### Drift nudge (prompt 08, 2026-10-28)
+- **What it is:** during a planned block, once a distraction app has been in front for 30 s — *"Planned: Thesis until
+  11:30 · Instagram is open."* — with **Back to it** (the home screen), **Switch plan** (the web app's `day-planner`) and
+  **5 more minutes**. Its own channel (`drift`: high importance, the chime's short vibration, no sound) and id. **Off by
+  default**; the status screen's "Drift nudge" card has the switch.
+- **All of it is `DriftPolicy`** (pure, `DriftPolicyTest`). **What counts** is `/now`'s distraction packages, less any
+  whose rule maps it to the block's **own** activity (a YouTube-lectures block; the rules are the cached `GET rules`, exact
+  packages). Unmapped apps and apps mapped to another activity never count: the phone has no per-minute "on plan" verdict
+  like the desktop's, and unmapped time is neither on nor off the plan. **The grace:** time in front of any of them adds
+  up; out of them for up to a minute pauses the count, longer starts it over; only time inside the block counts.
+  Split-screen overlap once.
+- **One nudge per block.** Back to it, Switch plan and a swipe end it for the block; 5 more minutes asks once more 5 min
+  later if a distraction app is in front then (or once one has been for the grace again), and may be asked again. A new
+  block starts everything again and withdraws the old block's nudge; the block ending withdraws it too.
+- **Held, never dropped:** the server's `silentReason`, a call, DND, **car mode** (`PhoneSilence.driving`, Android Auto
+  or a car dock — no permission), the loop check's "Phone away" timer (12-5's "nothing said on a pickup during it"), and
+  another kind of nudge in the last 10 minutes (`NudgeGap`, below). A held nudge is said once the hold is over, if a
+  distraction app is still in front. Without an answer from the server nothing starts.
+- **The two buttons that leave the app in front** go through `DriftActionActivity` (`Theme.NoDisplay`, its own empty task,
+  finishes in `onCreate`): since Android 12 a notification's broadcast receiver may not start an activity. "5 more minutes"
+  and the swipe go to `DriftActionReceiver`.
+- **When it runs (`DriftMonitor`):** a distraction app coming to the front (the watcher), the look-again the policy asks for
+  (the grace running out, a hold or snooze ending, the block ending, the next block starting — an in-process delay), after
+  each sync, a button, the switch, and once per process start. **The watcher** (reason `drift`) runs through every block
+  covering now that isn't settled yet, and through the next block if it starts within 20 min — nothing wakes the phone at
+  a block's start, so the sync before arms it. Its "Focus watch on until 11:30" notification shows meanwhile.
+- **State** (`drift_nudge` prefs): the block's id and end, settled, snoozed until, showing — no names. An account switch
+  resets it. Package and activity names are never logged.
+
+### Nudges together (since prompt 08)
+- **Kinds keep 10 minutes apart** (`NudgeGap`, decision 08-6, the desktop's `HyperfocusPolicy.MinGapBetweenKinds`): each of
+  the chime, the loop check and the drift nudge records when it posted, and asks before posting whether another did within
+  10 min. **Held means each kind's own rule:** the drift nudge waits and is said after; the chime and the loop check
+  **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is wrong by then; the loop is still stored, `SILENCED`).
+  **The break nudge is exempt**: it neither records nor asks.
+- Apart from that and the "Phone away" timer the drift nudge reads, every nudge decides alone. The start ramp (prompt 10)
+  is meant to join the gap and go first.
+
 ### Time chime (prompt 11, 2026-10-27)
 - **What it is:** while you stay in the chosen apps, a short buzz and a heads-up that clears itself after 6 s — *"15 m on
   Reddit"* — at each interval: 5 / 10 / **15** / 20 / 30 min, the same interval every time (the growing number is the
@@ -316,10 +365,11 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   Reddit and 5 of Instagram is "15 m on Instagram", counted together with Reddit), split-screen overlap once. A gap out
   of them — another app, home, the screen off — **of up to 3 min pauses the count** and isn't counted; **longer starts
   over**. A chime only while one of them is in front. Missed marks are said once, for the latest. **A call or DND skips
-  the chime** (`PhoneSilence`) — it is not saved for later, unlike the break nudge's. The server's quiet hours and away
+  the chime** (`PhoneSilence`) — it is not saved for later, unlike the break nudge's — and so does another kind of nudge
+  in the 10 minutes before (*Nudges together*). The server's quiet hours and away
   days do **not** mute it: it never asks the server at chime time.
 - **Which apps (`ChimeChoices`):** "Chime my distraction apps" (on by default) follows the server's distraction packages
-  (`/now`'s `distractionPackages`, exact names, kept in `time_chime` prefs so a restart offline still knows them, refreshed
+  (`/now`'s `distractionPackages`, exact names, kept in `KeptDistractions` so a restart offline still knows them, refreshed
   after each sync while on and when the screen opens), **plus** apps ticked by hand, **minus** distraction apps unticked
   by hand — an untick holds even when the server lists the app again. The screen is the week's apps (as "Ignored apps"
   lists them), distraction ones first; below, chosen apps on this phone not used this week. A distraction package not
@@ -360,7 +410,7 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **One check-in per loop (`LoopPolicy`, `LoopPolicyTest`).** A loop begins when a rule holds and none is going on, goes on
   while one keeps holding, and **ends 15 min after the last time one did**; the next loop gets its own check-in, and nothing
   from before the last one's end counts. **A call or DND** when a loop begins skips its check-in (`PhoneSilence`) — not
-  postponed, like the chime. The server's quiet hours and away days don't mute it (as 11-8): bedtime scrolling is the case.
+  postponed, like the chime — and so does another kind of nudge in the 10 minutes before (*Nudges together*). The server's quiet hours and away days don't mute it (as 11-8): bedtime scrolling is the case.
 - **The buttons.** **I'm fine** (and a swipe): silent until the loop ends. **Not today**: the loop ends, silent until the
   next local midnight; unlocks from before midnight don't count after it. **Put it away**: the loop ends and the **away
   timer** runs — no check-in meanwhile, nothing said if the phone is picked up during it, and when it is up *"20 min away is
@@ -378,9 +428,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   start, end, rule, the most pickups and apps counted, and the answer (`ASKED` / `AWAY` / `FINE` / `NOT_TODAY` /
   `SILENCED`) — **no package names**. 30 days. Nothing is sent: that waits for prompt 14 (a wire change in both repos). An
   account switch clears them and the state.
-- **With the other nudges:** the check, the time chime and the break nudge each decide alone and post on their own channel;
-  none reads another's state. A loop in chosen apps can bring a chime too (rare: the chime needs ≥ 5 min in them), and a
-  loop during a break from the desk a break nudge as well.
+- **With the other nudges:** each posts on its own channel. Since prompt 08 the check, the chime and the drift nudge keep
+  10 minutes apart (*Nudges together*), and the drift nudge stays quiet while the "Phone away" timer runs; otherwise none
+  reads another's state. A loop during a break from the desk can still bring a break nudge (it is exempt from the gap).
 - **Battery, estimated, not measured:** the watcher's ~0.1–0.3 mWh per screen-on hour (as the chime's, none extra when both
   are on), plus one read of an hour of the log per app coming to the front (milliseconds).
 
