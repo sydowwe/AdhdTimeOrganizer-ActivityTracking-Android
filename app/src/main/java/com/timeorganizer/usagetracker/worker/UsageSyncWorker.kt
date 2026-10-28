@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
+import com.timeorganizer.usagetracker.budget.BudgetMonitor
 import com.timeorganizer.usagetracker.capture.CaptureSender
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.drift.DriftMonitor
@@ -24,6 +25,8 @@ class UsageSyncWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result = try {
+        // Budget stages said offline are claimed first, so the sync carrying their time finds them said (13-1). Never throws.
+        BudgetMonitor.beforeSync(applicationContext)
         SyncEngine(applicationContext).run()
         // Quick capture's queue: anything the network-bound job hasn't sent yet (signed in again, back online). Never throws.
         CaptureSender.afterSync(applicationContext)
@@ -38,6 +41,8 @@ class UsageSyncWorker(
         StartRampMonitor.afterSync(applicationContext)
         // Arms the watcher through a block (or one starting soon) and withdraws a nudge whose block is over. Never throws.
         DriftMonitor.afterSync(applicationContext)
+        // Reads the budgets' figures again (the sync moved them) and says a limit the phone's time crossed. Never throws.
+        BudgetMonitor.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

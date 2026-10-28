@@ -3,15 +3,15 @@ package com.timeorganizer.usagetracker.notify
 import android.content.Context
 
 /** The nudges that keep [NudgeGap.MIN_GAP_MS] apart. The break nudge is exempt: a break's end is said when it comes. */
-enum class NudgeFamily { CHIME, LOOP, DRIFT, RAMP }
+enum class NudgeFamily { CHIME, LOOP, DRIFT, RAMP, BUDGET }
 
 /**
  * Nudges of different kinds keep 10 minutes apart (decision 08-6, the desktop's `HyperfocusPolicy.MinGapBetweenKinds`), so
  * one pickup never brings a loop check-in and a drift nudge seconds apart. Each family records when it posted; before
  * posting, it asks whether another family posted within the gap.
  *
- * What "held" means is the family's own rule: the drift nudge and the start ramp **wait** and are said once the gap has
- * passed, if still due; the time chime and the loop check **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is
+ * What "held" means is the family's own rule: the drift nudge, the start ramp and the daily limits **wait** and are said once
+ * the gap has passed, if still due; the time chime and the loop check **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is
  * wrong by then). The ramp is evaluated first where several run together (a block's start doesn't come again, decision 10-8).
  * A family never holds itself back: that is each one's own rule (one per block, one per loop, one per mark).
  *

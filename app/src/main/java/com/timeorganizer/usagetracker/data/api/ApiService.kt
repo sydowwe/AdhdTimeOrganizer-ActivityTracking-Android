@@ -11,6 +11,9 @@ import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageResponse
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkDto
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkRequest
+import com.timeorganizer.usagetracker.data.api.dto.BudgetClaimRequest
+import com.timeorganizer.usagetracker.data.api.dto.BudgetClaimResponse
+import com.timeorganizer.usagetracker.data.api.dto.BudgetsResponse
 import com.timeorganizer.usagetracker.data.api.dto.CaptureRequest
 import com.timeorganizer.usagetracker.data.api.dto.CaptureResponse
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityRequest
@@ -137,6 +140,22 @@ interface ApiService {
     suspend fun capture(
         @Body request: CaptureRequest
     ): Response<CaptureResponse>
+
+    /** The daily limits a phone app counts toward, with today's figures; [deviceId] is the id the phone syncs under. */
+    @GET("tracker/android/budgets")
+    suspend fun budgets(
+        @Query("deviceId") deviceId: String
+    ): Response<BudgetsResponse>
+
+    /**
+     * The phone is about to say a budget's stage: marks it said for today, so the server's own push stays quiet. 200
+     * `{ claimed }`; 404 `budgetGone` (deleted, its activity archived); 400 for a stage the server doesn't know.
+     */
+    @POST("tracker/android/budgets/{id}/claim")
+    suspend fun claimBudget(
+        @Path("id") budgetId: Long,
+        @Body request: BudgetClaimRequest
+    ): Response<BudgetClaimResponse>
 
     /** When the user's evening begins (bed time less their evening-shutdown offset); the review runs then. */
     @GET("tracker/evening-shutdown-moment")

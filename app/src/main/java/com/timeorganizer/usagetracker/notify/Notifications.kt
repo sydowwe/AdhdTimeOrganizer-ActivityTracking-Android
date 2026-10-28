@@ -68,6 +68,12 @@ object Notifications {
      */
     const val CHANNEL_START_RAMP = "start_ramp"
 
+    /**
+     * "1 h of YouTube today · That's the daily limit you set.": high importance so it peeks over the app the time is being
+     * spent in, the chime's short vibration and no sound — the user's own number, not an alarm. Fixed once created.
+     */
+    const val CHANNEL_BUDGET = "daily_budget"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
@@ -78,6 +84,9 @@ object Notifications {
     const val ID_PHONE_AWAY = 7
     const val ID_DRIFT = 8
     const val ID_START_RAMP = 9
+
+    /** With the budget's id as the tag: one per budget, so an activity's limit and its category's can both show. */
+    const val ID_BUDGET = 10
 
     /** Two short taps. */
     private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
@@ -136,6 +145,14 @@ object Notifications {
                 NotificationChannelCompat.Builder(CHANNEL_START_RAMP, NotificationManagerCompat.IMPORTANCE_HIGH)
                     .setName(context.getString(R.string.channel_start_ramp))
                     .setDescription(context.getString(R.string.channel_start_ramp_description))
+                    .setSound(null, null)
+                    .setVibrationEnabled(true)
+                    .setVibrationPattern(CHIME_VIBRATION)
+                    .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_BUDGET, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_budget))
+                    .setDescription(context.getString(R.string.channel_budget_description))
                     .setSound(null, null)
                     .setVibrationEnabled(true)
                     .setVibrationPattern(CHIME_VIBRATION)

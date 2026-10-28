@@ -25,6 +25,9 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.breaks.BreakPolicy
 import com.timeorganizer.usagetracker.breaks.BreakPreferences
+import com.timeorganizer.usagetracker.budget.BudgetMonitor
+import com.timeorganizer.usagetracker.budget.BudgetPreferences
+import com.timeorganizer.usagetracker.review.ReviewText
 import com.timeorganizer.usagetracker.capture.CaptureActivity
 import com.timeorganizer.usagetracker.capture.CaptureDatabase
 import com.timeorganizer.usagetracker.capture.CaptureTileService
@@ -144,6 +147,7 @@ class MainActivity : AppCompatActivity() {
         setUpBreakCard()
         setUpRampCard()
         setUpDriftCard()
+        setUpBudgetCard()
         setUpChimeCard()
         setUpLoopCard()
 
@@ -211,6 +215,7 @@ class MainActivity : AppCompatActivity() {
         updateSyncStatusCard()
         updateCaptureCard()
         updateIgnoredCard()
+        updateBudgetCard()
         updateChimeCard()
         updateLoopCard()
         checkBackendHealth()
@@ -282,6 +287,32 @@ class MainActivity : AppCompatActivity() {
         switch.setOnCheckedChangeListener { _, checked ->
             driftPrefs.enabled = checked
             DriftMonitor.kick(this)
+        }
+    }
+
+    /** Daily limits' switch, decided on at once: turning it off lets the watcher go. */
+    private fun setUpBudgetCard() {
+        val budgetPrefs = BudgetPreferences(this)
+        val switch = findViewById<MaterialSwitch>(R.id.swDailyBudgets)
+        switch.isChecked = budgetPrefs.enabled
+        switch.setOnCheckedChangeListener { _, checked ->
+            budgetPrefs.enabled = checked
+            BudgetMonitor.kick(this)
+        }
+    }
+
+    /** Each budget a phone app counts toward, with the phone's count of today: from the last figures and the usage log. */
+    private fun updateBudgetCard() {
+        val view = findViewById<TextView>(R.id.tvBudgetLines)
+        lifecycleScope.launch {
+            val lines = withContext(Dispatchers.IO) { BudgetMonitor.lines(applicationContext) }
+            view.text = if (lines.isEmpty()) {
+                getString(R.string.budget_card_none)
+            } else {
+                lines.joinToString("\n") {
+                    getString(R.string.budget_card_line, it.targetName, ReviewText.duration(it.totalMs / 1000), ReviewText.duration(it.limitMs / 1000))
+                }
+            }
         }
     }
 

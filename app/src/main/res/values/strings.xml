@@ -149,6 +149,23 @@
     <string name="drift_card_switch">Nudge when I open a distraction app during a planned block</string>
     <string name="drift_card_hint">One nudge per block once your distraction apps have been open for 30 seconds in it (time in several adds up; a minute away starts over). Back to it goes to the home screen, Switch plan opens the planner, 5 more minutes asks once more. An app mapped to the block\'s own activity doesn\'t count. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
 
+    <!-- Daily limits: notification. The server's words, so a limit reads the same on the phone and in the browser. -->
+    <string name="channel_budget">Daily limits</string>
+    <string name="channel_budget_description">A short buzz and a heads-up when an app reaches 80 % of a daily limit you set, and when it reaches the limit</string>
+    <string name="notify_budget_reached_title">%1$s of %2$s today</string>
+    <string name="notify_budget_reached_title_unnamed">%1$s today</string>
+    <string name="notify_budget_reached_text">That\'s the daily limit you set.</string>
+    <string name="notify_budget_approaching_title">Nearing your daily limit for %1$s</string>
+    <string name="notify_budget_approaching_title_unnamed">Nearing a daily limit</string>
+    <string name="notify_budget_approaching_text">About %1$s left of the %2$s you set.</string>
+
+    <!-- Daily limits: status card -->
+    <string name="budget_card_title">Daily limits</string>
+    <string name="budget_card_switch">Say my daily limits on the phone</string>
+    <string name="budget_card_hint">The limits you set in the web app on an activity or category, counted with this phone\'s time up to the second: once at 80 % and once at the limit, while one of its apps is open. Time at the desk reaching a limit is said in the browser instead; never both. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
+    <string name="budget_card_line">%1$s: %2$s of %3$s</string>
+    <string name="budget_card_none">No daily limit counts a phone app yet. Set one on an activity or category in the web app, and map the app to it.</string>
+
     <!-- Start ramp: notification -->
     <string name="channel_start_ramp">Start ramp</string>
     <string name="channel_start_ramp_description">A short buzz and a heads-up when a planned block starts, with a one-tap start for its timer</string>

@@ -67,5 +67,16 @@
   "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" },
   "startBlockRequest": { "plannerTaskId": 7 },
   "captureRequest": { "text": "Read this later", "url": "https://example.com/article" },
-  "captured": { "outcome": "added", "todoListItemId": 41, "todoListId": 3 }
+  "captured": { "outcome": "added", "todoListItemId": 41, "todoListId": 3 },
+  "budgets": {
+    "day": "2026-10-28",
+    "dayStartsAt": "2026-10-27T23:00:00Z",
+    "dayEndsAt": "2026-10-28T23:00:00Z",
+    "budgets": [
+      { "budgetId": 5, "activityId": 31, "categoryId": null, "targetName": "Scrolling", "limitSeconds": 3600, "warnAtEightyPercent": true, "warnedToday": true, "reachedToday": false, "totalSeconds": 3000, "thisPhoneSeconds": 2400, "packages": ["com.reddit.frontpage"] },
+      { "budgetId": 6, "activityId": null, "categoryId": 8, "targetName": "Social", "limitSeconds": 5400, "warnAtEightyPercent": false, "warnedToday": false, "reachedToday": false, "totalSeconds": 3000, "thisPhoneSeconds": 2400, "packages": ["com.instagram.lite", "com.reddit.frontpage"] }
+    ]
+  },
+  "budgetClaimRequest": { "stage": "reached", "day": "2026-10-28" },
+  "budgetClaimed": { "claimed": true }
 }

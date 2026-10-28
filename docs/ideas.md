@@ -61,7 +61,23 @@ moment of opening is worth far more than seeing it on tomorrow's dashboard.
   declared reason — decide which before building.
 - Must not count time itself. The service only *watches*; sessions still come from the usage log.
 
-## 2. App-time budgets on the phone — "45 min of TikTok today, 15 left"
+## 2. App-time budgets on the phone — "45 min of TikTok today, 15 left" — built 2026-10-28 (prompt 13)
+
+**Built as** `budget/` (CLAUDE.md → *Daily limits*): the server's total with this phone's synced part swapped for its own
+count from the usage log (not the outbox, which is nearly always empty between runs), said at 80 % and the limit while an
+app of the budget is in front, claimed on the server first so its push stays quiet (decision 13-1). No full-screen card
+(13-2), nothing more on reopening past the limit (13-3). What was left open:
+- **A tap target.** The server's push opens the tracking dashboard on that day; the phone's opens nothing. `WEB_APP_ROOT` +
+  the dashboard's route would do it, once the route is settled.
+- **A line on reopening past the limit**, at most hourly — the rejected half of 13-3, if one notification a day turns out
+  too easy to swipe and forget.
+- **The bell row.** A limit the phone said writes no row in the web's notification bell (the claim stops the server's send
+  entirely). A "said elsewhere" bell-only write would need a dispatcher option the framework doesn't have.
+- **Say it in the UI that this isn't Digital Wellbeing** (below): ours counts the activity across devices.
+- **WorkManager's expedited work** for the catch-up sync: today it is the ordinary "Sync now". Expedited work on Android 11
+  and below runs as a foreground service and needs `getForegroundInfo`, which the worker doesn't have.
+
+The original write-up:
 
 **Why.** Budgets already exist server-side (P3-08, `ActivityDailyBudget`): a daily limit per activity or
 category, 80 % warning and limit notification, fed by every source including this sync. But the phone syncs

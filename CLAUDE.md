@@ -54,6 +54,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `chime/ChimeMonitor.kt`, `chime/ChimeNotifier.kt`, `chime/ChimePreferences.kt`, `chime/ChimeAppsActivity.kt` | Runs the schedule (a chosen app to the front, the next chime due, after each sync), keeps the watcher on while the chime is, posts the chime; its switch, interval, choices, the kept distraction list and state; the "Time chime" screen |
 | `loops/LoopDetector.kt`, `loops/LoopPolicy.kt`, `loops/LoopApps.kt` | **Pure.** The loop check: pickups + sittings → a rule holding now (6 unlocks in 10 min, or 6 apps hopped in 5 min); the loop's state from look to look, the buttons, the away timer, "Not today"; the "Apps that don't count" rows |
 | `loops/LoopMonitor.kt`, `loops/LoopNotifier.kt`, `loops/LoopActionReceiver.kt`, `loops/LoopPreferences.kt`, `loops/LoopStore.kt`, `loops/LoopAppsActivity.kt` | Runs the check (any app to the front, after each sync, a button, the timer's alarm), keeps the watcher on while it is, posts the check-in and "Phone away … is up"; its switch, timer length, apps that don't count and state; the loops kept on the phone (`loops.db`); the "Apps that don't count" screen |
+| `budget/BudgetTracker.kt` | **Pure.** Daily limits: the server's figures (`BudgetFacts`) + the budgeted apps' sittings from the log → the estimate, the stage due (80 % / the limit), holds, when the next crossing comes, whether to watch; `ClaimOutcome` (a claim's answer → post or stay quiet) |
+| `budget/BudgetMonitor.kt`, `budget/BudgetNotifier.kt`, `budget/BudgetPreferences.kt` | Runs the tracker (a budgeted app to the front, the next crossing, after each sync), claims each stage before posting it, sends claims made offline before the next sync, keeps the watcher on while a limit is unreached; the switch, the figures, the settled stages, the unsent claims |
 | `capture/CaptureRules.kt` | **Pure.** Quick capture: a typed line or a share → the thought (title + link for a browser share, cut to the server's limit); an answer's status → sent / refused / wait / auth |
 | `capture/CaptureStore.kt`, `capture/CaptureSender.kt` | The queue (`capture.db`) and its sender: stored first, sent by a network-bound job and after every sync; a row leaves only when the server has it |
 | `capture/CaptureActivity.kt`, `capture/CaptureTileService.kt` | The one-field dialog (tile, launcher shortcut) and the share target "Save to Inbox"; the "Capture" Quick Settings tile |
@@ -157,9 +159,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   read there as "declares none". So is an app uninstalled between its use and the send. A name the server doesn't know
   costs only that report, never the batch. A new Android `CATEGORY_*` goes into the server's enum first.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
-- **The sync, rules, ignore, mapping, `/now` and capture answers** (`activities`, `activityCreated`, `problem`, `distraction`,
-  `appCategoryLink`, `now`, `captured`), **and the requests the phone writes** (`syncRequest`, `ignoreRequest`,
-  `startBlockRequest`, `captureRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
+- **The sync, rules, ignore, mapping, `/now`, capture and budget answers** (`activities`, `activityCreated`, `problem`, `distraction`,
+  `appCategoryLink`, `now`, `captured`, `budgets`, `budgetClaimed`), **and the requests the phone writes** (`syncRequest`, `ignoreRequest`,
+  `startBlockRequest`, `captureRequest`, `budgetClaimRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
   byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
   `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
   against it and that this copy is identical (it finds the copy by name anywhere in this checkout — keep exactly one).
@@ -218,7 +220,7 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
   watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge, the
-  high-importance, vibrating, soundless "Time chime", "Loop check", "Drift nudge" and "Start ramp", and "Phone away"
+  high-importance, vibrating, soundless "Time chime", "Loop check", "Drift nudge", "Start ramp" and "Daily limits", and "Phone away"
   (default importance, the default sound) today. A channel's sound and vibration are fixed once it exists:
   getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
@@ -375,11 +377,47 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **State** (`start_ramp` prefs): the settled blocks as `id:end` pairs (forgotten a day after their end), the "In 2 min"
   block and time, the block on screen — no names. An account switch resets it and cancels the alarm.
 
+### Daily limits (prompt 13, 2026-10-28)
+- **What it is:** the daily limits the user set on the web (an activity's or a category's, P3-08), said on the phone while one
+  of its apps is in front — *"Nearing your daily limit for YouTube · About 12 m left of the 1 h you set."* at 80 % (when the
+  budget wants it), *"1 h of YouTube today · That's the daily limit you set."* at the limit. The server's own words: neutral,
+  the user's number back, never "exceeded". No buttons, no tap target, no full-screen card (decision 13-2), nothing more on
+  reopening the app past the limit (13-3). Its own channel (`daily_budget`: high importance, the chime's short vibration, no
+  sound) and id 10, with the budget's id as the tag so an activity's and its category's limit can both show. **On by
+  default** (making a budget is the opt-in, 13-4); the status screen's "Daily limits" card has the switch and each budget's
+  "YouTube: 42 m of 1 h".
+- **All of it is `BudgetTracker`** (pure, `BudgetTrackerTest`). **The estimate** is the server's `totalSeconds − thisPhoneSeconds`
+  plus the phone's own time today in the budget's packages, from the usage log through `SessionBuilder` (the union of the
+  sittings, split-screen once, sessions under the sync's 5 s floor left out). It is right whenever the last sync ran: a sync
+  moves the same seconds into both server figures. **Packages are the server's** (`GET tracker/android/budgets`, exact,
+  server-resolved: an activity budget's rules, a category budget's non-archived activities' rules); the phone matches nothing.
+- **Who says it (decision 13-1): whoever sees the crossing first.** A due stage is claimed first
+  (`POST tracker/android/budgets/{id}/claim`, `ClaimOutcome`): `claimed` → post, and the server never sends it; `false` → it
+  was said (the server's push for desk time, another phone) → quiet; 404 → gone, quiet. **No answer → post anyway** and keep
+  the claim in `pending_claims`; `UsageSyncWorker` sends them **before** `SyncEngine.run` (`BudgetMonitor.beforeSync`), so
+  the sync carrying the crossing finds the mark set. A stage the figures report said (`warnedToday` / `reachedToday`) is never
+  said here. **Only while an app of the budget is in front**: desk time reaching a limit is the server's, in the browser.
+  Reaching the limit with the warning unsaid says only the limit, as the server does. After posting, a "Sync now" run is
+  asked for (`TimeOrganizerApp.enqueueSyncNow`), so the web catches up.
+- **Held, never dropped:** `/now`'s `silentReason` (asked only while a budgeted app is in front; unreachable is not silent), a
+  call, DND, car mode, the "Phone away" timer, another nudge in the last 10 min (`NudgeFamily.BUDGET`). Looked at again when
+  the hold ends (each minute for a call or silence), and said then if an app of the budget is still in front — otherwise the
+  next sync's server push says it.
+- **When it runs (`BudgetMonitor`):** a budgeted app coming to the front (the watcher), the next crossing while one is in front
+  (an in-process delay to the moment the estimate reaches 80 % or the limit), after every sync (the figures read again), the
+  card's switch, and once per process start. The figures are kept in prefs (`daily_budgets`) and read again when older than
+  5 min or from another day; offline today's last figures still count. **The watcher** (reason `budget`, `INDEFINITELY`) runs
+  while some budget with phone apps hasn't reached its limit today — the chime's and loop check's accepted cost — and is let
+  go once all have, or the switch is off.
+- **State:** the figures (with the user's activity names, like the break nudge's subject — never logged), the stages settled
+  today, the unsent claims. An account switch clears all three and cancels what is showing (`SyncEngine.onSignedIn`); the
+  switch stays.
+
 ### Nudges together (since prompt 08)
 - **Kinds keep 10 minutes apart** (`NudgeGap`, decision 08-6, the desktop's `HyperfocusPolicy.MinGapBetweenKinds`): each of
-  the chime, the loop check, the drift nudge and the start ramp records when it posted, and asks before posting whether
-  another did within 10 min. **Held means each kind's own rule:** the drift nudge and the start ramp wait and are said
-  after; the chime and the loop check **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is wrong by then; the
+  the chime, the loop check, the drift nudge, the start ramp and the daily limits records when it posted, and asks before
+  posting whether another did within 10 min. **Held means each kind's own rule:** the drift nudge, the start ramp and the
+  daily limits wait and are said after; the chime and the loop check **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is wrong by then; the
   loop is still stored, `SILENCED`). **The break nudge is exempt**: it neither records nor asks.
 - **The start ramp goes first** where several are evaluated together (a block's start doesn't come again, decision 10-8).
 - Apart from that, the "Phone away" timer the drift nudge and the ramp read, and the ramp's **Not this one** quieting the

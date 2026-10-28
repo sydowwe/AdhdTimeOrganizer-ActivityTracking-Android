@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.sync
 import android.content.Context
 import com.timeorganizer.usagetracker.auth.JwtSubject
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
+import com.timeorganizer.usagetracker.budget.BudgetMonitor
 import com.timeorganizer.usagetracker.capture.CaptureSender
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
@@ -232,7 +233,8 @@ class SyncEngine(context: Context) {
          * cached rules and the pending ignores: the previous person's ignores must not drop the new one's apps. So is an
          * open break: it names the previous person's activity. So is the kept distraction list (the chime's ticks stay:
          * they are this phone's). So are the loops the loop check saw (the apps that don't count stay, for the same reason),
-         * the start ramp's blocks and its wake (its switch and "which blocks" stay), and the drift nudge's block. So are the
+         * the start ramp's blocks and its wake (its switch and "which blocks" stay), the drift nudge's block, and the daily
+         * limits' figures, settled stages and unsent claims (their switch stays). So are the
          * thoughts quick capture still holds: they were meant for the previous account's to-dos. Otherwise the ones captured
          * while signed out go now.
          */
@@ -251,6 +253,7 @@ class SyncEngine(context: Context) {
                 LoopMonitor.reset(context)
                 StartRampMonitor.reset(context)
                 DriftMonitor.reset(context)
+                BudgetMonitor.reset(context)
                 CaptureSender.reset(context)
             }
             prefs.accountId = account

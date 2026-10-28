@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
+import com.timeorganizer.usagetracker.budget.BudgetMonitor
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.drift.DriftMonitor
@@ -32,6 +33,7 @@ class TimeOrganizerApp : Application() {
         // Before the drift nudge: a block's start doesn't come again (decision 10-8).
         StartRampMonitor.install(this)
         DriftMonitor.install(this)
+        BudgetMonitor.install(this)
         enqueuePeriodicSync(this)
     }
 

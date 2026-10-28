@@ -14,6 +14,12 @@ import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageResponse
 import com.timeorganizer.usagetracker.data.api.dto.PreviousTargetDto
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkDto
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkRequest
+import com.timeorganizer.usagetracker.budget.BudgetFacts
+import com.timeorganizer.usagetracker.budget.BudgetStage
+import com.timeorganizer.usagetracker.budget.PhoneBudget
+import com.timeorganizer.usagetracker.data.api.dto.BudgetClaimRequest
+import com.timeorganizer.usagetracker.data.api.dto.BudgetClaimResponse
+import com.timeorganizer.usagetracker.data.api.dto.BudgetsResponse
 import com.timeorganizer.usagetracker.data.api.dto.CaptureRequest
 import com.timeorganizer.usagetracker.data.api.dto.CaptureResponse
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityRequest
@@ -33,6 +39,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 
 /**
  * The phone half of the wire contract: `src/test/resources/AndroidTrackerWire.samples.json` is the server's
@@ -197,6 +204,30 @@ class WireSampleTest {
     @Test
     fun aCaptureWithoutALink_leavesTheUrlOut() {
         assertEquals(setOf("text"), gson.toJsonTree(CaptureRequest("Email the landlord")).asJsonObject.keySet())
+    }
+
+    /**
+     * Daily limits (prompt 13), both ways. A renamed `thisPhoneSeconds` reads as 0 and the phone counts its own synced time
+     * twice — a limit said early; a renamed `packages` is a budget no app counts toward, said by nobody on the phone.
+     */
+    @Test
+    fun theBudgets_readEveryField_andTheClaimWritesTheSample() {
+        val facts = BudgetFacts.from(gson.fromJson(samples["budgets"], BudgetsResponse::class.java), fetchedAtMs = 1L)!!
+
+        assertEquals("2026-10-28", facts.day)
+        assertEquals(Instant.parse("2026-10-27T23:00:00Z").toEpochMilli(), facts.dayStartMs)
+        assertEquals(Instant.parse("2026-10-28T23:00:00Z").toEpochMilli(), facts.dayEndMs)
+        assertEquals(
+            listOf(
+                PhoneBudget(5, "Scrolling", 3_600_000, true, true, false, 3_000_000, 2_400_000, setOf("com.reddit.frontpage")),
+                PhoneBudget(6, "Social", 5_400_000, false, false, false, 3_000_000, 2_400_000, setOf("com.instagram.lite", "com.reddit.frontpage"))
+            ),
+            facts.budgets
+        )
+
+        assertEquals(samples["budgetClaimRequest"], gson.toJsonTree(BudgetClaimRequest(BudgetStage.REACHED.wire, "2026-10-28")))
+        assertEquals(BudgetClaimResponse(true), gson.fromJson(samples["budgetClaimed"], BudgetClaimResponse::class.java))
+        assertEquals("approaching", BudgetStage.APPROACHING.wire)
     }
 
     /** The phone's names are the server's enum members, all nine. A tenth Android constant reads as no category. */
