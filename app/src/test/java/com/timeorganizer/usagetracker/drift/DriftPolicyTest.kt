@@ -211,6 +211,16 @@ class DriftPolicyTest {
     }
 
     @Test
+    fun aBlockAReusedAnswerStillLists_pastItsEnd_isOver_andNoLookIsAskedForInThePast() {
+        // `/now` answers are reused for 30 s: at 90:10 the answer from 89:50 still lists Thesis.
+        val step = DriftPolicy.decide(nudgedInThesis, input(min(90) + 10_000L, emptyList(), facts()))
+
+        assertTrue(step.cancel)
+        assertEquals(DriftState.NONE, step.state)
+        assertNull(step.recheckAtMs)
+    }
+
+    @Test
     fun outsideABlock_looksAgainWhenTheNextStarts_ifThatIsSoon() {
         val soon = DriftPolicy.decide(DriftState.NONE, input(min(80), emptyList(), facts(current = emptyList(), next = email)))
         val later = DriftPolicy.decide(DriftState.NONE, input(min(60), emptyList(), facts(current = emptyList(), next = email)))

@@ -148,7 +148,8 @@ object DriftPolicy {
             DriftStep(state, recheckAtMs = state.blockEndMs.takeIf { state.showing })
         }
 
-        val block = facts.current.firstOrNull()
+        // An answer may be reused for 30 s: a block it still lists can have ended meanwhile, and its end is in the past.
+        val block = facts.current.firstOrNull { it.endMs > nowMs }
             ?: return DriftStep(DriftState.NONE, cancel = state.showing, recheckAtMs = nextStartToWatch(facts, nowMs))
 
         // A block moved or extended keeps its id: take its latest end. Another block starts everything again.

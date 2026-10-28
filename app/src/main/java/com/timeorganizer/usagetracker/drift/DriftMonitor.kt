@@ -66,7 +66,6 @@ object DriftMonitor {
     fun install(context: Context) {
         val app = context.applicationContext
         appContext = app
-        distractions = KeptDistractions.get(app)
         ForegroundWatcher.addListener { change ->
             if (change is ForegroundChange.CameToFront && change.packageName in distractions) kick(app)
         }
