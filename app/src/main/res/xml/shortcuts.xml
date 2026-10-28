@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher's long-press menu on the app icon (prompt 18). The package is the applicationId: no build type renames it. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_capture"
+        android:shortcutShortLabel="@string/capture_shortcut_short"
+        android:shortcutLongLabel="@string/capture_shortcut_long">
+        <intent
+            android:action="com.timeorganizer.usagetracker.capture.CAPTURE"
+            android:targetPackage="com.timeorganizer.usagetracker"
+            android:targetClass="com.timeorganizer.usagetracker.capture.CaptureActivity" />
+    </shortcut>
+</shortcuts>

@@ -54,6 +54,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `chime/ChimeMonitor.kt`, `chime/ChimeNotifier.kt`, `chime/ChimePreferences.kt`, `chime/ChimeAppsActivity.kt` | Runs the schedule (a chosen app to the front, the next chime due, after each sync), keeps the watcher on while the chime is, posts the chime; its switch, interval, choices, the kept distraction list and state; the "Time chime" screen |
 | `loops/LoopDetector.kt`, `loops/LoopPolicy.kt`, `loops/LoopApps.kt` | **Pure.** The loop check: pickups + sittings → a rule holding now (6 unlocks in 10 min, or 6 apps hopped in 5 min); the loop's state from look to look, the buttons, the away timer, "Not today"; the "Apps that don't count" rows |
 | `loops/LoopMonitor.kt`, `loops/LoopNotifier.kt`, `loops/LoopActionReceiver.kt`, `loops/LoopPreferences.kt`, `loops/LoopStore.kt`, `loops/LoopAppsActivity.kt` | Runs the check (any app to the front, after each sync, a button, the timer's alarm), keeps the watcher on while it is, posts the check-in and "Phone away … is up"; its switch, timer length, apps that don't count and state; the loops kept on the phone (`loops.db`); the "Apps that don't count" screen |
+| `capture/CaptureRules.kt` | **Pure.** Quick capture: a typed line or a share → the thought (title + link for a browser share, cut to the server's limit); an answer's status → sent / refused / wait / auth |
+| `capture/CaptureStore.kt`, `capture/CaptureSender.kt` | The queue (`capture.db`) and its sender: stored first, sent by a network-bound job and after every sync; a row leaves only when the server has it |
+| `capture/CaptureActivity.kt`, `capture/CaptureTileService.kt` | The one-field dialog (tile, launcher shortcut) and the share target "Save to Inbox"; the "Capture" Quick Settings tile |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
@@ -62,7 +65,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (red banner while usage access is off, amber while setup is unfinished) |
 | `SettingsActivity.kt` | The set-once things: usage access, battery-optimization exemption, notification permission — a check and "Manage" (the system page; an app can't revoke these itself) once granted. Opens by itself on first run |
 
-`app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, and `loops.db` since prompt 12). Commit
+`app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, `loops.db` since prompt 12, `capture.db` since 18). Commit
 them with any entity change and write a real migration. **The first build of a new `@Database`** can fail
 `kspReleaseKotlin` with `JsonDecodingException: Expected start of the object '{', but had 'EOF'`: the debug and release KSP
 tasks race to write its new schema file. The file is fine once one of them has; run the build again.
@@ -154,9 +157,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   read there as "declares none". So is an app uninstalled between its use and the send. A name the server doesn't know
   costs only that report, never the batch. A new Android `CATEGORY_*` goes into the server's enum first.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
-- **The sync, rules, ignore, mapping and `/now` answers** (`activities`, `activityCreated`, `problem`, `distraction`,
-  `appCategoryLink`, `now`), **and the two requests that carry a category** (`syncRequest`, `ignoreRequest`, which
-  `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
+- **The sync, rules, ignore, mapping, `/now` and capture answers** (`activities`, `activityCreated`, `problem`, `distraction`,
+  `appCategoryLink`, `now`, `captured`), **and the requests the phone writes** (`syncRequest`, `ignoreRequest`,
+  `startBlockRequest`, `captureRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
   byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
   `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
   against it and that this copy is identical (it finds the copy by name anywhere in this checkout — keep exactly one).
@@ -460,6 +463,27 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   reads another's state. A loop during a break from the desk can still bring a break nudge (it is exempt from the gap).
 - **Battery, estimated, not measured:** the watcher's ~0.1–0.3 mWh per screen-on hour (as the chime's, none extra when both
   are on), plus one read of an hour of the log per app coming to the front (milliseconds).
+
+### Quick capture (prompt 18, 2026-10-28)
+- **What it is:** park a stray thought in two taps — the **"Capture" Quick Settings tile**, the app icon's **long-press
+  shortcut** (both open a one-field dialog over the app in front; Enter or Save stores it) or **"Save to Inbox" in the share
+  sheet** (`ACTION_SEND`, `text/plain`; stored at once, no dialog). It becomes a to-do on the user's capture list, "Inbox"
+  until they point it elsewhere. No notification and no channel: a toast says it is saved. The status screen's "Quick
+  capture" card shows what is waiting, opens the field, and on Android 13+ asks the system to add the tile
+  (`StatusBarManager.requestAddTileService`).
+- **The server does all of it** (`POST tracker/android/capture`, `{ text, url? }`, `[AllowAndroidTracker]` only — decision
+  18-2): which activity the text names (reused, an archived one restored, or made), the list, the priority, the name cut and
+  the note. The phone sends words and a link and decides nothing else, as with mapping.
+- **A share (`CaptureRules.shared`):** a browser sends the link as the text and the page title as the subject, so a bare
+  link takes the subject as its words; otherwise the text is the thought and its first link also goes as `url` (the server
+  keeps one copy in the note). Text is cut to the server's 10 000 characters, never through a surrogate pair.
+- **Never lost.** Stored in `capture.db` (its own Room database, like `loops.db`) before anything else, then sent: by
+  `CaptureSendWorker` (unique work, `KEEP`, needs a network — at once when online) and after every sync run. Oldest first,
+  one request each. **Only a 2xx removes a row** (`added`, `alreadyOpen`, `reopened` all mean it is on the list; a resend is
+  `alreadyOpen`). 400 / 413 / 422 marks it refused, keeps it, and goes on to the next; 401 and everything else (offline,
+  5xx, 404, 429, 409 `noPriority`) keep it and end the pass. Signed out, nothing is sent; signing in sends it. **An account
+  switch drops the queue** (`SyncEngine.onSignedIn`): those thoughts were for the other account's to-dos.
+- **The text is the user's own words**: kept only until the server has it, never logged.
 
 ### Evening review of unmapped time
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on

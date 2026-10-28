@@ -5,4 +5,13 @@
         <item name="colorSecondary">@color/teal_200</item>
         <item name="colorOnSecondary">@color/black</item>
     </style>
+
+    <!-- Quick capture: only its dialog shows, over the app it was opened from. Night colours come from the parent. -->
+    <style name="Theme.TimeOrganizerUsageTracker.Capture">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

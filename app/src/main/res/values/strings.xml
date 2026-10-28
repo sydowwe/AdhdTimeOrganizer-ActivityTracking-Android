@@ -264,6 +264,34 @@
     <string name="review_activity_gone">That activity no longer exists. Choose another.</string>
     <string name="review_save_failed">Couldn\'t save — check the connection and try again.</string>
 
+    <!-- Quick capture (prompt 18): the field, the tile, the shortcut, the share target and the status card -->
+    <string name="capture_title">Park a thought</string>
+    <string name="capture_hint">What\'s on your mind?</string>
+    <string name="capture_where">It goes to your Inbox in the to-do lists. Back to what you were doing.</string>
+    <string name="capture_save">Save</string>
+    <string name="capture_saved">Saved to your Inbox</string>
+    <string name="capture_saved_signed_out">Saved on this phone. It goes to your Inbox once you sign in.</string>
+    <string name="capture_share_empty">Nothing to save: the share had no text</string>
+    <string name="capture_tile_label">Capture</string>
+    <string name="capture_share_label">Save to Inbox</string>
+    <string name="capture_shortcut_short">Capture</string>
+    <string name="capture_shortcut_long">Capture a thought</string>
+    <string name="capture_card_title">Quick capture</string>
+    <string name="capture_card_hint">Park a stray thought without leaving what you\'re doing: the \"Capture\" Quick Settings tile, a long press on this app\'s icon, or share text or a link to \"Save to Inbox\". It becomes a to-do in your Inbox list.</string>
+    <string name="capture_card_none">Nothing waiting to send</string>
+    <plurals name="capture_card_waiting">
+        <item quantity="one">%1$d thought waiting to send</item>
+        <item quantity="other">%1$d thoughts waiting to send</item>
+    </plurals>
+    <plurals name="capture_card_refused">
+        <item quantity="one">The server refused %1$d of them. It is kept and tried again.</item>
+        <item quantity="other">The server refused %1$d of them. They are kept and tried again.</item>
+    </plurals>
+    <string name="btn_capture_now">Capture a thought</string>
+    <string name="btn_capture_add_tile">Add the tile</string>
+    <string name="capture_tile_added">The Capture tile is in Quick Settings</string>
+    <string name="capture_tile_not_added">Not added. You can add it by editing Quick Settings.</string>
+
     <!-- Ignored apps: status card -->
     <string name="ignored_card_hint">An ignored app isn\'t recorded on this phone, and the time already stored for it is deleted.</string>
     <string name="btn_ignored_apps">Manage ignored apps</string>

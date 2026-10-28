@@ -377,6 +377,29 @@ desk is in use; held while a timer runs and under the usual silences. On by defa
 
 ---
 
+## 18. Quick capture — park a thought in two taps — built 2026-10-28 (prompt 18)
+
+**Why.** Mid-focus, a stray thought ("email the landlord") either derails the block or is lost. Capturing it instead of
+acting on it is a standard ADHD technique, and the phone is always at hand.
+
+**What was built.** The "Capture" Quick Settings tile, the app icon's long-press shortcut and "Save to Inbox" in the share
+sheet. The thought is queued in `capture.db` and sent to `POST tracker/android/capture`, which makes it a to-do on the user's
+capture list ("Inbox", made on the first capture). Never lost offline or signed out. See `CLAUDE.md` → "Quick capture".
+
+**Not built, still open.**
+- **The desktop's hotkey** (desktop prompt 08): the same route, moved to `/tracker/capture` with both trackers' attributes —
+  one route, never a twin. The phone's path changes with it (one line in `ApiService`).
+- **Choosing the capture list in the web app.** The server has the setting (`UserTodoListSettings.CaptureTodoListId`) but no
+  picker writes it; until one does, captures go to "Inbox". A frontend change, raised with the owner.
+- **A triage view** (an "inbox" page that sorts captures into lists, dates and priorities). Decided against for now (18-3):
+  the Inbox is an ordinary list, and "Move to list" already exists.
+- **Editing a share before it is saved.** A share saves at once (two taps); a "Save and edit" path would cost a third.
+- **Capture from a nudge** ("park the thought that pulled you away" on the drift nudge). Android shows three buttons and the
+  drift nudge's are taken.
+- **Voice capture** (a tile long-press into speech recognition). The keyboard's own mic does it today.
+
+---
+
 ## Smaller ideas
 
 - **Diagnostics export.** "Copy diagnostics" on the status screen: app version, Android version, OEM, device id,

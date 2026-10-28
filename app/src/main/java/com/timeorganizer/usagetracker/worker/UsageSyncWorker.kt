@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
+import com.timeorganizer.usagetracker.capture.CaptureSender
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
@@ -24,6 +25,8 @@ class UsageSyncWorker(
 
     override suspend fun doWork(): Result = try {
         SyncEngine(applicationContext).run()
+        // Quick capture's queue: anything the network-bound job hasn't sent yet (signed in again, back online). Never throws.
+        CaptureSender.afterSync(applicationContext)
         askEveningReview()
         // Re-arms the watcher for a block or recent desk work, and ends a break the desk has come back from. Never throws.
         BreakMonitor.afterSync(applicationContext)

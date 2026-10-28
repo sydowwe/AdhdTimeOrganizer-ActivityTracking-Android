@@ -14,6 +14,8 @@ import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageResponse
 import com.timeorganizer.usagetracker.data.api.dto.PreviousTargetDto
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkDto
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkRequest
+import com.timeorganizer.usagetracker.data.api.dto.CaptureRequest
+import com.timeorganizer.usagetracker.data.api.dto.CaptureResponse
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityRequest
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
 import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
@@ -179,6 +181,22 @@ class WireSampleTest {
     @Test
     fun theStartBlockRequest_writesTheSampleExactly() {
         assertEquals(samples["startBlockRequest"], gson.toJsonTree(StartBlockRequest(7)))
+    }
+
+    /**
+     * Quick capture (prompt 18), both ways. A renamed `text` is a 400 the queue keeps retrying; a renamed `url` drops the
+     * shared link silently. The answer is only checked for its status today, but its fields are pinned for whoever reads it.
+     */
+    @Test
+    fun theCapture_writesTheRequestAndReadsTheAnswer() {
+        assertEquals(samples["captureRequest"], gson.toJsonTree(CaptureRequest("Read this later", "https://example.com/article")))
+        assertEquals(CaptureResponse("added", 41, 3), gson.fromJson(samples["captured"], CaptureResponse::class.java))
+    }
+
+    /** No link: Gson leaves `url` out, which the server binds as null. */
+    @Test
+    fun aCaptureWithoutALink_leavesTheUrlOut() {
+        assertEquals(setOf("text"), gson.toJsonTree(CaptureRequest("Email the landlord")).asJsonObject.keySet())
     }
 
     /** The phone's names are the server's enum members, all nine. A tenth Android constant reads as no category. */

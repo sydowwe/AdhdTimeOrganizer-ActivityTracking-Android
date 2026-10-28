@@ -11,6 +11,8 @@ import com.timeorganizer.usagetracker.data.api.dto.IgnorePackageResponse
 import com.timeorganizer.usagetracker.data.api.dto.UnmappedTodayResponse
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkDto
 import com.timeorganizer.usagetracker.data.api.dto.AppCategoryLinkRequest
+import com.timeorganizer.usagetracker.data.api.dto.CaptureRequest
+import com.timeorganizer.usagetracker.data.api.dto.CaptureResponse
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityRequest
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
 import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
@@ -126,6 +128,15 @@ interface ApiService {
     suspend fun startBlock(
         @Body request: StartBlockRequest
     ): Response<Unit>
+
+    /**
+     * Quick capture: the thought becomes a to-do on the user's capture list ("Inbox"). 200 whether it was added, already
+     * open (a retry) or reopened; 409 `noPriority` when the account has no task priority; 400 for a blank text.
+     */
+    @POST("tracker/android/capture")
+    suspend fun capture(
+        @Body request: CaptureRequest
+    ): Response<CaptureResponse>
 
     /** When the user's evening begins (bed time less their evening-shutdown offset); the review runs then. */
     @GET("tracker/evening-shutdown-moment")

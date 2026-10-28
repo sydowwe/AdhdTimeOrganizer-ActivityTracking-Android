@@ -1,7 +1,11 @@
 package com.timeorganizer.usagetracker
 
+import android.app.StatusBarManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -21,6 +25,9 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.breaks.BreakPolicy
 import com.timeorganizer.usagetracker.breaks.BreakPreferences
+import com.timeorganizer.usagetracker.capture.CaptureActivity
+import com.timeorganizer.usagetracker.capture.CaptureDatabase
+import com.timeorganizer.usagetracker.capture.CaptureTileService
 import com.timeorganizer.usagetracker.chime.ChimeAppsActivity
 import com.timeorganizer.usagetracker.chime.ChimeAppsList
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
@@ -133,6 +140,7 @@ class MainActivity : AppCompatActivity() {
         btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
         findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
+        setUpCaptureCard()
         setUpBreakCard()
         setUpRampCard()
         setUpDriftCard()
@@ -201,6 +209,7 @@ class MainActivity : AppCompatActivity() {
         updateUsageAccessBanner()
         updateSetupBanner()
         updateSyncStatusCard()
+        updateCaptureCard()
         updateIgnoredCard()
         updateChimeCard()
         updateLoopCard()
@@ -371,6 +380,44 @@ class MainActivity : AppCompatActivity() {
                 )
                 today.loops == 0 -> getString(R.string.loop_count_none)
                 else -> resources.getQuantityString(R.plurals.loop_count_today, today.loops, today.loops)
+            }
+        }
+    }
+
+    /** Quick capture: the field itself, and on Android 13+ the system's one-tap "add this tile" request. */
+    private fun setUpCaptureCard() {
+        findViewById<View>(R.id.btnCaptureNow).setOnClickListener { startActivity(CaptureActivity.intent(this)) }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val addTile = findViewById<View>(R.id.btnCaptureAddTile)
+        addTile.visibility = View.VISIBLE
+        addTile.setOnClickListener {
+            getSystemService(StatusBarManager::class.java).requestAddTileService(
+                ComponentName(this, CaptureTileService::class.java),
+                getString(R.string.capture_tile_label),
+                Icon.createWithResource(this, R.drawable.ic_stat_capture),
+                mainExecutor
+            ) { result ->
+                val added = result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
+                    result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
+                Toast.makeText(
+                    this, if (added) R.string.capture_tile_added else R.string.capture_tile_not_added, Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun updateCaptureCard() {
+        val tvWaiting = findViewById<TextView>(R.id.tvCaptureWaiting)
+        lifecycleScope.launch {
+            val (waiting, refused) = withContext(Dispatchers.IO) {
+                val dao = CaptureDatabase.get(applicationContext).captureDao()
+                dao.count() to dao.refusedCount()
+            }
+            tvWaiting.text = when {
+                waiting == 0 -> getString(R.string.capture_card_none)
+                refused == 0 -> resources.getQuantityString(R.plurals.capture_card_waiting, waiting, waiting)
+                else -> resources.getQuantityString(R.plurals.capture_card_waiting, waiting, waiting) + " " +
+                    resources.getQuantityString(R.plurals.capture_card_refused, refused, refused)
             }
         }
     }

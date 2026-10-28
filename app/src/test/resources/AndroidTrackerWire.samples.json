@@ -65,5 +65,7 @@
     "deviceId": "pixel-8"
   },
   "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" },
-  "startBlockRequest": { "plannerTaskId": 7 }
+  "startBlockRequest": { "plannerTaskId": 7 },
+  "captureRequest": { "text": "Read this later", "url": "https://example.com/article" },
+  "captured": { "outcome": "added", "todoListItemId": 41, "todoListId": 3 }
 }

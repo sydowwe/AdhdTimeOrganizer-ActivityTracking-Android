@@ -54,7 +54,43 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Quick capture's long-press shortcut on the app icon. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+
+        <!--
+            Quick capture's one field (the tile, the shortcut) and the share target ("Save to Inbox"). Exported for the
+            share sheet; its own empty task, so it finishes back to the app it was opened over.
+        -->
+        <activity
+            android:name=".capture.CaptureActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/capture_share_label"
+            android:icon="@drawable/ic_shortcut_capture"
+            android:taskAffinity=""
+            android:theme="@style/Theme.TimeOrganizerUsageTracker.Capture"
+            android:windowSoftInputMode="stateAlwaysVisible">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- The "Capture" Quick Settings tile; the system binds it. -->
+        <service
+            android:name=".capture.CaptureTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_capture"
+            android:label="@string/capture_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".LoginActivity"
