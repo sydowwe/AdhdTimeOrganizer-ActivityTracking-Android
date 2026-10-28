@@ -41,9 +41,9 @@
     "silentReason": null,
     "plan": {
       "current": [
-        { "plannerTaskId": 7, "activityId": 12, "activityName": "Thesis", "startsAt": "2026-10-18T09:00:00Z", "endsAt": "2026-10-18T11:30:00Z", "inProgress": true }
+        { "plannerTaskId": 7, "activityId": 12, "activityName": "Thesis", "startsAt": "2026-10-18T09:00:00Z", "endsAt": "2026-10-18T11:30:00Z", "inProgress": true, "isOptional": false, "isCritical": true }
       ],
-      "next": { "plannerTaskId": 8, "activityId": 15, "activityName": "Email", "startsAt": "2026-10-18T11:30:00Z", "endsAt": "2026-10-18T12:00:00Z", "inProgress": false }
+      "next": { "plannerTaskId": 8, "activityId": 15, "activityName": "Email", "startsAt": "2026-10-18T11:30:00Z", "endsAt": "2026-10-18T12:00:00Z", "inProgress": false, "isOptional": true, "isCritical": false }
     },
     "desktop": {
       "lastActiveAt": "2026-10-18T10:04:00Z",
@@ -53,7 +53,8 @@
         { "target": null, "activityId": null, "name": null, "activeSeconds": 30, "onPlan": null }
       ]
     },
-    "distractionPackages": ["com.instagram.android", "com.reddit.frontpage"]
+    "distractionPackages": ["com.instagram.android", "com.reddit.frontpage"],
+    "timerRunning": false
   },
   "syncRequest": {
     "sessions": [
@@ -63,5 +64,6 @@
     "syncedUpToUtc": "2026-10-23T08:15:00.000Z",
     "deviceId": "pixel-8"
   },
-  "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" }
+  "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" },
+  "startBlockRequest": { "plannerTaskId": 7 }
 }

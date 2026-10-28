@@ -35,17 +35,35 @@ class NowFactsTest {
 
         assertFalse(facts.silent)
         assertEquals(
-            listOf(NowBlock(7, "Thesis", ms("2026-10-18T09:00:00Z"), ms("2026-10-18T11:30:00Z"), inProgress = true, activityId = 12)),
+            listOf(
+                NowBlock(7, "Thesis", ms("2026-10-18T09:00:00Z"), ms("2026-10-18T11:30:00Z"), inProgress = true, activityId = 12,
+                    isCritical = true)
+            ),
             facts.current
         )
         assertEquals(
-            NowBlock(8, "Email", ms("2026-10-18T11:30:00Z"), ms("2026-10-18T12:00:00Z"), inProgress = false, activityId = 15),
+            NowBlock(8, "Email", ms("2026-10-18T11:30:00Z"), ms("2026-10-18T12:00:00Z"), inProgress = false, activityId = 15,
+                isOptional = true),
             facts.next
         )
         assertEquals(ms("2026-10-18T10:04:00Z"), facts.deskLastActiveMs)
         assertTrue(facts.deskIdle)
         assertEquals(DeskWork("Thesis", onPlan = true), facts.deskWork)
         assertEquals(setOf("com.instagram.android", "com.reddit.frontpage"), facts.distractionPackages)
+        assertEquals(false, facts.timerRunning)
+    }
+
+    /** Deploy order: the phone may meet a server from before prompt 10. Its blocks are of no importance, its timer unknown. */
+    @Test
+    fun aServerFromBeforeTheStartRamp_readsAsNoImportance_andATimerUnknown() {
+        val facts = parse(
+            """{"plan":{"current":[{"plannerTaskId":1,"activityId":2,"activityName":"X","startsAt":"2026-10-18T09:00:00Z","endsAt":"2026-10-18T10:00:00Z","inProgress":false}]}}"""
+        )
+
+        val block = facts.current.single()
+        assertFalse(block.isOptional)
+        assertFalse(block.isCritical)
+        assertNull("absent is unknown, never \"no timer\"", facts.timerRunning)
     }
 
     @Test

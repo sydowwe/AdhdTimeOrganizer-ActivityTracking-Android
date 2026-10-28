@@ -22,7 +22,12 @@ data class DriftState(
     /** **5 more minutes**: one more nudge is due from then, if a distraction app is in front. */
     val snoozedUntilMs: Long? = null,
     /** The nudge is on screen. */
-    val showing: Boolean = false
+    val showing: Boolean = false,
+    /**
+     * A block the start ramp's **Not this one** answered (decision 10-6): settled the moment it becomes the block this is
+     * about, so "you slid off it" never follows an explicit decision. Kept until another block's state replaces it.
+     */
+    val quietBlockId: Long? = null
 ) {
     companion object {
         val NONE = DriftState()
@@ -152,9 +157,18 @@ object DriftPolicy {
         val block = facts.current.firstOrNull { it.endMs > nowMs }
             ?: return DriftStep(DriftState.NONE, cancel = state.showing, recheckAtMs = nextStartToWatch(facts, nowMs))
 
-        // A block moved or extended keeps its id: take its latest end. Another block starts everything again.
+        // A block moved or extended keeps its id: take its latest end. Another block starts everything again, settled
+        // already when the start ramp was told "Not this one" about it.
         val fresh = block.plannerTaskId != state.blockId
-        val current = if (fresh) DriftState(block.plannerTaskId, block.endMs) else state.copy(blockEndMs = block.endMs)
+        val current = if (fresh) {
+            DriftState(
+                block.plannerTaskId, block.endMs,
+                done = block.plannerTaskId == state.quietBlockId,
+                quietBlockId = state.quietBlockId
+            )
+        } else {
+            state.copy(blockEndMs = block.endMs)
+        }
         val cancel = fresh && state.showing
 
         // Settled for this block. Looked at again at its end, so a nudge still up leaves and the next block is seen even
@@ -193,6 +207,13 @@ object DriftPolicy {
     /** **Back to it**, **Switch plan** and a swipe: nothing more in this block. */
     fun settle(state: DriftState): DriftState = state.copy(done = true, snoozedUntilMs = null, showing = false)
 
+    /**
+     * The start ramp's **Not this one** for [blockId]: nothing in that block. Settled now if it is the block this is about
+     * (a nudge up for it goes, `showing` false), else kept for when it becomes so.
+     */
+    fun quiet(state: DriftState, blockId: Long): DriftState =
+        if (state.blockId == blockId) settle(state).copy(quietBlockId = blockId) else state.copy(quietBlockId = blockId)
+
     /** **5 more minutes**: one more nudge, [MORE_MS] from [nowMs], if a distraction app is in front then. */
     fun fiveMore(state: DriftState, nowMs: Long): DriftState =
         state.copy(done = false, snoozedUntilMs = nowMs + MORE_MS, showing = false)
@@ -207,10 +228,12 @@ object DriftPolicy {
         if (!enabled || facts == null || facts.silent) return null
         val until = mutableListOf<Long>()
         facts.current
-            .filterNot { it.plannerTaskId == state.blockId && state.done }
+            .filterNot { (it.plannerTaskId == state.blockId && state.done) || it.plannerTaskId == state.quietBlockId }
             .maxOfOrNull { it.endMs }
             ?.let { until += it }
-        facts.next?.takeIf { it.startMs - nowMs <= WATCH_AHEAD_MS }?.let { until += it.endMs }
+        facts.next
+            ?.takeIf { it.startMs - nowMs <= WATCH_AHEAD_MS && it.plannerTaskId != state.quietBlockId }
+            ?.let { until += it.endMs }
         return until.filter { it > nowMs }.maxOrNull()
     }
 

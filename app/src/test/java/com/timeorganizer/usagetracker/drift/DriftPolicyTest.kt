@@ -391,6 +391,50 @@ class DriftPolicyTest {
         assertNull(DriftPolicy.watchUntil(DriftState.NONE, null, min(10), enabled = true))
     }
 
+    // ---- the start ramp's "Not this one" (decision 10-6) ----------------------------
+
+    @Test
+    fun notThisOne_forTheBlockBeingWatched_settlesIt_andNoNudgeFollows() {
+        val watching = DriftState(blockId = 7, blockEndMs = min(90))
+
+        val quiet = DriftPolicy.quiet(watching, blockId = 7)
+        val step = inInstagram(fromSecond = 600, nowSecond = 700, state = quiet)
+
+        assertTrue(quiet.done)
+        assertNull("an explicit decision is never followed by \"you slid off it\"", step.post)
+        assertEquals(min(90), step.recheckAtMs)
+    }
+
+    @Test
+    fun notThisOne_forABlockNotYetBeingWatched_settlesIt_whenItBecomesTheOne() {
+        val quiet = DriftPolicy.quiet(DriftState(blockId = 7, blockEndMs = min(90), done = true), blockId = 8)
+
+        val inEmail = DriftPolicy.decide(
+            quiet,
+            input(min(95), listOf(open(instagram, min(91), min(95))), facts(current = listOf(email)))
+        )
+
+        assertNull(inEmail.post)
+        assertEquals(DriftState(blockId = 8, blockEndMs = min(120), done = true, quietBlockId = 8), inEmail.state)
+    }
+
+    @Test
+    fun aQuietBlock_isNotWatchedFor() {
+        val quiet = DriftPolicy.quiet(DriftState.NONE, blockId = 7)
+
+        assertNull(DriftPolicy.watchUntil(quiet, facts(), min(10), enabled = true))
+        assertNull(DriftPolicy.watchUntil(DriftPolicy.quiet(DriftState.NONE, blockId = 8), facts(current = emptyList(), next = email), min(80), enabled = true))
+    }
+
+    @Test
+    fun anotherBlock_isNudgedAsUsual_afterAQuietOne() {
+        val quiet = DriftPolicy.quiet(DriftState.NONE, blockId = 8)
+
+        val step = inInstagram(fromSecond = 600, nowSecond = 630, state = quiet)
+
+        assertEquals(DriftNudge(thesis, instagram), step.post)
+    }
+
     // ---- the usage log ------------------------------------------------------------
 
     @Test

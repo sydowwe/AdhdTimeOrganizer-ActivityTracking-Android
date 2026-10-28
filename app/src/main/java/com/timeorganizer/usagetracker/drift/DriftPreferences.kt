@@ -21,7 +21,8 @@ class DriftPreferences(context: Context) {
             blockEndMs = prefs.getLong(KEY_BLOCK_END, 0L),
             done = prefs.getBoolean(KEY_DONE, false),
             snoozedUntilMs = optLong(KEY_SNOOZED_UNTIL),
-            showing = prefs.getBoolean(KEY_SHOWING, false)
+            showing = prefs.getBoolean(KEY_SHOWING, false),
+            quietBlockId = optLong(KEY_QUIET_BLOCK)
         )
         set(value) {
             prefs.edit().apply {
@@ -31,6 +32,7 @@ class DriftPreferences(context: Context) {
                 putBoolean(KEY_DONE, value.done)
                 putOpt(KEY_SNOOZED_UNTIL, value.snoozedUntilMs)
                 putBoolean(KEY_SHOWING, value.showing)
+                putOpt(KEY_QUIET_BLOCK, value.quietBlockId)
             }.apply()
         }
 
@@ -47,6 +49,7 @@ class DriftPreferences(context: Context) {
         const val KEY_DONE = "done"
         const val KEY_SNOOZED_UNTIL = "snoozed_until"
         const val KEY_SHOWING = "showing"
-        val STATE_KEYS = listOf(KEY_BLOCK, KEY_BLOCK_END, KEY_DONE, KEY_SNOOZED_UNTIL, KEY_SHOWING)
+        const val KEY_QUIET_BLOCK = "quiet_block"
+        val STATE_KEYS = listOf(KEY_BLOCK, KEY_BLOCK_END, KEY_DONE, KEY_SNOOZED_UNTIL, KEY_SHOWING, KEY_QUIET_BLOCK)
     }
 }

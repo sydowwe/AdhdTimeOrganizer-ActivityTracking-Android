@@ -149,6 +149,36 @@
     <string name="drift_card_switch">Nudge when I open a distraction app during a planned block</string>
     <string name="drift_card_hint">One nudge per block once your distraction apps have been open for 30 seconds in it (time in several adds up; a minute away starts over). Back to it goes to the home screen, Switch plan opens the planner, 5 more minutes asks once more. An app mapped to the block\'s own activity doesn\'t count. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
 
+    <!-- Start ramp: notification -->
+    <string name="channel_start_ramp">Start ramp</string>
+    <string name="channel_start_ramp_description">A short buzz and a heads-up when a planned block starts, with a one-tap start for its timer</string>
+    <string name="notify_ramp_title_now">%1$s starts now</string>
+    <string name="notify_ramp_title_now_unnamed">A planned block starts now</string>
+    <plurals name="notify_ramp_title_late">
+        <item quantity="one">%1$s started %2$d min ago</item>
+        <item quantity="other">%1$s started %2$d min ago</item>
+    </plurals>
+    <plurals name="notify_ramp_title_late_unnamed">
+        <item quantity="one">A planned block started %1$d min ago</item>
+        <item quantity="other">A planned block started %1$d min ago</item>
+    </plurals>
+    <string name="notify_ramp_text">%1$s, until %2$s. Start the timer?</string>
+    <string name="notify_ramp_length_minutes">%1$d min</string>
+    <string name="notify_ramp_length_hours">%1$d h</string>
+    <string name="notify_ramp_length_hours_minutes">%1$d h %2$d min</string>
+    <string name="notify_ramp_start">Start now</string>
+    <string name="notify_ramp_later">In 2 min</string>
+    <string name="notify_ramp_not_this_one">Not this one</string>
+
+    <!-- Start ramp: status card -->
+    <string name="ramp_card_title">Start ramp</string>
+    <string name="ramp_card_switch">Offer to start the timer when a planned block starts</string>
+    <string name="ramp_card_hint">One notification per block at its start (or at your next pickup, while 10 minutes are left). Start now starts the block and opens its timer in the web app, In 2 min asks once more, Not this one also keeps the drift nudge quiet in that block. Skipped when the block is already started or you are at your desk (the desktop tracker asks there). Waits while a timer runs, during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications.</string>
+    <string name="ramp_card_blocks">Which blocks</string>
+    <string name="ramp_card_blocks_all">Every block</string>
+    <string name="ramp_card_blocks_not_optional">All but Optional</string>
+    <string name="ramp_card_blocks_critical">Critical only</string>
+
     <!-- Time chime: notification -->
     <string name="channel_time_chime">Time chime</string>
     <string name="channel_time_chime_description">A short buzz and a few seconds\' heads-up while you stay in an app you chose: how long you\'ve been in it</string>

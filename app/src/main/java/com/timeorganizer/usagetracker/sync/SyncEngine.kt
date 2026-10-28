@@ -12,6 +12,7 @@ import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
 import com.timeorganizer.usagetracker.drift.DriftMonitor
+import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoreSync
 import com.timeorganizer.usagetracker.ignore.OutboxPurge
@@ -230,7 +231,7 @@ class SyncEngine(context: Context) {
          * cached rules and the pending ignores: the previous person's ignores must not drop the new one's apps. So is an
          * open break: it names the previous person's activity. So is the kept distraction list (the chime's ticks stay:
          * they are this phone's). So are the loops the loop check saw (the apps that don't count stay, for the same reason),
-         * and the drift nudge's block.
+         * the start ramp's blocks and its wake (its switch and "which blocks" stay), and the drift nudge's block.
          */
         suspend fun onSignedIn(context: Context, accessToken: String) {
             val prefs = SyncPreferences(context)
@@ -245,6 +246,7 @@ class SyncEngine(context: Context) {
                 BreakMonitor.reset(context)
                 ChimeMonitor.reset(context)
                 LoopMonitor.reset(context)
+                StartRampMonitor.reset(context)
                 DriftMonitor.reset(context)
             }
             prefs.accountId = account

@@ -11,7 +11,9 @@ data class TrackerNowResponse(
     val plan: TrackerNowPlanDto?,
     val desktop: TrackerNowDesktopDto?,
     /** Exact package names the user's rules call distractions. */
-    val distractionPackages: List<String>?
+    val distractionPackages: List<String>?,
+    /** A countdown or pomodoro is running. `null` from a server before prompt 10: unknown, never "no timer". */
+    val timerRunning: Boolean? = null
 )
 
 data class TrackerNowPlanDto(
@@ -28,8 +30,15 @@ data class TrackerNowBlockDto(
     val activityName: String?,
     val startsAt: String?,
     val endsAt: String?,
-    val inProgress: Boolean
+    val inProgress: Boolean,
+    /** The block's importance is Optional. Missing (an older server) reads as `false`: a block of no importance. */
+    val isOptional: Boolean = false,
+    /** Critical, or a level the user ranked above it. */
+    val isCritical: Boolean = false
 )
+
+/** `POST tracker/android/start-block`: the start ramp's **Start now**. */
+data class StartBlockRequest(val plannerTaskId: Long)
 
 data class TrackerNowDesktopDto(
     /** When the desk's newest active minute ended (UTC); `null` with none in the last six hours. */

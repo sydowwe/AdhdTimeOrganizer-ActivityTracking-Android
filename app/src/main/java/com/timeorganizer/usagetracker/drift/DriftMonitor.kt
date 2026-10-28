@@ -103,6 +103,29 @@ object DriftMonitor {
         }
     }
 
+    /**
+     * The start ramp's **Not this one** (decision 10-6): no drift nudge in [blockId]. The one place another feature writes
+     * this state; a drift nudge already up for that block goes. The returned job ends once the state is written.
+     */
+    fun quietBlock(context: Context, blockId: Long): Job {
+        val app = context.applicationContext
+        return scope.launch {
+            try {
+                mutex.withLock {
+                    val prefs = DriftPreferences(app)
+                    val before = prefs.state
+                    prefs.state = DriftPolicy.quiet(before, blockId)
+                    if (before.showing && before.blockId == blockId) DriftNotifier.cancel(app)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Not saved: the drift nudge may still speak in that block, as it would without the ramp.
+            }
+            evaluateSafely(app)
+        }
+    }
+
     /** An account switch: the block and its answers were the previous person's. */
     suspend fun reset(context: Context) {
         val app = context.applicationContext

@@ -15,6 +15,7 @@ import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.worker.UsageSyncWorker
 import java.util.concurrent.TimeUnit
@@ -28,6 +29,8 @@ class TimeOrganizerApp : Application() {
         BreakMonitor.install(this)
         ChimeMonitor.install(this)
         LoopMonitor.install(this)
+        // Before the drift nudge: a block's start doesn't come again (decision 10-8).
+        StartRampMonitor.install(this)
         DriftMonitor.install(this)
         enqueuePeriodicSync(this)
     }

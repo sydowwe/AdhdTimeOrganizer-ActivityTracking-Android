@@ -215,8 +215,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
   watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge, the
-  high-importance, vibrating, soundless "Time chime", "Loop check" and "Drift nudge", and "Phone away" (default
-  importance, the default sound) today. A channel's sound and vibration are fixed once it exists:
+  high-importance, vibrating, soundless "Time chime", "Loop check", "Drift nudge" and "Start ramp", and "Phone away"
+  (default importance, the default sound) today. A channel's sound and vibration are fixed once it exists:
   getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
@@ -272,7 +272,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 ### `/now` — what every nudge asks first
 - **`GET tracker/android/now`** is the server's view of right now: `silentReason` (an away day, quiet hours, absent — any
   value, an unknown one included, means silent), the open blocks covering now and the next (each with its `activityId`,
-  read since prompt 08), the desk's last active minute
+  read since prompt 08, and `isOptional` / `isCritical` since prompt 10), whether a timer runs (`timerRunning`, prompt 10;
+  missing on an older server = unknown), the desk's last active minute
   (`lastActiveAt`), `isIdle` and what its last five minutes resolved to (`recent`, busiest first, each with `onPlan`), and the
   distraction packages. The phone decides nothing the server decides there: no matcher, no planner, no idle rule.
 - **Read through `NowClient` and `NowFacts`, nowhere else.** One answer is reused for 30 s (the server's `max-age`), then
@@ -346,14 +347,40 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **State** (`drift_nudge` prefs): the block's id and end, settled, snoozed until, showing — no names. An account switch
   resets it. Package and activity names are never logged.
 
+### Start ramp (prompt 10, 2026-10-28)
+- **What it is:** at a planned block's start, one notification — *"Thesis starts now · 1 h 30 min, until 11:30. Start the
+  timer?"* (or *"Thesis started 20 min ago"*) — with **Start now**, **In 2 min** and **Not this one**. Its own channel
+  (`start_ramp`: high importance, the chime's short vibration, no sound) and id 9. **On by default**; the status screen's
+  "Start ramp" card has the switch and **which blocks**: *Every block* / *All but Optional* (default) / *Critical only*, from
+  the planner's own importance (`/now`'s `isOptional` / `isCritical`, server-computed).
+- **All of it is `StartRampPolicy`** (pure, `StartRampPolicyTest`), the desktop tracker's `StartRampPolicy` for the phone.
+  **Late** it says how late, only while 10 min of the block are left (up to 3 min late always). **Settled without a word**
+  when the block is already started, when `/now` says the desk is in use (the desktop's own ramp asks there), or too late.
+  **Held, never dropped:** a running countdown or pomodoro (`/now`'s `timerRunning`; missing on an older server = unknown,
+  not held), the server's silence, a call, DND, car mode, the "Phone away" timer, another nudge in the last 10 min.
+- **The buttons.** **Start now** (`StartRampActionActivity`, unseen) posts `tracker/android/start-block` (the block goes in
+  progress in the planner) and opens `WEB_APP_ROOT?track=<plannerTaskId>`, where the web app starts the countdown for the
+  rest of the block (`useTrackLink`; the desktop opens the same). **In 2 min** asks exactly once more, without that button.
+  **Not this one** also keeps the drift nudge quiet in that block (`DriftMonitor.quietBlock` → `DriftState.quietBlockId`,
+  decision 10-6 — the one place one nudge writes another's state). The block is settled the moment the ramp is posted, so a
+  swipe or no answer settles it too. Withdrawn when the block is started elsewhere, ends, or leaves the plan.
+- **When it runs (`StartRampMonitor`):** an **alarm at the next block's start** (`setAndAllowWhileIdle`, inexact, no
+  permission; re-planned after every evaluation from `/now`'s `next`; `StartRampActionReceiver.ACTION_WAKE`), an in-process
+  look at the same moment (on time for a phone in use when the alarm is late), after each sync (catches a start missed while
+  asleep, in the late form), on a pickup while a due ramp is held (the watcher, reason `ramp`, only then), a button, the
+  card, and once per process start. Always **before the drift nudge** (`TimeOrganizerApp`, `UsageSyncWorker`).
+- **State** (`start_ramp` prefs): the settled blocks as `id:end` pairs (forgotten a day after their end), the "In 2 min"
+  block and time, the block on screen — no names. An account switch resets it and cancels the alarm.
+
 ### Nudges together (since prompt 08)
 - **Kinds keep 10 minutes apart** (`NudgeGap`, decision 08-6, the desktop's `HyperfocusPolicy.MinGapBetweenKinds`): each of
-  the chime, the loop check and the drift nudge records when it posted, and asks before posting whether another did within
-  10 min. **Held means each kind's own rule:** the drift nudge waits and is said after; the chime and the loop check
-  **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is wrong by then; the loop is still stored, `SILENCED`).
-  **The break nudge is exempt**: it neither records nor asks.
-- Apart from that and the "Phone away" timer the drift nudge reads, every nudge decides alone. The start ramp (prompt 10)
-  is meant to join the gap and go first.
+  the chime, the loop check, the drift nudge and the start ramp records when it posted, and asks before posting whether
+  another did within 10 min. **Held means each kind's own rule:** the drift nudge and the start ramp wait and are said
+  after; the chime and the loop check **skip**, as they do for a call (a late "15 m" or "6 pick-ups" is wrong by then; the
+  loop is still stored, `SILENCED`). **The break nudge is exempt**: it neither records nor asks.
+- **The start ramp goes first** where several are evaluated together (a block's start doesn't come again, decision 10-8).
+- Apart from that, the "Phone away" timer the drift nudge and the ramp read, and the ramp's **Not this one** quieting the
+  drift nudge for its block, every nudge decides alone.
 
 ### Time chime (prompt 11, 2026-10-27)
 - **What it is:** while you stay in the chosen apps, a short buzz and a heads-up that clears itself after 6 s — *"15 m on

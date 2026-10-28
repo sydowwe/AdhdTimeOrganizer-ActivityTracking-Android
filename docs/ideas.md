@@ -345,7 +345,35 @@ while it is on. See `CLAUDE.md` → "Loop check".
 - **Ending the away timer early** (a "Back now" on the card), or saying something when the phone is picked up during it.
   Left out so the timer never shames.
 
+## 17. Start ramp — "Thesis starts now. Start the timer?" — built 2026-10-28 (prompt 10)
 
+**Why.** Starting is the hard part with ADHD; a drift nudge arrives after the slip. At a block's start one tap turns the
+plan into a running timer.
+
+**What was built.** At a planned block's start (an alarm, or the next pickup / sync, "started 20 min ago", while 10 min are
+left) one notification with Start now / In 2 min / Not this one. Start now starts the block in the planner
+(`tracker/android/start-block`) and opens the web app's `?track=<id>`, which starts the countdown. Which blocks: every block,
+all but Optional (default) or Critical only, from the planner's importance. Skipped when the block is already started or the
+desk is in use; held while a timer runs and under the usual silences. On by default. See `CLAUDE.md` → "Start ramp".
+
+**Not built, still open.**
+- **Web Push to the installed PWA** instead of, or beside, the app. Considered with the owner on 2026-10-28: the server's
+  notification module already sends "your block starts in 10 min" with Start / Skip, and a "starts now" kind would reach
+  every subscribed device. Not chosen because the owner's account had no push subscription on the test server at all, Web
+  Push delivery on the Xiaomi was unproven, Chrome shows at most two action buttons, and it wouldn't join the phone's
+  10-minute gap. **Worth doing separately:** install the PWA on the phone, allow notifications, and check delivery with the
+  server's `POST /notification/test` (admin) — the planner's existing pushes would then reach the phone too.
+- **An exact wake.** The alarm is inexact (`setAndAllowWhileIdle`): in Doze it can come late, and then the in-process look
+  (a phone in use) or the next sync says it in the late form. On the minute needs `SCHEDULE_EXACT_ALARM` ("Alarms &
+  reminders", denied by default on Android 14) — a permission the owner hasn't been asked about.
+- **Skip short blocks** (under 15 min, say). A 10-minute email block may still be worth the nudge; left until the ramp has
+  been lived with.
+- **"Not today"** on the notification. Android shows at most three buttons, and the three are taken.
+- **Per-activity exclusions** ("never for Lunch"). Importance covers most of it.
+- **Not this one as Skip in the planner.** Today it only settles the ramp and quiets drift, as the desktop's does; marking the
+  block skipped would be a server call and an explicit planner change the owner didn't ask for.
+- **The desktop following the importance choice.** Its ramp still asks about every block; the same `isOptional` /
+  `isCritical` on its heartbeat and a setting there would be a desktop-repo change.
 
 ---
 

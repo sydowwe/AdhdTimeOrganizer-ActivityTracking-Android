@@ -16,6 +16,7 @@ import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
 import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
 import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
 import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
+import com.timeorganizer.usagetracker.data.api.dto.StartBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityOptionsResponse
 import com.timeorganizer.usagetracker.data.api.dto.TrackerNowResponse
 import retrofit2.Response
@@ -116,6 +117,15 @@ interface ApiService {
     suspend fun now(
         @Header("If-None-Match") etag: String?
     ): Response<TrackerNowResponse>
+
+    /**
+     * The start ramp's **Start now**: the planned block goes in progress, started now on the user's clock. 204, and 204
+     * again on a retry; 409 when there is nothing to start (finished, skipped, not today's, not the caller's).
+     */
+    @POST("tracker/android/start-block")
+    suspend fun startBlock(
+        @Body request: StartBlockRequest
+    ): Response<Unit>
 
     /** When the user's evening begins (bed time less their evening-shutdown offset); the review runs then. */
     @GET("tracker/evening-shutdown-moment")

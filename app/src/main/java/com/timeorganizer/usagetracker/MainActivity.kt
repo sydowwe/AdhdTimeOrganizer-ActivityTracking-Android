@@ -37,6 +37,9 @@ import com.timeorganizer.usagetracker.loops.LoopPreferences
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
 import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.ramp.RampBlocks
+import com.timeorganizer.usagetracker.ramp.StartRampMonitor
+import com.timeorganizer.usagetracker.ramp.StartRampPreferences
 import com.timeorganizer.usagetracker.review.ReviewActivity
 import com.timeorganizer.usagetracker.review.ReviewPreferences
 import com.timeorganizer.usagetracker.sync.SyncEngine
@@ -131,6 +134,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
         setUpBreakCard()
+        setUpRampCard()
         setUpDriftCard()
         setUpChimeCard()
         setUpLoopCard()
@@ -226,6 +230,38 @@ class MainActivity : AppCompatActivity() {
         chips.setOnCheckedStateChangeListener { group, checkedIds ->
             val minutes = checkedIds.firstOrNull()?.let { group.findViewById<Chip>(it).tag as Int } ?: return@setOnCheckedStateChangeListener
             breakPrefs.breakMinutes = minutes
+        }
+    }
+
+    /** The start ramp's switch and which blocks it asks about; each change is decided on at once. */
+    private fun setUpRampCard() {
+        val rampPrefs = StartRampPreferences(this)
+        val switch = findViewById<MaterialSwitch>(R.id.swStartRamp)
+        switch.isChecked = rampPrefs.enabled
+        switch.setOnCheckedChangeListener { _, checked ->
+            rampPrefs.enabled = checked
+            StartRampMonitor.kick(this)
+        }
+
+        val chips = findViewById<ChipGroup>(R.id.chipsRampBlocks)
+        val labels = mapOf(
+            RampBlocks.ALL to R.string.ramp_card_blocks_all,
+            RampBlocks.NOT_OPTIONAL to R.string.ramp_card_blocks_not_optional,
+            RampBlocks.CRITICAL to R.string.ramp_card_blocks_critical
+        )
+        for (blocks in RampBlocks.entries) {
+            chips.addView(Chip(this).apply {
+                id = View.generateViewId()
+                tag = blocks
+                text = getString(labels.getValue(blocks))
+                isCheckable = true
+                isChecked = blocks == rampPrefs.blocks
+            })
+        }
+        chips.setOnCheckedStateChangeListener { group, checkedIds ->
+            val blocks = checkedIds.firstOrNull()?.let { group.findViewById<Chip>(it).tag as RampBlocks } ?: return@setOnCheckedStateChangeListener
+            rampPrefs.blocks = blocks
+            StartRampMonitor.kick(this)
         }
     }
 

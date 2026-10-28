@@ -96,6 +96,18 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.NoDisplay" />
 
+        <!--
+            The start ramp's "Start now": starts the block, opens the web app's timer for it, and finishes unseen. Its own
+            empty task, like the drift nudge's.
+        -->
+        <activity
+            android:name=".ramp.StartRampActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <!-- specialUse: no other type fits; the subtype is what Play's declaration review reads. -->
         <service
             android:name=".watch.ForegroundWatchService"
@@ -103,7 +115,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="While the user has a focus block, a time chime, a loop check or a break from their desk running, checks every few seconds which app is in front (UsageStatsManager) so the app can nudge them when they drift, a break runs long, they have stayed in a chosen app for another interval, or they keep picking the phone up. Polls only while the screen is on. Records nothing; stops when the block or break ends, or when the user turns the drift nudge, the time chime or the loop check off." />
+                android:value="While the user has a focus block, a time chime, a loop check or a break from their desk running, or a block's start notice waiting for a quiet moment, checks every few seconds which app is in front (UsageStatsManager) so the app can nudge them when they drift, a break runs long, they have stayed in a chosen app for another interval, they keep picking the phone up, or they pick it up after a planned block began. Polls only while the screen is on. Records nothing; stops when the block or break ends, or when the user turns the drift nudge, the start ramp, the time chime or the loop check off." />
         </service>
 
         <!-- The break nudge's buttons; only the app's own PendingIntents reach it. -->
@@ -119,6 +131,11 @@
         <!-- The drift nudge's "5 more minutes" and its swipe-away; only the app's own PendingIntents reach it. -->
         <receiver
             android:name=".drift.DriftActionReceiver"
+            android:exported="false" />
+
+        <!-- The start ramp's "In 2 min", "Not this one", swipe-away and its wake at a block's start; only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".ramp.StartRampActionReceiver"
             android:exported="false" />
 
         <!-- WorkManager initializer -->

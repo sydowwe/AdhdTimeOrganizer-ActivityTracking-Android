@@ -19,6 +19,7 @@ import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
 import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
 import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
 import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
+import com.timeorganizer.usagetracker.data.api.dto.StartBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityDto
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityOptionsResponse
 import com.timeorganizer.usagetracker.data.api.dto.TrackerCategoryDto
@@ -172,6 +173,12 @@ class WireSampleTest {
 
         assertEquals(samples["syncRequest"], gson.toJsonTree(sync))
         assertEquals(samples["ignoreRequest"], gson.toJsonTree(IgnorePackageRequest("Instagram", "Social")))
+    }
+
+    /** The start ramp's Start now (prompt 10). A renamed id binds as 0 there, and the route answers 409 for a block that exists. */
+    @Test
+    fun theStartBlockRequest_writesTheSampleExactly() {
+        assertEquals(samples["startBlockRequest"], gson.toJsonTree(StartBlockRequest(7)))
     }
 
     /** The phone's names are the server's enum members, all nine. A tenth Android constant reads as no category. */

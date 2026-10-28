@@ -13,7 +13,11 @@ data class NowBlock(
     val endMs: Long,
     val inProgress: Boolean,
     /** The block's activity; `null` when the wire had none. The drift nudge compares it with the apps' rules. */
-    val activityId: Long? = null
+    val activityId: Long? = null,
+    /** Its importance is Optional: the start ramp's "All but Optional" leaves it out. */
+    val isOptional: Boolean = false,
+    /** Critical or ranked above it: all the start ramp's "Critical only" asks about. */
+    val isCritical: Boolean = false
 )
 
 /** What the desk was doing in its last minutes: the busiest slice the server could name. */
@@ -42,7 +46,9 @@ data class NowFacts(
     val deskWork: DeskWork?,
     val distractionPackages: Set<String>,
     /** The first open block starting later today; `null` with none, or when it can't be read. */
-    val next: NowBlock? = null
+    val next: NowBlock? = null,
+    /** A countdown or pomodoro runs; `null` when the server didn't say (one from before prompt 10): unknown. */
+    val timerRunning: Boolean? = null
 ) {
     companion object {
         fun from(response: TrackerNowResponse): NowFacts {
@@ -58,7 +64,8 @@ data class NowFacts(
                     .firstOrNull { !it.name.isNullOrBlank() && it.target != TARGET_IGNORED }
                     ?.let { DeskWork(it.name!!, it.onPlan) },
                 distractionPackages = response.distractionPackages.orEmpty().toSet(),
-                next = response.plan?.next?.let(::block)
+                next = response.plan?.next?.let(::block),
+                timerRunning = response.timerRunning
             )
         }
 
@@ -68,7 +75,9 @@ data class NowFacts(
             val endMs = ReviewText.instantMs(block.endsAt) ?: return null
             return NowBlock(
                 block.plannerTaskId, block.activityName.orEmpty(), startMs, endMs, block.inProgress,
-                block.activityId.takeIf { it > 0 }
+                block.activityId.takeIf { it > 0 },
+                isOptional = block.isOptional,
+                isCritical = block.isCritical
             )
         }
 
