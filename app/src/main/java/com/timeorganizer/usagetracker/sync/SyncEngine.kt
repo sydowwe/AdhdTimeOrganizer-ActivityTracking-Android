@@ -27,6 +27,10 @@ import com.timeorganizer.usagetracker.loops.LoopPreferences
 import com.timeorganizer.usagetracker.loops.PickupLoopDao
 import com.timeorganizer.usagetracker.notify.SyncBlockedNotifier
 import com.timeorganizer.usagetracker.now.KeptDistractions
+import com.timeorganizer.usagetracker.pause.PausePolicy
+import com.timeorganizer.usagetracker.pause.PausePreferences
+import com.timeorganizer.usagetracker.pause.Pauses
+import com.timeorganizer.usagetracker.usagestats.DerailmentLinker
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.InstalledApps
@@ -79,6 +83,7 @@ class SyncEngine(context: Context) {
             val outcome = sendAll(nowMs)
             sent = outcome.counts
             rejected = outcome.rejected
+            if (outcome.stoppedBy == null) heartbeatIfPaused(nowMs, outcome.anythingAnswered)
             when (outcome.stoppedBy) {
                 BatchResult.AuthRequired -> if (authPrefs.isLoggedIn) SyncState.WAITING else SyncState.SIGNED_OUT
                 BatchResult.RetryLater -> SyncState.WAITING
@@ -131,8 +136,11 @@ class SyncEngine(context: Context) {
         // Prompt 15: the notifications' own, at the earliest one still undecided.
         val derailmentCursorMs = minOf(dao.derailmentCursorMs() ?: cursorMs, nowMs)
         val loopPrefs = LoopPreferences(appContext)
+        // Prompt 17: every pause the read could reach, read after `nowMs` was taken so one started before it is seen.
+        val readFromMs = minOf(cursorMs, pickupCursorMs, derailmentCursorMs - DerailmentLinker.LOOKBACK_MS)
+        val pauses = Pauses.over(appContext, readFromMs, nowMs)
         val built = collector.collect(
-            cursorMs, nowMs, ignoreStore.state().ignored(nowMs), pickupCursorMs, loopPrefs.sawUnlock, derailmentCursorMs
+            cursorMs, nowMs, ignoreStore.state().ignored(nowMs), pickupCursorMs, loopPrefs.sawUnlock, derailmentCursorMs, pauses
         )
         if (built.pickups.sawUnlock && !loopPrefs.sawUnlock) loopPrefs.sawUnlock = true
 
@@ -169,6 +177,9 @@ class SyncEngine(context: Context) {
         dao.pruneUnsentPickupsEndingBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
         dao.derailmentCursorMs()?.let { dao.pruneSentDerailmentRows(it) }
         dao.pruneUnsentDerailmentRowsBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
+        // A pause no read reaches any more, kept two days for the daily limits' estimate of today.
+        val readFromMs = listOfNotNull(dao.cursorMs(), dao.pickupCursorMs(), dao.derailmentCursorMs()?.minus(DerailmentLinker.LOOKBACK_MS)).minOrNull()
+        if (readFromMs != null) dao.prunePausesEndingBefore(minOf(readFromMs, nowMs - PausePolicy.KEEP_ENDED_MS))
     }
 
     /** Rows queued before the phone learnt a package is ignored never leave. */
@@ -327,6 +338,27 @@ class SyncEngine(context: Context) {
                 ignored = body?.ignored ?: 0
             )
         )
+    }
+
+    /**
+     * Prompt 17: a pause sends nothing, and the server calls a phone that hasn't synced in 48 h silent (P2-04). So a paused
+     * run that sent nothing posts an empty sync at most every 6 h (`PausePolicy.heartbeatDue`) — the server stamps the phone
+     * as seen on any sync, empty ones included. A failure is tried again at the next run.
+     */
+    private suspend fun heartbeatIfPaused(nowMs: Long, sentAnything: Boolean) {
+        val pausePrefs = PausePreferences(appContext)
+        val paused = Pauses.active(appContext, nowMs) != null
+        if (!PausePolicy.heartbeatDue(paused, sentAnything, pausePrefs.lastHeartbeatMs, nowMs)) return
+        val response = try {
+            RetrofitClient.apiService.syncSessions(
+                AndroidSyncRequest(sessions = emptyList(), syncedUpToUtc = SyncWire.instant(nowMs), deviceId = prefs.deviceId)
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return
+        }
+        if (response.isSuccessful) pausePrefs.lastHeartbeatMs = nowMs
     }
 
     /** Installs from before 1.1 signed in without recording whose outbox this is. */

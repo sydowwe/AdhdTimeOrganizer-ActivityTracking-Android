@@ -12,6 +12,8 @@ import com.timeorganizer.usagetracker.notify.NudgeGap
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.notify.PhoneSilence
 import com.timeorganizer.usagetracker.now.NowClient
+import com.timeorganizer.usagetracker.pause.PauseClipper
+import com.timeorganizer.usagetracker.pause.Pauses
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.watch.ForegroundChange
 import com.timeorganizer.usagetracker.watch.ForegroundWatcher
@@ -237,8 +239,12 @@ object BudgetMonitor {
         return response.body()?.takeIf { response.isSuccessful }?.let { BudgetFacts.from(it, now) }
     }
 
-    private fun sittings(app: Context, facts: BudgetFacts, now: Long): List<BudgetSitting> = try {
-        BudgetTracker.sittings(UsageStatsCollector(app).events(facts.dayStartMs, now), now, facts.packages, facts.dayStartMs)
+    /** Paused time left out (prompt 17), as the sync leaves it out of what the server's figures count. */
+    private suspend fun sittings(app: Context, facts: BudgetFacts, now: Long): List<BudgetSitting> = try {
+        PauseClipper.sittings(
+            BudgetTracker.sittings(UsageStatsCollector(app).events(facts.dayStartMs, now), now, facts.packages, facts.dayStartMs),
+            Pauses.over(app, facts.dayStartMs, now)
+        )
     } catch (_: SecurityException) {
         emptyList() // usage access is off; the status screen says so
     }

@@ -21,6 +21,7 @@ import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.breaks.BreakPolicy
@@ -47,6 +48,9 @@ import com.timeorganizer.usagetracker.loops.LoopPreferences
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
 import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.pause.PauseLength
+import com.timeorganizer.usagetracker.pause.PauseNotifier
+import com.timeorganizer.usagetracker.pause.Pauses
 import com.timeorganizer.usagetracker.ramp.RampBlocks
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.ramp.StartRampPreferences
@@ -143,6 +147,7 @@ class MainActivity : AppCompatActivity() {
         btnReviewNow.setOnClickListener { startActivity(ReviewActivity.intent(this)) }
         findViewById<View>(R.id.btnMappedApps).setOnClickListener { startActivity(MappedAppsActivity.intent(this)) }
 
+        setUpPauseCard()
         setUpCaptureCard()
         setUpBreakCard()
         setUpRampCard()
@@ -213,6 +218,7 @@ class MainActivity : AppCompatActivity() {
         updateUsageAccessBanner()
         updateSetupBanner()
         updateSyncStatusCard()
+        updatePauseCard()
         updateCaptureCard()
         updateIgnoredCard()
         updateBudgetCard()
@@ -412,6 +418,60 @@ class MainActivity : AppCompatActivity() {
                 today.loops == 0 -> getString(R.string.loop_count_none)
                 else -> resources.getQuantityString(R.plurals.loop_count_today, today.loops, today.loops)
             }
+        }
+    }
+
+    /**
+     * Pause tracking (prompt 17): Pause… offers the four lengths, Resume ends the pause. "Until morning" names its time — the
+     * server's morning as last heard, asked again each time the card is shown ([updatePauseCard]).
+     */
+    private fun setUpPauseCard() {
+        findViewById<View>(R.id.btnPause).setOnClickListener {
+            lifecycleScope.launch {
+                val morningMs = withContext(Dispatchers.IO) { Pauses.morning(applicationContext, ask = false) }
+                val morning = android.text.format.DateFormat.getTimeFormat(this@MainActivity).format(Date(morningMs))
+                val lengths = PauseLength.entries
+                val labels = lengths.map {
+                    when (it) {
+                        PauseLength.FIFTEEN_MINUTES -> getString(R.string.pause_15_minutes)
+                        PauseLength.ONE_HOUR -> getString(R.string.pause_1_hour)
+                        PauseLength.UNTIL_MORNING -> getString(R.string.pause_until_morning, morning)
+                        PauseLength.UNTIL_RESUMED -> getString(R.string.pause_until_i_resume)
+                    }
+                }.toTypedArray()
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle(R.string.pause_dialog_title)
+                    .setItems(labels) { _, which -> changePause { Pauses.start(applicationContext, lengths[which]) } }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
+        findViewById<View>(R.id.btnPauseResume).setOnClickListener { changePause { Pauses.resume(applicationContext) } }
+    }
+
+    private fun changePause(change: suspend () -> Unit) {
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { change() }
+            updatePauseCard()
+            updateBudgetCard()
+        }
+    }
+
+    private fun updatePauseCard() {
+        val tvState = findViewById<TextView>(R.id.tvPauseState)
+        val btnPause = findViewById<View>(R.id.btnPause)
+        val btnResume = findViewById<View>(R.id.btnPauseResume)
+        lifecycleScope.launch {
+            val active = withContext(Dispatchers.IO) { Pauses.active(applicationContext) }
+            tvState.text = if (active == null) {
+                getString(R.string.pause_card_tracking)
+            } else {
+                getString(R.string.pause_card_paused, PauseNotifier.until(this@MainActivity, active))
+            }
+            btnPause.visibility = if (active == null) View.VISIBLE else View.GONE
+            btnResume.visibility = if (active == null) View.GONE else View.VISIBLE
+            // The morning "Until morning" offers: asked now, so the dialog has it without waiting on the network.
+            if (active == null) withContext(Dispatchers.IO) { Pauses.morning(applicationContext) }
         }
     }
 

@@ -6,6 +6,8 @@ import com.timeorganizer.usagetracker.notify.NudgeFamily
 import com.timeorganizer.usagetracker.notify.NudgeGap
 import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.notify.PhoneSilence
+import com.timeorganizer.usagetracker.pause.PauseClipper
+import com.timeorganizer.usagetracker.pause.Pauses
 import com.timeorganizer.usagetracker.usagestats.Pickups
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
 import com.timeorganizer.usagetracker.util.InstalledApps
@@ -171,7 +173,10 @@ object LoopMonitor {
     private suspend fun apply(app: Context, step: LoopStep, now: Long) {
         val prefs = LoopPreferences(app)
         prefs.state = step.state
-        step.ended?.let { LoopDatabase.save(app, it, now) }
+        // A loop that touched a pause got its check-in, but is neither kept nor sent (prompt 17, decision 17-3).
+        step.ended
+            ?.takeUnless { PauseClipper.touches(it.startMs, it.lastHeldMs, Pauses.over(app, it.startMs, it.lastHeldMs + 1)) }
+            ?.let { LoopDatabase.save(app, it, now) }
         if (step.cancelCheckIn) LoopNotifier.cancelCheckIn(app)
         step.checkIn?.let {
             LoopNotifier.postCheckIn(app, it, prefs.awayMinutes)

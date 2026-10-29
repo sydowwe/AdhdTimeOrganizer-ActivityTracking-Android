@@ -180,6 +180,11 @@
             android:name=".ramp.StartRampActionReceiver"
             android:exported="false" />
 
+        <!-- The pause notification's "Resume"; only the app's own PendingIntent reaches it. -->
+        <receiver
+            android:name=".pause.PauseActionReceiver"
+            android:exported="false" />
+
         <!-- WorkManager initializer -->
         <provider
             android:name="androidx.startup.InitializationProvider"

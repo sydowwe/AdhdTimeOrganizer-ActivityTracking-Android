@@ -48,7 +48,9 @@ data class NowFacts(
     /** The first open block starting later today; `null` with none, or when it can't be read. */
     val next: NowBlock? = null,
     /** A countdown or pomodoro runs; `null` when the server didn't say (one from before prompt 10): unknown. */
-    val timerRunning: Boolean? = null
+    val timerRunning: Boolean? = null,
+    /** The user's next morning (prompt 17's "until morning"); `null` from a server before it, or unreadable. */
+    val nextWakeUpMs: Long? = null
 ) {
     companion object {
         fun from(response: TrackerNowResponse): NowFacts {
@@ -65,7 +67,8 @@ data class NowFacts(
                     ?.let { DeskWork(it.name!!, it.onPlan) },
                 distractionPackages = response.distractionPackages.orEmpty().toSet(),
                 next = response.plan?.next?.let(::block),
-                timerRunning = response.timerRunning
+                timerRunning = response.timerRunning,
+                nextWakeUpMs = ReviewText.instantMs(response.nextWakeUpAt)
             )
         }
 

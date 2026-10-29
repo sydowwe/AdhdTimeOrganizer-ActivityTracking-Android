@@ -51,6 +51,14 @@ class NowFactsTest {
         assertEquals(DeskWork("Thesis", onPlan = true), facts.deskWork)
         assertEquals(setOf("com.instagram.android", "com.reddit.frontpage"), facts.distractionPackages)
         assertEquals(false, facts.timerRunning)
+        assertEquals(ms("2026-10-19T06:00:00Z"), facts.nextWakeUpMs)
+    }
+
+    /** Prompt 17: a server from before it says no morning; "until morning" then falls back to the last heard, or 07:00. */
+    @Test
+    fun aServerFromBeforePause_hasNoMorning() {
+        assertNull(parse("""{"timerRunning":false}""").nextWakeUpMs)
+        assertNull(parse("""{"nextWakeUpAt":"tomorrow"}""").nextWakeUpMs)
     }
 
     /** Deploy order: the phone may meet a server from before prompt 10. Its blocks are of no importance, its timer unknown. */

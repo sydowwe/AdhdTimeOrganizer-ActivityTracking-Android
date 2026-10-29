@@ -155,6 +155,26 @@
     <string name="drift_card_switch">Nudge when I open a distraction app during a planned block</string>
     <string name="drift_card_hint">One nudge per block once your distraction apps have been open for 30 seconds in it (time in several adds up; a minute away starts over). Back to it goes to the home screen, Switch plan opens the planner, 5 more minutes asks once more. An app mapped to the block\'s own activity doesn\'t count. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
 
+    <!-- Pause tracking (prompt 17): the status card and the notification -->
+    <string name="pause_card_title">Pause tracking</string>
+    <string name="pause_card_tracking">Recording this phone\'s use.</string>
+    <string name="pause_card_paused">Paused %1$s. Nothing from this stretch is recorded or sent.</string>
+    <string name="pause_card_hint">Nothing used while paused is recorded or sent, in any app. Nudges still come; Do Not Disturb quiets them.</string>
+    <string name="btn_pause">Pause…</string>
+    <string name="btn_pause_resume">Resume</string>
+    <string name="pause_dialog_title">Pause tracking</string>
+    <string name="pause_15_minutes">15 minutes</string>
+    <string name="pause_1_hour">1 hour</string>
+    <string name="pause_until_morning">Until morning (%1$s)</string>
+    <string name="pause_until_i_resume">Until I resume</string>
+    <string name="pause_until_time">until %1$s</string>
+    <string name="pause_until_tomorrow">until tomorrow %1$s</string>
+    <string name="pause_until_resumed">until you resume</string>
+    <string name="channel_pause">Tracking paused</string>
+    <string name="channel_pause_description">A quiet reminder while tracking is paused, with Resume</string>
+    <string name="notify_pause_title">Tracking paused %1$s</string>
+    <string name="notify_pause_text">Nothing is recorded meanwhile.</string>
+
     <!-- Daily limits: notification. The server's words, so a limit reads the same on the phone and in the browser. -->
     <string name="channel_budget">Daily limits</string>
     <string name="channel_budget_description">A short buzz and a heads-up when an app reaches 80 % of a daily limit you set, and when it reaches the limit</string>

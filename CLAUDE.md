@@ -25,7 +25,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `sync/SyncWire.kt` | **Pure.** The wire instant, the extras request (pickups and loops, prompt 14; interruptions and derailments, 15), whether an answer acknowledged each kind |
 | `sync/BatchSender.kt` | **Pure.** Batching, `ResponseClassifier` (status → sent / wait / auth / rejected), bisecting a refused batch |
 | `sync/SyncEngine.kt` | One run: usage log → outbox → server. Process-wide mutex. Writes the `SyncReport` the screen shows |
-| `data/local/outbox/Outbox.kt` | Room: `pending_session` (the outbox), `pending_pickup` (prompt 14), `pending_interruption` / `pending_derailment` (15) and `sync_cursor` (all three cursors), committed together |
+| `data/local/outbox/Outbox.kt` | Room: `pending_session` (the outbox), `pending_pickup` (prompt 14), `pending_interruption` / `pending_derailment` (15) and `sync_cursor` (all three cursors), committed together; `pause_range` (17) |
 | `data/local/AuthPreferences.kt` | Token pair, Keystore-encrypted, `commit()`; why the last session ended |
 | `data/local/SyncPreferences.kt` | Device id, the account the outbox belongs to, the last `SyncReport` |
 | `auth/RefreshPolicy.kt` | **Pure.** When a refresh saves, retries, keeps the tokens, or signs out |
@@ -62,6 +62,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `capture/CaptureRules.kt` | **Pure.** Quick capture: a typed line or a share → the thought (title + link for a browser share, cut to the server's limit); an answer's status → sent / refused / wait / auth |
 | `capture/CaptureStore.kt`, `capture/CaptureSender.kt` | The queue (`capture.db`) and its sender: stored first, sent by a network-bound job and after every sync; a row leaves only when the server has it |
 | `capture/CaptureActivity.kt`, `capture/CaptureTileService.kt` | The one-field dialog (tile, launcher shortcut) and the share target "Save to Inbox"; the "Capture" Quick Settings tile |
+| `pause/PauseClipper.kt`, `pause/PausePolicy.kt` | **Pure.** Pause tracking (prompt 17): what a pause takes out of a read (sessions clipped, the rest dropped, no cursor moved), the daily limits' sittings without it; where each length ends, the morning, when the notification shows, when a paused phone sends an empty sync |
+| `pause/Pauses.kt`, `pause/PauseNotifier.kt`, `pause/PauseActionReceiver.kt`, `pause/PausePreferences.kt` | The pauses in `outbox.db` (start, Resume, the morning from `/now`); "Tracking paused until …" with **Resume**; the kept morning, the notification's state, the last heartbeat |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
@@ -73,7 +75,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 
 `app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, `loops.db` since prompt 12, `capture.db` since 18). Commit
 them with any entity change and write a real migration (its SQL copied from the exported `createSql`, as prompt 14's
-`MIGRATION_1_2` in `outbox.db` and `loops.db` and 15's `MIGRATION_2_3` in `outbox.db` are). No test runs a migration: the JVM tests can't open Room, and there are
+`MIGRATION_1_2` in `outbox.db` and `loops.db`, 15's `MIGRATION_2_3` and 17's `MIGRATION_3_4` in `outbox.db` are). No test runs a migration: the JVM tests can't open Room, and there are
 no instrumented tests. **The first build of a new `@Database`** — or of a new schema version — can fail
 `kspReleaseKotlin` with `JsonDecodingException: Expected start of the object '{', but had 'EOF'`: the debug and release KSP
 tasks race to write its new schema file. The file is fine once one of them has; run the build again.
@@ -282,8 +284,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
   watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge, the
-  high-importance, vibrating, soundless "Time chime", "Loop check", "Drift nudge", "Start ramp" and "Daily limits", and "Phone away"
-  (default importance, the default sound) today. A channel's sound and vibration are fixed once it exists:
+  high-importance, vibrating, soundless "Time chime", "Loop check", "Drift nudge", "Start ramp" and "Daily limits", "Phone away"
+  (default importance, the default sound), and the silent, low "Tracking paused" today. A channel's sound and vibration are fixed once it exists:
   getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
@@ -341,8 +343,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   value, an unknown one included, means silent), the open blocks covering now and the next (each with its `activityId`,
   read since prompt 08, and `isOptional` / `isCritical` since prompt 10), whether a timer runs (`timerRunning`, prompt 10;
   missing on an older server = unknown), the desk's last active minute
-  (`lastActiveAt`), `isIdle` and what its last five minutes resolved to (`recent`, busiest first, each with `onPlan`), and the
-  distraction packages. The phone decides nothing the server decides there: no matcher, no planner, no idle rule.
+  (`lastActiveAt`), `isIdle` and what its last five minutes resolved to (`recent`, busiest first, each with `onPlan`), the
+  distraction packages, and the user's next morning (`nextWakeUpAt`, prompt 17: the planner day's wake-up, else their
+  default). The phone decides nothing the server decides there: no matcher, no planner, no idle rule.
 - **Read through `NowClient` and `NowFacts`, nowhere else.** One answer is reused for 30 s (the server's `max-age`), then
   asked for again with its `ETag`: an unchanged day is a `304`. In memory only, cleared on an account switch. An unreadable
   field is absent, never guessed (an unparsable block is no plan). Pinned by the `now` entry of the wire sample
@@ -584,6 +587,34 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   5xx, 404, 429, 409 `noPriority`) keep it and end the pass. Signed out, nothing is sent; signing in sends it. **An account
   switch drops the queue** (`SyncEngine.onSignedIn`): those thoughts were for the other account's to-dos.
 - **The text is the user's own words**: kept only until the server has it, never logged.
+
+### Pause tracking (prompt 17, 2026-10-29)
+- **What it is:** "Pause…" on the status screen's first card — **15 minutes**, **1 hour**, **Until morning (07:00)**, **Until I
+  resume** — and nothing the phone is used for meanwhile is recorded or sent, in any app. While paused the card says "Paused
+  until 15:00" and offers **Resume**, and a silent "Tracking paused until 15:00 · Resume" sits on its own low channel (`pause`,
+  id 11): swipeable, cleared by itself at a timed pause's end (`setTimeoutAfter`), shown again once a day while "until I
+  resume" runs (`PausePolicy.notice`). Starting a pause from a notification or a tile is prompt 19's tile.
+- **What it takes out (`PauseClipper`, pure, `PauseClipperTest`; decision 17-3)**, applied in `UsageStatsCollector.collect`
+  after the ignored apps' drop: **sessions are clipped at the pause's edges** (one spanning it becomes two; a re-read clips the
+  same way, so a piece's start — the dedup key — is stable), **pickups, interruptions and derailments touching it are dropped
+  whole**, and **no cursor moves for it**: the log is read past the pause as usual and pausing never builds a backlog. The
+  loop check still asks during a pause, but a loop touching one is not stored or sent (`LoopMonitor.apply`). The daily limits'
+  estimate leaves paused time out too (`BudgetMonitor.sittings`), so it agrees with what the server is sent.
+- **Nudges run on (decision 17-1).** None records anything; Do Not Disturb quiets them all, and a pause that also silenced the
+  drift nudge and the limits would be a one-tap way round them.
+- **The server keeps no pause (decision 17-2)**: a paused stretch is a gap on the dashboards, like an unused phone; a "paused"
+  marker would itself say something private happened then. Its one part: `/now`'s **`nextWakeUpAt`**, the next morning from the
+  planner (the calendar day's wake-up, else the user's default). "Until morning" ends there (decision 17-4). The card asks `/now`
+  each time it is shown and keeps the answer (`PausePreferences.keptWakeUpMs`); the dialog uses the kept one, so what the button
+  said is what happens. Offline it is the kept morning moved on by whole days (wall clock, so DST keeps 06:30 at 06:30), never
+  heard: 07:00 (`PausePolicy.morning`).
+- **A paused phone still says it's alive (decision 17-5).** The server calls a phone silent after 48 h without a sync (P2-04)
+  and a pause sends nothing, so a paused run that sent nothing posts an empty sync (`sessions: []`) at most every 6 h
+  (`PausePolicy.heartbeatDue`, `SyncEngine.heartbeatIfPaused`); the server stamps the phone as seen on any sync.
+- **Stored in `outbox.db`** (`pause_range`, version 4): `[startMs, endMs)`, "until I resume" ending at `Long.MAX_VALUE` until
+  Resume writes the real end. Read by the sync after it takes its `nowMs`, so a pause started before the read is seen. Kept until
+  every cursor has passed it and two days more (the limits read the whole day). **An account switch keeps it**: it is this
+  phone's, and the new account's time in it is as private.
 
 ### Evening review of unmapped time
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on

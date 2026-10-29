@@ -3,6 +3,8 @@ package com.timeorganizer.usagetracker.usagestats
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import com.timeorganizer.usagetracker.pause.PauseClipper
+import com.timeorganizer.usagetracker.pause.PauseRange
 import com.timeorganizer.usagetracker.util.InstalledApps
 
 /**
@@ -27,7 +29,8 @@ class UsageStatsCollector(context: Context) {
     /**
      * The home screen and Recents are left out of what is sent (client policy, like `SyncLimits.MIN_SESSION_MS`), and
      * so are the [ignoredPackages] (the user's ignore rules, `IgnoreState.ignored`). Both still count as "another app"
-     * inside [SessionBuilder]'s merge rule. An ignored app's notifications, and this app's own, are not read.
+     * inside [SessionBuilder]'s merge rule. An ignored app's notifications, and this app's own, are not read. What the
+     * [pauses] cover is taken out last (prompt 17, `PauseClipper`): sessions clipped, the rest dropped, no cursor moved.
      *
      * The log is read once, from the earliest of the three cursors: [SessionBuilder] gets only the events from [fromMs] (it
      * must not see a sitting twice), [PickupCounter] everything from [pickupsFromMs] — which usually lies before [fromMs],
@@ -40,7 +43,8 @@ class UsageStatsCollector(context: Context) {
         ignoredPackages: Set<String>,
         pickupsFromMs: Long,
         sawUnlock: Boolean,
-        derailmentsFromMs: Long
+        derailmentsFromMs: Long,
+        pauses: List<PauseRange> = emptyList()
     ): Collected {
         val builder = SessionBuilder()
         val pickupEvents = mutableListOf<UsageEventRecord>()
@@ -59,13 +63,17 @@ class UsageStatsCollector(context: Context) {
             )
         }
 
+        // Prompt 17: what a pause covers goes beside the ignored apps, after the build; no cursor moves for it.
         return Collected(
-            builder.build(toMs).forOutbox(installedApps.homePackages, ignoredPackages),
-            PickupCounter.count(pickupEvents, toMs, sawUnlock, installedApps.homePackages + ownPackage),
-            DerailmentLinker.link(
-                derailmentEvents, derailmentsFromMs, toMs,
-                excluded = installedApps.homePackages + ownPackage,
-                dropped = ignoredPackages + ownPackage
+            PauseClipper.sessions(builder.build(toMs).forOutbox(installedApps.homePackages, ignoredPackages), pauses),
+            PauseClipper.pickups(PickupCounter.count(pickupEvents, toMs, sawUnlock, installedApps.homePackages + ownPackage), pauses),
+            PauseClipper.derailments(
+                DerailmentLinker.link(
+                    derailmentEvents, derailmentsFromMs, toMs,
+                    excluded = installedApps.homePackages + ownPackage,
+                    dropped = ignoredPackages + ownPackage
+                ),
+                pauses
             )
         )
     }

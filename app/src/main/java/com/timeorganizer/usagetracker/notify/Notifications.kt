@@ -74,6 +74,9 @@ object Notifications {
      */
     const val CHANNEL_BUDGET = "daily_budget"
 
+    /** "Tracking paused until 15:00 · Resume" (prompt 17): low importance and silent — a reminder, never an interruption. */
+    const val CHANNEL_PAUSE = "pause"
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
@@ -87,6 +90,7 @@ object Notifications {
 
     /** With the budget's id as the tag: one per budget, so an activity's limit and its category's can both show. */
     const val ID_BUDGET = 10
+    const val ID_PAUSE = 11
 
     /** Two short taps. */
     private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
@@ -156,6 +160,11 @@ object Notifications {
                     .setSound(null, null)
                     .setVibrationEnabled(true)
                     .setVibrationPattern(CHIME_VIBRATION)
+                    .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_PAUSE, NotificationManagerCompat.IMPORTANCE_LOW)
+                    .setName(context.getString(R.string.channel_pause))
+                    .setDescription(context.getString(R.string.channel_pause_description))
                     .setShowBadge(false)
                     .build()
             )

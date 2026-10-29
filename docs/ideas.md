@@ -157,23 +157,25 @@ after your bedtime last night" is a fact the user can't easily see anywhere else
 **Catches.** Night-shift users: use their configured window, never a fixed 23:00. Alarm-clock / white-noise apps
 should not count — let ignore rules cover them (they already drop to `IsIgnored` on the server).
 
-## 6. Pause and privacy before upload
+## 6. Pause and privacy before upload — pause built 2026-10-29 (prompt 17), not yet seen on a device
 
 **Why.** (From the desktop list.) A phone carries the most private usage there is — dating, health, banking,
 messaging. "It never leaves the phone" beats "it's deleted on arrival".
 
 **How.**
-- **Pause for…** 15 min / 1 h / until tomorrow, from the status screen, the tile (#3) and a notification action.
-  Implementation: a paused range in the outbox DB; `SyncEngine.record` drops sessions inside it (clip the ones
-  crossing its edges). The cursor still advances, so pausing never builds a backlog.
+- ~~**Pause for…**~~ — **done (prompt 17, 2026-10-29)**: 15 min / 1 h / until morning (the planner's wake-up, from `/now`) /
+  until I resume, from the status screen; a "Tracking paused · Resume" notification while it runs. Sessions clipped at the
+  pause's edges, everything else touching it dropped, no cursor moved; nudges run on; no marker on the server; an empty sync
+  every 6 h while paused. See *Pause tracking* in `CLAUDE.md`. Starting one from a tile is #3's.
 - ~~**Never-send list**~~ and ~~**sync server ignore rules down**~~ — **done (prompt 26c, 2026-10-25)** as one
   thing, decided with the owner: there is no phone-only kind of ignore. Ignoring is the server's ordinary rule
   (`PUT tracker/android/ignored/{packageName}`), the phone downloads every rule (`GET tracker/android/rules`, exact
   packages only since 26a) and drops the ignored packages before the outbox. See *Ignored apps* in `CLAUDE.md`. The
   generic `"private"` package was not built.
 
-**Catches.** Dropping sessions silently changes totals; make "private" vs "drop" an explicit choice. Paused time
-must not look like the tracker went silent — send an empty sync anyway so `TrackerSourceStatus` stays fresh.
+**Catches.** Dropping sessions silently changes totals; make "private" vs "drop" an explicit choice — decided "drop"
+for the pause (decision 17-2: a "paused" marker would itself say something private happened). Paused time must not
+look like the tracker went silent — the empty sync is built.
 
 ## 7. Notification-interruption counts — built 2026-10-29 (prompt 15), not yet seen on a device; the web's view is a frontend prompt
 

@@ -84,6 +84,18 @@ data class PendingDerailmentEntity(
 )
 
 /**
+ * A pause (prompt 17): nothing read from the usage log in `[startMs, endMs)` is queued (`PauseClipper`). "Until I resume"
+ * ends at `Long.MAX_VALUE` until Resume writes the real end. Kept until every cursor has passed its end, and two days more
+ * for the daily limits' estimate (`PausePolicy.KEEP_ENDED_MS`).
+ */
+@Entity(tableName = "pause_range")
+data class PauseRangeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startMs: Long,
+    val endMs: Long
+)
+
+/**
  * Where the next read of the usage log starts. One row. [pickupCursorMs] is the pickups' own (prompt 14): the start of the
  * earliest pickup still going, usually before [cursorMs]; `null` until the first read since 14, which starts at [cursorMs].
  * [derailmentCursorMs] is the notifications' (prompt 15): the earliest one still undecided (`DerailmentLinker`); `null`
@@ -254,7 +266,29 @@ abstract class OutboxDao {
     )
     abstract suspend fun keepNewestUnsent(keep: Int): Int
 
-    /** Another account signed in: what is queued belongs to the previous one. */
+    @Insert
+    abstract suspend fun insertPause(row: PauseRangeEntity)
+
+    /** The pause going at [nowMs], the latest if they ever overlap. */
+    @Query("SELECT * FROM pause_range WHERE startMs <= :nowMs AND endMs > :nowMs ORDER BY startMs DESC LIMIT 1")
+    abstract suspend fun activePause(nowMs: Long): PauseRangeEntity?
+
+    @Query("SELECT * FROM pause_range WHERE startMs < :toMs AND endMs > :fromMs ORDER BY startMs")
+    abstract suspend fun pausesOver(fromMs: Long, toMs: Long): List<PauseRangeEntity>
+
+    @Query("UPDATE pause_range SET endMs = :endMs WHERE id = :id")
+    abstract suspend fun endPause(id: Long, endMs: Long)
+
+    @Query("DELETE FROM pause_range WHERE id = :id")
+    abstract suspend fun deletePause(id: Long)
+
+    @Query("DELETE FROM pause_range WHERE endMs < :beforeMs")
+    abstract suspend fun prunePausesEndingBefore(beforeMs: Long)
+
+    /**
+     * Another account signed in: what is queued belongs to the previous one. A pause stays: it is this phone's, like the
+     * chime's ticks, and the new account's time in it is as private.
+     */
     @Transaction
     open suspend fun reset(cursorMs: Long) {
         clearSessions()
@@ -280,9 +314,9 @@ abstract class OutboxDao {
 @Database(
     entities = [
         PendingSessionEntity::class, SyncCursorEntity::class, PendingPickupEntity::class,
-        PendingInterruptionEntity::class, PendingDerailmentEntity::class
+        PendingInterruptionEntity::class, PendingDerailmentEntity::class, PauseRangeEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class OutboxDatabase : RoomDatabase() {
@@ -341,10 +375,20 @@ abstract class OutboxDatabase : RoomDatabase() {
             }
         }
 
+        /** Prompt 17: the pauses' table, empty. The SQL is Room's own from `app/schemas/…/4.json`. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pause_range` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`startMs` INTEGER NOT NULL, `endMs` INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun get(context: Context): OutboxDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, OutboxDatabase::class.java, "outbox.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

@@ -9,6 +9,7 @@ import com.timeorganizer.usagetracker.capture.CaptureSender
 import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
+import com.timeorganizer.usagetracker.pause.PauseNotifier
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
@@ -28,6 +29,8 @@ class UsageSyncWorker(
         // Budget stages said offline are claimed first, so the sync carrying their time finds them said (13-1). Never throws.
         BudgetMonitor.beforeSync(applicationContext)
         SyncEngine(applicationContext).run()
+        // A pause "until I resume" is shown again once a day; an ended one's notification goes. Never throws.
+        PauseNotifier.afterSync(applicationContext)
         // Quick capture's queue: anything the network-bound job hasn't sent yet (signed in again, back online). Never throws.
         CaptureSender.afterSync(applicationContext)
         askEveningReview()

@@ -13,7 +13,9 @@ data class TrackerNowResponse(
     /** Exact package names the user's rules call distractions. */
     val distractionPackages: List<String>?,
     /** A countdown or pomodoro is running. `null` from a server before prompt 10: unknown, never "no timer". */
-    val timerRunning: Boolean? = null
+    val timerRunning: Boolean? = null,
+    /** The user's next wake-up, UTC (prompt 17): the planner day's own, else their default. `null` from an older server. */
+    val nextWakeUpAt: String? = null
 )
 
 data class TrackerNowPlanDto(

@@ -62,7 +62,8 @@
       ]
     },
     "distractionPackages": ["com.instagram.android", "com.reddit.frontpage"],
-    "timerRunning": false
+    "timerRunning": false,
+    "nextWakeUpAt": "2026-10-19T06:00:00Z"
   },
   "syncRequest": {
     "sessions": [
