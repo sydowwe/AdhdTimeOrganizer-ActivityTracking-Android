@@ -16,6 +16,12 @@ object SyncLimits {
     /** Sessions per request. The server accepts 1000; smaller requests lose less to a dropped connection. */
     const val MAX_SESSIONS_PER_REQUEST = 200
 
+    /**
+     * Pickups and loops per request, together (prompt 14). The server accepts 2000 pickups and 500 loops; the loop check
+     * stores a few loops a day, so this is a day or two of pickups.
+     */
+    const val MAX_EXTRAS_PER_REQUEST = 500
+
     const val MAX_PACKAGE_NAME_LENGTH = 255
     const val MAX_APP_LABEL_LENGTH = 255
 

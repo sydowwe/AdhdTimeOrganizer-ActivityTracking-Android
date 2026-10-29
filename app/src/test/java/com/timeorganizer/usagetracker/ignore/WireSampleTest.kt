@@ -34,7 +34,12 @@ import com.timeorganizer.usagetracker.data.api.dto.TrackerCategoryDto
 import com.timeorganizer.usagetracker.data.api.dto.TrackerProblem
 import com.timeorganizer.usagetracker.data.api.dto.TrackerProblemResponse
 import com.timeorganizer.usagetracker.data.api.dto.TrackerRoleDto
+import com.timeorganizer.usagetracker.data.local.outbox.PendingPickupEntity
+import com.timeorganizer.usagetracker.loops.LoopAnswer
+import com.timeorganizer.usagetracker.loops.LoopRule
+import com.timeorganizer.usagetracker.loops.PickupLoopEntity
 import com.timeorganizer.usagetracker.mapping.AppCategory
+import com.timeorganizer.usagetracker.sync.SyncWire
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -68,6 +73,11 @@ class WireSampleTest {
         assertEquals(0, sync.dropped)
         assertEquals(2, sync.ignored)
         assertEquals("2026-10-23T08:15:00.0000000Z", sync.syncedUpToUtc)
+        // Prompt 14's acknowledgement: a renamed counter reads as null, and every pickup would stay unsent forever.
+        assertEquals(2, sync.pickupsStored)
+        assertEquals(0, sync.pickupsDropped)
+        assertEquals(1, sync.loopsStored)
+        assertEquals(0, sync.loopsDropped)
     }
 
     @Test
@@ -167,17 +177,32 @@ class WireSampleTest {
     /**
      * The two requests that carry an app's category are written exactly as the samples spell them. The server reads a
      * renamed `appCategory` as "declares none" without a word, so every app would land at the bottom of the web's view.
-     * A category the app doesn't declare is left out, which the server reads as the same "declares none".
+     * A category the app doesn't declare is left out, which the server reads as the same "declares none". The sync's
+     * pickups and loops (prompt 14) are written from stored rows through `SyncWire`, the sync's own mapping, so a renamed
+     * field or a wrong rule / answer name fails here.
      */
     @Test
     fun theCategoryRequests_writeTheSamplesExactly() {
+        val at = { iso: String -> Instant.parse(iso).toEpochMilli() }
         val sync = AndroidSyncRequest(
             sessions = listOf(
                 AndroidSessionDto("com.whatsapp", "WhatsApp", "2026-10-23T07:00:00.000Z", "2026-10-23T07:10:00.000Z", 600, "Social"),
                 AndroidSessionDto("com.android.chrome", "Chrome", "2026-10-23T07:20:00.000Z", "2026-10-23T07:25:00.000Z", 300, null)
             ),
             syncedUpToUtc = "2026-10-23T08:15:00.000Z",
-            deviceId = "pixel-8"
+            deviceId = "pixel-8",
+            pickups = listOf(
+                SyncWire.pickup(PendingPickupEntity(startMs = at("2026-10-23T06:12:00Z"), endMs = at("2026-10-23T06:12:20Z"), unlocked = true)),
+                SyncWire.pickup(PendingPickupEntity(startMs = at("2026-10-23T06:30:00Z"), endMs = at("2026-10-23T06:30:05Z"), unlocked = false))
+            ),
+            loops = listOfNotNull(
+                SyncWire.loop(
+                    PickupLoopEntity(
+                        startMs = at("2026-10-22T21:05:00Z"), endMs = at("2026-10-22T21:20:00Z"),
+                        rule = LoopRule.PICKUPS.name, pickups = 7, apps = 3, answer = LoopAnswer.NOT_TODAY.name
+                    )
+                )
+            )
         )
 
         assertEquals(samples["syncRequest"], gson.toJsonTree(sync))

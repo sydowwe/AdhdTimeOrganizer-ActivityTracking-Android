@@ -16,15 +16,39 @@ class UsageStatsCollector(context: Context) {
 
     private val installedApps = InstalledApps(context)
 
+    private val ownPackage = context.packageName
+
+    /** One read of the log for the sync: the sessions from their cursor, the pickups (prompt 14) from theirs. */
+    data class Collected(val sessions: BuildResult, val pickups: PickupCount)
+
     /**
      * The home screen and Recents are left out of what is sent (client policy, like `SyncLimits.MIN_SESSION_MS`), and
      * so are the [ignoredPackages] (the user's ignore rules, `IgnoreState.ignored`). Both still count as "another app"
      * inside [SessionBuilder]'s merge rule.
+     *
+     * The log is read once, from the earlier of the two cursors: [SessionBuilder] gets only the events from [fromMs] (it
+     * must not see a sitting twice), [PickupCounter] everything from [pickupsFromMs] — which usually lies before [fromMs],
+     * since a pickup begins before the app it opens.
      */
-    fun collect(fromMs: Long, toMs: Long, ignoredPackages: Set<String> = emptySet()): BuildResult {
+    fun collect(
+        fromMs: Long,
+        toMs: Long,
+        ignoredPackages: Set<String>,
+        pickupsFromMs: Long,
+        sawUnlock: Boolean
+    ): Collected {
         val builder = SessionBuilder()
-        if (!forEachEvent(fromMs, toMs, builder::onEvent)) return builder.build(fromMs)
-        return builder.build(toMs).forOutbox(installedApps.homePackages, ignoredPackages)
+        val pickupEvents = mutableListOf<UsageEventRecord>()
+        val read = forEachEvent(minOf(fromMs, pickupsFromMs), toMs) { event ->
+            if (event.timestampMs >= fromMs) builder.onEvent(event)
+            if (event.timestampMs >= pickupsFromMs) pickupEvents += event
+        }
+        if (!read) return Collected(builder.build(fromMs), PickupCount(emptyList(), pickupsFromMs, sawUnlock))
+
+        return Collected(
+            builder.build(toMs).forOutbox(installedApps.homePackages, ignoredPackages),
+            PickupCounter.count(pickupEvents, toMs, sawUnlock, installedApps.homePackages + ownPackage)
+        )
     }
 
     /** The events from [fromMs] (inclusive) to [toMs] (exclusive), translated the same way — for the watcher. */

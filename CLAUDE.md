@@ -18,11 +18,13 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 |---|---|
 | `usagestats/SessionBuilder.kt` | **Pure.** Events → sessions; where the next read starts (`resumeFromMs`) |
 | `usagestats/UsageStatsCollector.kt` | Reads the usage log for a window, maps event types, resolves app labels |
-| `usagestats/Pickups.kt` | **Pure.** Events → pickups (screen on or unlock → screen off / keyguard), each unlocked or not. The loop check reads it; prompt 14's per-hour counts are meant to |
+| `usagestats/Pickups.kt` | **Pure.** Events → pickups (screen on or unlock → screen off / keyguard), each unlocked or not. The loop check reads it, and so does `PickupCounter` |
+| `usagestats/PickupCounter.kt` | **Pure.** The sync's pickups (prompt 14): the settled ones, where the next read starts (the earliest pickup still going), the no-lock-screen rule |
 | `sync/SyncLimits.kt` | **Pure.** The server's per-session rules, applied before a session is queued |
+| `sync/SyncWire.kt` | **Pure.** The wire instant, the pickups-and-loops request, whether an answer acknowledged it (prompt 14) |
 | `sync/BatchSender.kt` | **Pure.** Batching, `ResponseClassifier` (status → sent / wait / auth / rejected), bisecting a refused batch |
 | `sync/SyncEngine.kt` | One run: usage log → outbox → server. Process-wide mutex. Writes the `SyncReport` the screen shows |
-| `data/local/outbox/Outbox.kt` | Room: `pending_session` (the outbox) and `sync_cursor`, committed together |
+| `data/local/outbox/Outbox.kt` | Room: `pending_session` (the outbox), `pending_pickup` (prompt 14) and `sync_cursor` (both cursors), committed together |
 | `data/local/AuthPreferences.kt` | Token pair, Keystore-encrypted, `commit()`; why the last session ended |
 | `data/local/SyncPreferences.kt` | Device id, the account the outbox belongs to, the last `SyncReport` |
 | `auth/RefreshPolicy.kt` | **Pure.** When a refresh saves, retries, keeps the tokens, or signs out |
@@ -68,7 +70,9 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `SettingsActivity.kt` | The set-once things: usage access, battery-optimization exemption, notification permission — a check and "Manage" (the system page; an app can't revoke these itself) once granted. Opens by itself on first run |
 
 `app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, `loops.db` since prompt 12, `capture.db` since 18). Commit
-them with any entity change and write a real migration. **The first build of a new `@Database`** can fail
+them with any entity change and write a real migration (its SQL copied from the exported `createSql`, as prompt 14's
+`MIGRATION_1_2` in `outbox.db` and `loops.db` are). No test runs a migration: the JVM tests can't open Room, and there are
+no instrumented tests. **The first build of a new `@Database`** — or of a new schema version — can fail
 `kspReleaseKotlin` with `JsonDecodingException: Expected start of the object '{', but had 'EOF'`: the debug and release KSP
 tasks race to write its new schema file. The file is fine once one of them has; run the build again.
 
@@ -159,6 +163,14 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   read there as "declares none". So is an app uninstalled between its use and the send. A name the server doesn't know
   costs only that report, never the batch. A new Android `CATEGORY_*` goes into the server's enum first.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
+- **Pickups and loops ride the sync (prompt 14)** as two optional arrays (`pickups: [{startUtc, endUtc, unlocked}]`, `loops:
+  [{startUtc, endUtc, rule, pickups, apps, answer}]`, rule / answer by the server's member names, `LoopRule.wire` /
+  `LoopAnswer.wire`), in requests of their own with `sessions: []`, sent after every session is (`SyncEngine.sendExtras`,
+  up to `SyncLimits.MAX_EXTRAS_PER_REQUEST`). A row leaves the "unsent" queue only on an **acknowledgement**: the answer's
+  `pickupsStored` / `loopsStored` (`SyncWire.acknowledged`). A server from before 14 ignores the arrays and answers 200
+  without them, so nothing is marked and the rest of the pass isn't sent to it; the rows wait for an updated server, 30
+  days at most. Repeats are the server's `(user, device, start)`, skipped: re-sending is safe. A batch refused down to one
+  row drops that row, as for sessions. Deploy order doesn't matter. The status screen's "sent" still means sessions.
 - **The sync, rules, ignore, mapping, `/now`, capture and budget answers** (`activities`, `activityCreated`, `problem`, `distraction`,
   `appCategoryLink`, `now`, `captured`, `budgets`, `budgetClaimed`), **and the requests the phone writes** (`syncRequest`, `ignoreRequest`,
   `startBlockRequest`, `captureRequest`, `budgetClaimRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
@@ -182,6 +194,15 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **The cursor rests at the start of the earliest still-open session**, never at "the latest event": the usage
   log's begin is inclusive, so the next read sees the resume again and builds the session whole. Moving it to
   the latest event of any kind lost the app in use at every sync.
+- **Pickups have a cursor of their own** (`sync_cursor.pickupCursorMs`, prompt 14), at the start of the earliest pickup still
+  going: `Pickups` leaves out a pickup it sees no start of, and the sessions' cursor rests at an app's resume — after the
+  screen came on. The collector reads the log once from the earlier cursor; `SessionBuilder` gets only the events from its
+  own. A pickup that ended under 2 s before the read's end is not settled yet (Xiaomi's keyguard shown → hidden), so it is
+  read again. Re-reading in pieces gives what one long read gives (`PickupCounterTest`). Every pickup is sent, glances
+  included, with no 5 s floor: a 3 s glance at the clock is exactly what is counted. On a phone that never logged an unlock
+  (no lock screen, `LoopPreferences.sawUnlock`, shared with the loop check and set by the sync's read too), a pickup that
+  brought an app other than the home screen or this one to the front counts as unlocked. Sent pickups are pruned once the
+  pickup cursor passes them, unsent ones after 30 days; an account switch drops them with the sessions.
 - Sessions under 5 s are not queued (client policy, `SyncLimits.MIN_SESSION_MS`).
 - **The home screen and Recents are not sent.** They are the launcher's activities, so the log counts them as an
   app in front (a 6 s `com.sec.android.app.launcher` row between every two apps). `UsageStatsCollector.collect`
@@ -492,10 +513,10 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   is pending are one look. No look-again of its own: nothing changes without an app to the front, and a loop that is over is
   closed at the next look or sync. Re-armed on every process start and after every sync; let go when off, signed out, or the
   channel / notifications are off.
-- **Loops are stored on the phone only** (`loops.db`, its own Room database so the outbox's needs no migration; `PickupLoopEntity`):
-  start, end, rule, the most pickups and apps counted, and the answer (`ASKED` / `AWAY` / `FINE` / `NOT_TODAY` /
-  `SILENCED`) — **no package names**. 30 days. Nothing is sent: that waits for prompt 14 (a wire change in both repos). An
-  account switch clears them and the state.
+- **Loops are stored on the phone** (`loops.db`, its own Room database; `PickupLoopEntity`): start, end, rule, the most
+  pickups and apps counted, and the answer (`ASKED` / `AWAY` / `FINE` / `NOT_TODAY` / `SILENCED`) — **no package names**.
+  30 days. **Sent with the sync since prompt 14** (`sentAtMs` once acknowledged; *The wire contract*), for the web's android
+  dashboard. An account switch clears them and the state.
 - **With the other nudges:** each posts on its own channel. Since prompt 08 the check, the chime and the drift nudge keep
   10 minutes apart (*Nudges together*), and the drift nudge stays quiet while the "Phone away" timer runs; otherwise none
   reads another's state. A loop during a break from the desk can still bring a break nudge (it is exempt from the gap).

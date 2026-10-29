@@ -7,12 +7,13 @@ import com.timeorganizer.usagetracker.usagestats.UsageEventRecord
 /** A sitting in an app as the usage log has it; the one still in front ends at the read's end. */
 data class LoopSitting(val packageName: String, val startMs: Long, val endMs: Long)
 
-enum class LoopRule {
+/** [wire] is the server's member name (`AndroidLoopRule`, prompt 14); the stored name stays the Kotlin one. */
+enum class LoopRule(val wire: String) {
     /** [LoopDetector.PICKUPS] unlocks within [LoopDetector.PICKUP_WINDOW_MS]. */
-    PICKUPS,
+    PICKUPS("Pickups"),
 
     /** [LoopDetector.HOP_APPS] different apps within [LoopDetector.HOP_WINDOW_MS], none of them for long. */
-    HOPPING
+    HOPPING("Hopping")
 }
 
 /** What the loop check reads, all from the usage log except the user's own list. */

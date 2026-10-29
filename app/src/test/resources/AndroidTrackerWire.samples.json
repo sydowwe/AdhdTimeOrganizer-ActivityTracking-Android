@@ -4,6 +4,10 @@
     "duplicatesSkipped": 1,
     "dropped": 0,
     "ignored": 2,
+    "pickupsStored": 2,
+    "pickupsDropped": 0,
+    "loopsStored": 1,
+    "loopsDropped": 0,
     "syncedUpToUtc": "2026-10-23T08:15:00.0000000Z"
   },
   "rules": [
@@ -62,7 +66,14 @@
       { "packageName": "com.android.chrome", "appLabel": "Chrome", "sessionStartUtc": "2026-10-23T07:20:00.000Z", "sessionEndUtc": "2026-10-23T07:25:00.000Z", "durationSeconds": 300 }
     ],
     "syncedUpToUtc": "2026-10-23T08:15:00.000Z",
-    "deviceId": "pixel-8"
+    "deviceId": "pixel-8",
+    "pickups": [
+      { "startUtc": "2026-10-23T06:12:00.000Z", "endUtc": "2026-10-23T06:12:20.000Z", "unlocked": true },
+      { "startUtc": "2026-10-23T06:30:00.000Z", "endUtc": "2026-10-23T06:30:05.000Z", "unlocked": false }
+    ],
+    "loops": [
+      { "startUtc": "2026-10-22T21:05:00.000Z", "endUtc": "2026-10-22T21:20:00.000Z", "rule": "Pickups", "pickups": 7, "apps": 3, "answer": "NotToday" }
+    ]
   },
   "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" },
   "startBlockRequest": { "plannerTaskId": 7 },

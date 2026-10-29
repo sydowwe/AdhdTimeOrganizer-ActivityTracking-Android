@@ -117,29 +117,28 @@ clock keeps the data in sight without opening anything. A tile gives one-tap pau
 **Catches.** Local totals cover this phone only — label them. Glance adds Compose to the build; fine, but it is
 the first Compose in the project.
 
-## 4. Unlock count and first-pickup time
+## 4. Unlock count and first-pickup time — built 2026-10-29 (prompt 14), server half; the web's view is a frontend prompt
 
 **Why.** How often someone *picks up* the phone is a stronger compulsion signal than total minutes — 90 unlocks
 of 30 seconds each is a different day from one long video. "First pickup at 06:12, before getting up" is a
-morning-routine signal the morning briefing could use.
+morning-routine signal.
 
-**How.**
-- **Phone:** `KEYGUARD_HIDDEN` (18) is an unlock; `SCREEN_INTERACTIVE` (15) is a screen-on without unlock
-  (checking the time). Count both per hour in `SessionBuilder`'s pass (it already walks every event — add a
-  pure `PickupCounter` beside it) and store per-hour rows in the outbox DB. **Since 12 (2026-10-27) the reading exists:**
-  `UsageStatsCollector` maps both (`EventKind.UNLOCKED` / `SCREEN_ON`) and the pure `usagestats/Pickups` turns them into
-  pickups, each unlocked or not; a `PickupCounter` only bins them per hour (mind its rule: a read that starts mid-pickup
-  leaves that pickup out). Send the loop check's stored loops in the same change (#16).
-- **Server:** a new ingest shape — either a `pickups` array on the sync request (`{hourStartUtc, unlocks,
-  screenOns}`), stored in a small `android_pickup_hour` table in the `tracking` schema with the same retention
-  purge, or a nullable count on `TrackerSourceStatus`-style daily rows. The android focus-metrics dashboard gets
-  a pickups line; the morning briefing can say "first pickup 06:12".
+**What was built.** Every pickup the usage log shows (start, end, unlocked or a glance) goes to the server with the sync,
+**one row per pickup** rather than per-hour counts (decision 14-1: a length and a minute are the point), through the pure
+`PickupCounter` on 12's `Pickups`, with a cursor of its own. The loop check's loops go with them (#16). The server answers
+`POST /activity-tracking/android/pickups`: per day pickups / unlocks / glances / short checks (< 30 s) / median unlock /
+first unlock from 04:00 / last unlock / longest phone-free stretch / loops, per hour of the day, the loops by rule and
+answer, and a "typically" baseline. See `CLAUDE.md` → "The wire contract" and "Sessions and the cursor".
 
-**Catches.**
-- Adding a field to the sync request is backwards compatible only if the server ignores unknown fields (it does,
-  System.Text.Json) and the old server is never sent anything that changes its validation — a new top-level
-  array is fine.
-- Dedup: hour rows must be idempotent on `(user, device, hourStart)` — upsert, not insert.
+**Not built, still open.**
+- **The web's view.** The frontend prompt `prompts/activity-tracking/android-pickups-dashboard.md` in the frontend repo; it
+  ends with a research step for what else the dashboard could show.
+- **The morning briefing's line** (decision 14-2: left out). At wake-up time the phone's last sync is often older than the
+  first unlock, and "you just picked the phone up" tells nothing. A later line could say yesterday's, or the week's trend
+  ("first pickup ~40 min before you got up this week").
+- **Pickups inside planned blocks** against outside them — a strong signal, but it needs the planner lookup; it fits
+  prompt 15 (derailments), which can read the pickup rows' exact instants.
+- **Pickups on the phone's own status screen** ("42 pickups today, first 06:12"): the counter has everything; no card yet.
 
 ## 5. Screen time before bed
 
@@ -342,10 +341,10 @@ used over a minute. "Put it away" runs a "Phone away" timer (10 / 20 / 30 min) t
 under "Apps that don't count" make no pickups. Loops are kept on the phone for 30 days. Off by default; the watcher runs
 while it is on. See `CLAUDE.md` → "Loop check".
 
+**Since prompt 14 (2026-10-29) the loops are sent** with the sync, to `android_pickup_loop` on the server; the pickups
+dashboard counts them per day and per hour and by rule and answer ("3 loops today, mostly 21:00–23:00" is read off it).
+
 **Not built, still open.**
-- **Send the loops to the server** for a dashboard ("3 loops today, mostly 21:00–23:00"). Planned with prompt 14 (pickups),
-  which changes the same sync request, the same wire sample in both repos and adds the same kind of `tracking` table, retention
-  and GDPR paths: one change instead of two.
 - **The thresholds as settings.** 6 unlocks / 10 min and 6 apps / 5 min / 60 s are constants, chosen conservative before any
   data. Tune them from a week of stored loops first; a setting only if one size really doesn't fit.
 - **Telling a chat from a loop without the list.** The log can't (same timing). A `NotificationListenerService` (prompt 15's
@@ -432,5 +431,10 @@ capture list ("Inbox", made on the first capture). Never lost offline or signed 
   before that stay on the server.
 - **Backfill on first sign-in.** The first run reads 7 days of the usage log; the OS sometimes keeps more.
   `queryEvents` from 14 or 30 days back is free to try on first run.
+- **The phone's data in the GDPR export (server).** `GET /user/data-export` carries the desktop and web-extension ledgers
+  and `TrackerSourceStatus`, but nothing the phone sent: `AndroidSessionData` and `AndroidReportedApp` are listed as known
+  gaps in `UserDataExportAndDeletionTests.KnownGaps`, and prompt 14's pickup and loop tables join them (the owner,
+  2026-10-29: "write it in the future ideas"). Erasure is covered: every one cascades from the user. One query per table in
+  `GetUserDataExportEndpoint`, then off the known-gaps list.
 - **Expedited sync on app close.** When the status screen goes to the background, enqueue an expedited one-off
   sync so what the user just saw counted is on the server a minute later rather than fifteen.

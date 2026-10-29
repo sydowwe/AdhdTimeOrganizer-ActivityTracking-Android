@@ -3,25 +3,28 @@ package com.timeorganizer.usagetracker.loops
 import java.time.Instant
 import java.time.ZoneId
 
-/** What became of a loop's check-in. Stored with the loop. */
-enum class LoopAnswer {
+/**
+ * What became of a loop's check-in. Stored with the loop by its Kotlin name; [wire] is the server's member name
+ * (`AndroidLoopAnswer`, prompt 14).
+ */
+enum class LoopAnswer(val wire: String) {
     /** Checked in, no answer yet. */
-    ASKED,
+    ASKED("Asked"),
 
     /** **Put it away**: the away timer ran. */
-    AWAY,
+    AWAY("Away"),
 
     /** **I'm fine**, or the check-in swiped away. */
-    FINE,
+    FINE("Fine"),
 
     /** **Not today**. */
-    NOT_TODAY,
+    NOT_TODAY("NotToday"),
 
     /**
      * A call or Do Not Disturb when it began, or another kind of nudge in the 10 minutes before (`NudgeGap`): not asked,
      * and not asked later either.
      */
-    SILENCED
+    SILENCED("Silenced")
 }
 
 /** The loop going on: seen at [startMs], a rule last held at [lastHeldMs]; [pickups] and [apps] are the most counted. */

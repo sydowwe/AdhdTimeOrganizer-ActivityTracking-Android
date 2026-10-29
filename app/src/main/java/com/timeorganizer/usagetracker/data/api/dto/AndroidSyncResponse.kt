@@ -10,5 +10,14 @@ data class AndroidSyncResponse(
      * phone drops its ignored packages before the outbox, so this counts only what it did not know about yet.
      */
     val ignored: Int,
+    /**
+     * Pickups the server holds after this request, out of those sent (prompt 14). **The acknowledgement**: `null` from a
+     * server before 14, which ignored them, so they stay unsent.
+     */
+    val pickupsStored: Int?,
+    val pickupsDropped: Int?,
+    /** The loops' acknowledgement, as [pickupsStored]. */
+    val loopsStored: Int?,
+    val loopsDropped: Int?,
     val syncedUpToUtc: String?
 )

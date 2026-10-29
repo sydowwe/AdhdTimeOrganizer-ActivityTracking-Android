@@ -12,13 +12,17 @@ import com.timeorganizer.usagetracker.data.api.dto.AndroidSyncRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
+import com.timeorganizer.usagetracker.data.local.outbox.PendingPickupEntity
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
 import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoreSync
 import com.timeorganizer.usagetracker.ignore.OutboxPurge
+import com.timeorganizer.usagetracker.loops.LoopDatabase
 import com.timeorganizer.usagetracker.loops.LoopMonitor
+import com.timeorganizer.usagetracker.loops.LoopPreferences
+import com.timeorganizer.usagetracker.loops.PickupLoopDao
 import com.timeorganizer.usagetracker.notify.SyncBlockedNotifier
 import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.usagestats.UsageStatsCollector
@@ -28,9 +32,6 @@ import com.timeorganizer.usagetracker.util.PermissionHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 /**
  * One sync run: read the usage log into the outbox, then drain the outbox to the server.
@@ -123,20 +124,30 @@ class SyncEngine(context: Context) {
     private suspend fun record(nowMs: Long) {
         // A clock moved backwards leaves the cursor in the future; read from now rather than from nowhere.
         val cursorMs = minOf(dao.cursorMs() ?: prefs.legacyCursorMs ?: (nowMs - Constants.FIRST_RUN_BACKFILL_MS), nowMs)
-        val built = collector.collect(cursorMs, nowMs, ignoreStore.state().ignored(nowMs))
+        // Prompt 14: the pickups' own cursor, usually before the sessions' (a pickup begins before the app it opens).
+        val pickupCursorMs = minOf(dao.pickupCursorMs() ?: cursorMs, nowMs)
+        val loopPrefs = LoopPreferences(appContext)
+        val built = collector.collect(cursorMs, nowMs, ignoreStore.state().ignored(nowMs), pickupCursorMs, loopPrefs.sawUnlock)
+        if (built.pickups.sawUnlock && !loopPrefs.sawUnlock) loopPrefs.sawUnlock = true
 
-        val rows = built.sessions.flatMap { session ->
+        val rows = built.sessions.sessions.flatMap { session ->
             SyncLimits.prepare(session, collector.resolveLabel(session.packageName)).map {
                 PendingSessionEntity(packageName = it.packageName, appLabel = it.appLabel, startMs = it.startMs, endMs = it.endMs)
             }
         }
-        dao.record(rows, maxOf(built.resumeFromMs, cursorMs))
+        val pickups = built.pickups.closed.map { PendingPickupEntity(startMs = it.startMs, endMs = it.endMs, unlocked = it.unlocked) }
+        dao.record(
+            rows, maxOf(built.sessions.resumeFromMs, cursorMs),
+            pickups, maxOf(built.pickups.resumeFromMs, pickupCursorMs)
+        )
     }
 
     private suspend fun prune(nowMs: Long) {
         dao.cursorMs()?.let { dao.pruneSent(it) }
         dao.pruneUnsentEndingBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
         dao.keepNewestUnsent(Constants.OUTBOX_MAX_UNSENT)
+        dao.pickupCursorMs()?.let { dao.pruneSentPickups(it) }
+        dao.pruneUnsentPickupsEndingBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
     }
 
     /** Rows queued before the phone learnt a package is ignored never leave. */
@@ -155,7 +166,7 @@ class SyncEngine(context: Context) {
 
         while (true) {
             val pending = dao.unsent(PAGE_SIZE)
-            if (pending.isEmpty()) return SendOutcome(counts, rejected, null, counts != SyncCounts() || rejected > 0)
+            if (pending.isEmpty()) return sendExtras(nowMs, counts, rejected)
 
             val pass = sender.sendAll(
                 pending,
@@ -168,6 +179,62 @@ class SyncEngine(context: Context) {
         }
     }
 
+    /**
+     * Prompt 14: the pickups and the loop check's loops, once every session is sent, in requests of their own. A row leaves
+     * the "unsent" queue only when the answer acknowledges it (`SyncWire.acknowledged`); a server from before 14 answers 200
+     * without, so the rest of the pass isn't sent to it at all and everything waits for an updated server (30 days at most,
+     * like the outbox). A batch refused down to one row drops that row, as for sessions.
+     */
+    private suspend fun sendExtras(nowMs: Long, counts: SyncCounts, rejected: Int): SendOutcome {
+        val deviceId = prefs.deviceId
+        val loopDao = LoopDatabase.get(appContext).loopDao()
+        // The status screen's "sent" is about sessions, as before 14: pickups go out on nearly every run.
+        val answered = counts != SyncCounts() || rejected > 0
+
+        while (true) {
+            val extras = loopDao.unsent(PAGE_SIZE).map { SyncExtra.Loop(it) } + dao.unsentPickups(PAGE_SIZE).map { SyncExtra.Pickup(it) }
+            if (extras.isEmpty()) return SendOutcome(counts, rejected, null, answered)
+
+            var unacknowledged = false
+            val sender = BatchSender<SyncExtra>(SyncLimits.MAX_EXTRAS_PER_REQUEST) { batch ->
+                if (unacknowledged) {
+                    BatchResult.Sent(SyncCounts()) // an older server: don't send it the rest
+                } else {
+                    val (result, acknowledged) = postExtras(batch, deviceId, nowMs)
+                    if (result is BatchResult.Sent && !acknowledged) unacknowledged = true
+                    result
+                }
+            }
+            val pass = sender.sendAll(
+                extras,
+                onSent = { batch -> if (!unacknowledged) markSent(batch, nowMs, loopDao) },
+                onRejected = { markSent(listOf(it), nowMs, loopDao) }
+            )
+            if (pass.stoppedBy != null) return SendOutcome(counts, rejected, pass.stoppedBy, true)
+            if (unacknowledged) return SendOutcome(counts, rejected, null, answered)
+        }
+    }
+
+    private suspend fun markSent(batch: List<SyncExtra>, nowMs: Long, loopDao: PickupLoopDao) {
+        batch.filterIsInstance<SyncExtra.Pickup>().map { it.row.id }.chunked(SQL_VARIABLES_PER_QUERY)
+            .forEach { dao.markPickupsSent(it, nowMs) }
+        batch.filterIsInstance<SyncExtra.Loop>().map { it.row.id }.chunked(SQL_VARIABLES_PER_QUERY)
+            .forEach { loopDao.markSent(it, nowMs) }
+    }
+
+    /** The answer, and whether it acknowledged the batch. Nothing known (offline, unreadable) is a wait, as for sessions. */
+    private suspend fun postExtras(batch: List<SyncExtra>, deviceId: String, nowMs: Long): Pair<BatchResult, Boolean> {
+        val response = try {
+            RetrofitClient.apiService.syncSessions(SyncWire.extrasRequest(batch, deviceId, nowMs))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return BatchResult.RetryLater to false
+        }
+        ResponseClassifier.classify(response.code())?.let { return it to false }
+        return BatchResult.Sent(SyncCounts()) to SyncWire.acknowledged(response.body(), batch)
+    }
+
     private suspend fun post(batch: List<PendingSessionEntity>, deviceId: String): BatchResult {
         // Read when sent, not stored in the outbox: a category is a fact about the app, not the session. One lookup per
         // package per batch. An app uninstalled since it was used reads as declaring none (InstalledApps.appCategory).
@@ -177,13 +244,13 @@ class SyncEngine(context: Context) {
                 AndroidSessionDto(
                     packageName = it.packageName,
                     appLabel = it.appLabel,
-                    sessionStartUtc = INSTANT.format(Instant.ofEpochMilli(it.startMs)),
-                    sessionEndUtc = INSTANT.format(Instant.ofEpochMilli(it.endMs)),
+                    sessionStartUtc = SyncWire.instant(it.startMs),
+                    sessionEndUtc = SyncWire.instant(it.endMs),
                     durationSeconds = (it.endMs - it.startMs) / 1000L,
                     appCategory = categories[it.packageName]
                 )
             },
-            syncedUpToUtc = INSTANT.format(Instant.ofEpochMilli(batch.maxOf { it.endMs })),
+            syncedUpToUtc = SyncWire.instant(batch.maxOf { it.endMs }),
             deviceId = deviceId
         )
 
@@ -223,9 +290,6 @@ class SyncEngine(context: Context) {
         /** Under SQLite's oldest bound parameter limit (999). */
         private const val SQL_VARIABLES_PER_QUERY = 500
         private val SETTLED = setOf(SyncState.SENT, SyncState.UP_TO_DATE)
-
-        private val INSTANT: DateTimeFormatter =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
 
         /**
          * After a sign-in: when it is a different account from the one the outbox was recorded for, its queued
