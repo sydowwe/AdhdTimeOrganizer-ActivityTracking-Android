@@ -104,6 +104,12 @@
     <string name="two_factor_invalid_code">That code didn\'t work. Each sign-in allows one try: tap Sign In, then enter the current code.</string>
     <string name="login_sign_in">Sign In</string>
     <string name="two_factor_verify">Verify</string>
+    <string name="login_or">or</string>
+    <string name="login_google">Sign in with Google</string>
+    <string name="login_google_failed">Google sign-in didn\'t work. Try again.</string>
+    <string name="login_google_not_linked">This address already has an account that wasn\'t created with Google. Sign in with its password above.</string>
+    <string name="login_google_unavailable">Google sign-in isn\'t available on this server yet. Use your password.</string>
+    <string name="login_google_no_account">No Google account on this phone. Add one in Settings, or use your password.</string>
 
     <!-- Evening review: notification -->
     <string name="channel_evening_review">Evening review</string>

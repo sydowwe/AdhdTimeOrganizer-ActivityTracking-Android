@@ -13,6 +13,12 @@
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 
+# Credential Manager finds its Play services provider by reflection (the keep rule its docs ask for)
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** {
+  *;
+}
+
 # OkHttp
 -dontwarn okhttp3.**
 -dontwarn okio.**

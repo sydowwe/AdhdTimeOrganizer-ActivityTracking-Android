@@ -44,6 +44,8 @@
                 android:layout_height="wrap_content"
                 android:inputType="textEmailAddress"
                 android:imeOptions="actionNext"
+                android:autofillHints="emailAddress"
+                android:importantForAutofill="yes"
                 android:singleLine="true" />
 
         </com.google.android.material.textfield.TextInputLayout>
@@ -63,6 +65,8 @@
                 android:layout_height="wrap_content"
                 android:inputType="textPassword"
                 android:imeOptions="actionDone"
+                android:autofillHints="password"
+                android:importantForAutofill="yes"
                 android:singleLine="true" />
 
         </com.google.android.material.textfield.TextInputLayout>
@@ -154,6 +158,51 @@
             android:layout_height="wrap_content"
             android:text="@string/login_sign_in"
             android:layout_marginTop="8dp" />
+
+        <!-- "or" and Google's button; hidden during the code step, and when the build has no Google client id -->
+        <LinearLayout
+            android:id="@+id/googleGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/login_or"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:alpha="0.7"
+                    android:layout_marginStart="12dp"
+                    android:layout_marginEnd="12dp" />
+
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnGoogle"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/login_google" />
+
+        </LinearLayout>
 
         <ProgressBar
             android:id="@+id/progressBar"

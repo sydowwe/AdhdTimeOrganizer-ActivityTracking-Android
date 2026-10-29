@@ -262,7 +262,11 @@ or `WAITING` for more than 24 h with sessions pending. Once per condition, clear
 
 **Catches.** Don't nag: once per condition per day at most.
 
-## 12. Browser-based sign-in
+## 12. Browser-based sign-in — replaced by native Google sign-in, 2026-10-29
+
+> **Built differently (prompt 23):** no browser. "Sign in with Google" through Credential Manager sends an ID token to
+> `POST auth/tracker/login/google`; the password form gains autofill hints and an asset link to the web app, so Google
+> Password Manager offers the web's saved sign-ins. See `CLAUDE.md` → *Auth*. What follows is the original idea.
 
 **Why.** (From the desktop list.) Accounts created with Google have no password. The phone can't sign them in.
 

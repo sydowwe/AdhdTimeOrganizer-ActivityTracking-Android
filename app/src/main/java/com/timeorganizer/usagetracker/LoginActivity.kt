@@ -16,9 +16,11 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.timeorganizer.usagetracker.auth.GoogleSignIn
 import com.timeorganizer.usagetracker.auth.SignOutReason
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.AuthResponse
+import com.timeorganizer.usagetracker.data.api.dto.GoogleLoginRequest
 import com.timeorganizer.usagetracker.data.api.dto.LoginRequest
 import com.timeorganizer.usagetracker.data.api.dto.TwoFactorLoginRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
@@ -28,10 +30,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Response
+import java.time.ZoneId
 
 /**
- * Password sign-in, then — for an account with two-factor authentication — the code step
- * (`/auth/tracker/login/2fa` with the pending token the password step returned).
+ * Password sign-in, or "Sign in with Google" (Credential Manager's ID token to `/auth/tracker/login/google`), then —
+ * for an account with two-factor authentication — the code step (`/auth/tracker/login/2fa` with the pending token
+ * the first step returned). The email and password fields carry autofill hints, so Google Password Manager offers
+ * the web app's saved sign-ins (the manifest's `asset_statements`) and offers to save a typed one.
  */
 class LoginActivity : AppCompatActivity() {
 
@@ -47,6 +52,8 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var etCode: TextInputEditText
     private lateinit var btnCodeMode: Button
     private lateinit var btnLogin: Button
+    private lateinit var googleGroup: View
+    private lateinit var btnGoogle: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var tvError: TextView
 
@@ -76,6 +83,8 @@ class LoginActivity : AppCompatActivity() {
         etCode = findViewById(R.id.etCode)
         btnCodeMode = findViewById(R.id.btnCodeMode)
         btnLogin = findViewById(R.id.btnLogin)
+        googleGroup = findViewById(R.id.googleGroup)
+        btnGoogle = findViewById(R.id.btnGoogle)
         progressBar = findViewById(R.id.progressBar)
         tvError = findViewById(R.id.tvError)
 
@@ -85,6 +94,8 @@ class LoginActivity : AppCompatActivity() {
         etOtp.doAfterTextChanged { onOtpChanged() }
         etOtp.setOnFocusChangeListener { _, _ -> renderOtp() }
         btnCodeMode.setOnClickListener { setRecoveryMode(!useRecoveryCode) }
+        btnGoogle.setOnClickListener { attemptGoogle() }
+        showGoogle(true)
 
         savedInstanceState?.getString(STATE_PENDING_TOKEN)?.let {
             showCodeStep(it, recovery = savedInstanceState.getBoolean(STATE_RECOVERY))
@@ -124,22 +135,46 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        submit({ RetrofitClient.authApiService.login(LoginRequest(email, password)) }) { body ->
-            val pending = body.pendingAuthToken
-            when {
-                !body.requiresTwoFactor -> false
-                body.requiresTwoFactorSetup -> {
-                    showError(R.string.login_two_factor_setup_required)
-                    true
+        submit({ RetrofitClient.authApiService.login(LoginRequest(email, password)) }, handleBody = ::onFirstStep)
+    }
+
+    private fun attemptGoogle() {
+        tilEmail.error = null
+        tilPassword.error = null
+        tvError.visibility = View.GONE
+        setLoading(true)
+
+        lifecycleScope.launch {
+            val outcome = GoogleSignIn.requestIdToken(this@LoginActivity)
+            setLoading(false)
+            when (outcome) {
+                is GoogleSignIn.Outcome.Token -> {
+                    val request = GoogleLoginRequest(outcome.idToken, ZoneId.systemDefault().id)
+                    submit({ RetrofitClient.authApiService.loginGoogle(request) }, viaGoogle = true, handleBody = ::onFirstStep)
                 }
-                pending.isNullOrEmpty() -> {
-                    showError(R.string.login_unexpected_response)
-                    true
-                }
-                else -> {
-                    showCodeStep(pending)
-                    true
-                }
+                GoogleSignIn.Outcome.Cancelled -> Unit
+                GoogleSignIn.Outcome.NoAccount -> showError(R.string.login_google_no_account)
+                GoogleSignIn.Outcome.Failed -> showError(R.string.login_google_failed)
+            }
+        }
+    }
+
+    /** The first step's answer (password or Google): the token pair (`false`, let [submit] finish), or the 2FA hand-off. */
+    private fun onFirstStep(body: AuthResponse): Boolean {
+        val pending = body.pendingAuthToken
+        return when {
+            !body.requiresTwoFactor -> false
+            body.requiresTwoFactorSetup -> {
+                showError(R.string.login_two_factor_setup_required)
+                true
+            }
+            pending.isNullOrEmpty() -> {
+                showError(R.string.login_unexpected_response)
+                true
+            }
+            else -> {
+                showCodeStep(pending)
+                true
             }
         }
     }
@@ -169,9 +204,14 @@ class LoginActivity : AppCompatActivity() {
 
     /**
      * Runs one auth call and handles every answer the same way. [handleBody] returns `true` when it dealt with
-     * a successful body itself (the 2FA hand-off); otherwise the body must carry the token pair.
+     * a successful body itself (the 2FA hand-off); otherwise the body must carry the token pair. [viaGoogle] words
+     * the Google route's own refusals: 400 the token, 409 an address registered another way, 503 not set up.
      */
-    private fun submit(call: suspend () -> Response<AuthResponse>, handleBody: (AuthResponse) -> Boolean) {
+    private fun submit(
+        call: suspend () -> Response<AuthResponse>,
+        viaGoogle: Boolean = false,
+        handleBody: (AuthResponse) -> Boolean
+    ) {
         setLoading(true)
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -188,6 +228,9 @@ class LoginActivity : AppCompatActivity() {
                 result == null -> showError(R.string.login_network_error)
                 result.isSuccessful && body == null -> showError(R.string.login_unexpected_response)
                 result.isSuccessful && body != null -> if (!handleBody(body)) completeSignIn(body)
+                viaGoogle && result.code() == 409 -> showError(R.string.login_google_not_linked)
+                viaGoogle && result.code() == 503 -> showError(R.string.login_google_unavailable)
+                viaGoogle && (result.code() == 401 || result.code() == 400) -> showError(R.string.login_google_failed)
                 result.code() == 401 || result.code() == 400 ->
                     if (pendingAuthToken == null) showError(R.string.login_invalid_credentials) else onCodeRefused()
                 // Refused for this account after the password was right: scheduled for deletion, no tracker access.
@@ -223,6 +266,7 @@ class LoginActivity : AppCompatActivity() {
         tilPassword.visibility = View.GONE
         tvTwoFactorHint.visibility = View.VISIBLE
         btnCodeMode.visibility = View.VISIBLE
+        showGoogle(false)
         btnLogin.setText(R.string.two_factor_verify)
         setRecoveryMode(recovery)
     }
@@ -269,6 +313,7 @@ class LoginActivity : AppCompatActivity() {
         otpContainer.visibility = View.GONE
         tilCode.visibility = View.GONE
         btnCodeMode.visibility = View.GONE
+        showGoogle(true)
         btnLogin.setText(R.string.login_sign_in)
         WindowCompat.getInsetsController(window, btnLogin).hide(WindowInsetsCompat.Type.ime())
         showError(R.string.two_factor_invalid_code)
@@ -281,12 +326,17 @@ class LoginActivity : AppCompatActivity() {
 
     private fun setLoading(loading: Boolean) {
         btnLogin.isEnabled = !loading
+        btnGoogle.isEnabled = !loading
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         etEmail.isEnabled = !loading && pendingAuthToken == null
         etPassword.isEnabled = !loading
         etCode.isEnabled = !loading
         etOtp.isEnabled = !loading
         btnCodeMode.isEnabled = !loading
+    }
+
+    private fun showGoogle(show: Boolean) {
+        googleGroup.visibility = if (show && GoogleSignIn.isConfigured) View.VISIBLE else View.GONE
     }
 
     private fun showError(@StringRes message: Int) = showError(getString(message))

@@ -12,6 +12,14 @@ object Constants {
 //    const val WEB_APP_ROOT = "https://10.0.2.2:3001/"
     const val WEB_APP_ROOT = "https://test.adhdtimeorganizer.com/"
 
+    /**
+     * "Sign in with Google": the server's **web** OAuth client id (its `OAUTH2_GOOGLE_CLIENT_ID`), which Credential
+     * Manager names as the ID token's audience. Public, not a secret. Goes with [SERVER_ROOT]: switch them together.
+     * Blank hides the Google button. Google accepts the request only from a build whose signing key's SHA-1 is on an
+     * Android OAuth client in the same Google Cloud project — the ids the server lists in `OAUTH2_GOOGLE_ANDROID_CLIENT_IDS`.
+     */
+    const val GOOGLE_SERVER_CLIENT_ID = ""
+
     /** The anonymous liveness route — outside `/api` (`Program.HealthCheckPath`). */
     const val HEALTH_URL = SERVER_ROOT + "health"
 

@@ -67,7 +67,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
 | `util/InstalledApps.kt` | Labels, icons, launcher entries and the home apps from `PackageManager`, within what `<queries>` makes visible |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
-| `LoginActivity.kt`, `MainActivity.kt` | Password + 2FA sign-in; status screen (red banner while usage access is off, amber while setup is unfinished) |
+| `LoginActivity.kt`, `MainActivity.kt` | Password or Google sign-in, then 2FA; status screen (red banner while usage access is off, amber while setup is unfinished) |
+| `auth/GoogleSignIn.kt` | Credential Manager's "Sign in with Google" → the ID token the server verifies |
 | `SettingsActivity.kt` | The set-once things: usage access, battery-optimization exemption, notification permission — a check and "Manage" (the system page; an app can't revoke these itself) once granted. Opens by itself on first run |
 
 `app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, `loops.db` since prompt 12, `capture.db` since 18). Commit
@@ -101,7 +102,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   built against and warns if it is production.
 - **`WEB_APP_ROOT` beside it is the web app that goes with that server** (`https://test.adhdtimeorganizer.com/` on
   `main`; production is `https://adhdtimeorganizer.com/`), its own origin — the API is not the web app. The drift
-  nudge's "Switch plan" opens its `day-planner`. Switch both together.
+  nudge's "Switch plan" opens its `day-planner`. Switch both together, with `GOOGLE_SERVER_CLIENT_ID` beside them and
+  `res/values/asset_statements.xml` (*Auth*).
 
 ## Versioning
 
@@ -263,6 +265,19 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   `commit()` — a rotated pair lost to `apply()` and a kill is a replay. Backup and device transfer exclude
   everything (`data_extraction_rules.xml`): a restored token or device id on a second phone breaks both rules above.
 - The authenticator refreshes at most once per request (`priorResponse`) and serializes refreshes on one lock.
+- **"Sign in with Google" is native (prompt 23, 2026-10-29)**, under the password form: Credential Manager's
+  `GetSignInWithGoogleOption` → an ID token → `POST auth/tracker/login/google` (`GoogleLoginRequest`: the token and the
+  phone's IANA zone, used only if this creates the account — an unknown Google address registers, as on the web). The
+  answer is the password login's: the token pair, or the 2FA hand-off to the same code step. The server accepts the token
+  only when its `azp` is one of our Android OAuth clients (`OAUTH2_GOOGLE_ANDROID_CLIENT_IDS`), and always issues the
+  phone's session for it. **Setup outside the code:** an Android OAuth client in the server's Google Cloud project for
+  each signing key (package + SHA-1; Google refuses a build whose key has none), its id in the server's env var, and the
+  server's web client id in `Constants.GOOGLE_SERVER_CLIENT_ID` (blank hides the button; switch it with `SERVER_ROOT`).
+- **Google Password Manager offers the web's saved sign-ins** through a Digital Asset Link: the email and password
+  fields carry `autofillHints`, the manifest's `asset_statements` (`res/values/asset_statements.xml`, must name
+  `WEB_APP_ROOT` — `AssetStatementsTest`) points at the web app's `/.well-known/assetlinks.json`, a static file in the
+  frontend repo's `public/` listing this app's signing-key SHA-256s. **A new signing key (the release key, prompt 25)
+  goes into that file and gets its own Android OAuth client**, or both features stop for builds signed with it.
 
 ### Notifications
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the

@@ -1,6 +1,7 @@
 package com.timeorganizer.usagetracker.data.api
 
 import com.timeorganizer.usagetracker.data.api.dto.AuthResponse
+import com.timeorganizer.usagetracker.data.api.dto.GoogleLoginRequest
 import com.timeorganizer.usagetracker.data.api.dto.LoginRequest
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.api.dto.TwoFactorLoginRequest
@@ -21,6 +22,11 @@ interface AuthApiService {
     @POST("auth/tracker/login")
     suspend fun login(
         @Body request: LoginRequest
+    ): Response<AuthResponse>
+
+    @POST("auth/tracker/login/google")
+    suspend fun loginGoogle(
+        @Body request: GoogleLoginRequest
     ): Response<AuthResponse>
 
     @POST("auth/tracker/login/2fa")

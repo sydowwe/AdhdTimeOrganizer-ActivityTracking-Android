@@ -10,6 +10,16 @@ data class LoginRequest(
     val client: String = "AndroidTracker"
 )
 
+/**
+ * `TrackerGoogleLoginRequest`: the ID token Credential Manager returned. The server always issues the phone's session
+ * for it (the token must have been issued to our Android client), so there is no `client`. `timezone` (IANA) is used
+ * only when this sign-in creates the account.
+ */
+data class GoogleLoginRequest(
+    val idToken: String,
+    val timezone: String
+)
+
 data class RefreshRequest(
     val refreshToken: String
 )

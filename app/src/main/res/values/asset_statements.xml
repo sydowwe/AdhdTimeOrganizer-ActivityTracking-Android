@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's half of the Digital Asset Link with the web app (the manifest's asset_statements): Google Password
+     Manager offers the sign-ins saved for that site here. The site's half is its /.well-known/assetlinks.json, which
+     lists this app's signing-key fingerprints. Must name Constants.WEB_APP_ROOT's origin: switch it with that
+     (AssetStatementsTest fails otherwise). -->
+<resources>
+    <string name="asset_statements" translatable="false">[{\"include\": \"https://test.adhdtimeorganizer.com/.well-known/assetlinks.json\"}]</string>
+</resources>

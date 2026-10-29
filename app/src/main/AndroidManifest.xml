@@ -47,6 +47,12 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TimeOrganizerUsageTracker">
 
+        <!-- This app and the web app are one: Google Password Manager offers the web's saved sign-ins here
+             (the web's side is its /.well-known/assetlinks.json; res/values/asset_statements.xml). -->
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
