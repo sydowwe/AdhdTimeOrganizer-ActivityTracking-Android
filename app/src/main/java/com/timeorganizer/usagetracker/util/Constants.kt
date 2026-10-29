@@ -18,7 +18,7 @@ object Constants {
      * Blank hides the Google button. Google accepts the request only from a build whose signing key's SHA-1 is on an
      * Android OAuth client in the same Google Cloud project — the ids the server lists in `OAUTH2_GOOGLE_ANDROID_CLIENT_IDS`.
      */
-    const val GOOGLE_SERVER_CLIENT_ID = ""
+    const val GOOGLE_SERVER_CLIENT_ID = "579844911566-22rdpksfphokkmjp7ttac03r2qc5feg4.apps.googleusercontent.com"
 
     /** The anonymous liveness route — outside `/api` (`Program.HealthCheckPath`). */
     const val HEALTH_URL = SERVER_ROOT + "health"
