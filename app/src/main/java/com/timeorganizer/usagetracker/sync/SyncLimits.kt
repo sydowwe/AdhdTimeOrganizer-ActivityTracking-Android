@@ -22,6 +22,12 @@ object SyncLimits {
      */
     const val MAX_EXTRAS_PER_REQUEST = 500
 
+    /**
+     * Interruptions and derailments per request, together (prompt 15), in requests of their own after the pickups and loops.
+     * The server accepts 2000 of each; a busy day is a few hundred interruptions.
+     */
+    const val MAX_NOTIFICATION_ROWS_PER_REQUEST = 500
+
     const val MAX_PACKAGE_NAME_LENGTH = 255
     const val MAX_APP_LABEL_LENGTH = 255
 

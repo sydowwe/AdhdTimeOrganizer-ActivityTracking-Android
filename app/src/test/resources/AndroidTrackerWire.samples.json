@@ -8,6 +8,10 @@
     "pickupsDropped": 0,
     "loopsStored": 1,
     "loopsDropped": 0,
+    "interruptionsStored": 3,
+    "interruptionsDropped": 0,
+    "derailmentsStored": 1,
+    "derailmentsDropped": 0,
     "syncedUpToUtc": "2026-10-23T08:15:00.0000000Z"
   },
   "rules": [
@@ -73,6 +77,13 @@
     ],
     "loops": [
       { "startUtc": "2026-10-22T21:05:00.000Z", "endUtc": "2026-10-22T21:20:00.000Z", "rule": "Pickups", "pickups": 7, "apps": 3, "answer": "NotToday" }
+    ],
+    "interruptions": [
+      { "atUtc": "2026-10-23T07:02:00.000Z", "packageName": "com.whatsapp" },
+      { "atUtc": "2026-10-23T07:40:00.000Z", "packageName": "com.slack" }
+    ],
+    "derailments": [
+      { "packageName": "com.whatsapp", "notifiedUtc": "2026-10-23T07:02:00.000Z", "startUtc": "2026-10-23T07:02:30.000Z", "endUtc": "2026-10-23T07:36:30.000Z", "endedBy": "Returned" }
     ]
   },
   "ignoreRequest": { "appLabel": "Instagram", "appCategory": "Social" },

@@ -34,12 +34,15 @@ import com.timeorganizer.usagetracker.data.api.dto.TrackerCategoryDto
 import com.timeorganizer.usagetracker.data.api.dto.TrackerProblem
 import com.timeorganizer.usagetracker.data.api.dto.TrackerProblemResponse
 import com.timeorganizer.usagetracker.data.api.dto.TrackerRoleDto
+import com.timeorganizer.usagetracker.data.local.outbox.PendingDerailmentEntity
+import com.timeorganizer.usagetracker.data.local.outbox.PendingInterruptionEntity
 import com.timeorganizer.usagetracker.data.local.outbox.PendingPickupEntity
 import com.timeorganizer.usagetracker.loops.LoopAnswer
 import com.timeorganizer.usagetracker.loops.LoopRule
 import com.timeorganizer.usagetracker.loops.PickupLoopEntity
 import com.timeorganizer.usagetracker.mapping.AppCategory
 import com.timeorganizer.usagetracker.sync.SyncWire
+import com.timeorganizer.usagetracker.usagestats.DerailmentEnd
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -78,6 +81,11 @@ class WireSampleTest {
         assertEquals(0, sync.pickupsDropped)
         assertEquals(1, sync.loopsStored)
         assertEquals(0, sync.loopsDropped)
+        // Prompt 15's, likewise for the interruptions and derailments.
+        assertEquals(3, sync.interruptionsStored)
+        assertEquals(0, sync.interruptionsDropped)
+        assertEquals(1, sync.derailmentsStored)
+        assertEquals(0, sync.derailmentsDropped)
     }
 
     @Test
@@ -200,6 +208,18 @@ class WireSampleTest {
                     PickupLoopEntity(
                         startMs = at("2026-10-22T21:05:00Z"), endMs = at("2026-10-22T21:20:00Z"),
                         rule = LoopRule.PICKUPS.name, pickups = 7, apps = 3, answer = LoopAnswer.NOT_TODAY.name
+                    )
+                )
+            ),
+            interruptions = listOf(
+                SyncWire.interruption(PendingInterruptionEntity(packageName = "com.whatsapp", atMs = at("2026-10-23T07:02:00Z"))),
+                SyncWire.interruption(PendingInterruptionEntity(packageName = "com.slack", atMs = at("2026-10-23T07:40:00Z")))
+            ),
+            derailments = listOfNotNull(
+                SyncWire.derailment(
+                    PendingDerailmentEntity(
+                        packageName = "com.whatsapp", notifiedMs = at("2026-10-23T07:02:00Z"), startMs = at("2026-10-23T07:02:30Z"),
+                        endMs = at("2026-10-23T07:36:30Z"), endedBy = DerailmentEnd.RETURNED.name
                     )
                 )
             )

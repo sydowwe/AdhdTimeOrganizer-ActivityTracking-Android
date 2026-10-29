@@ -20,11 +20,12 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `usagestats/UsageStatsCollector.kt` | Reads the usage log for a window, maps event types, resolves app labels |
 | `usagestats/Pickups.kt` | **Pure.** Events → pickups (screen on or unlock → screen off / keyguard), each unlocked or not. The loop check reads it, and so does `PickupCounter` |
 | `usagestats/PickupCounter.kt` | **Pure.** The sync's pickups (prompt 14): the settled ones, where the next read starts (the earliest pickup still going), the no-lock-screen rule |
+| `usagestats/DerailmentLinker.kt` | **Pure.** The notifications that interrupted and the derailments they started (prompt 15): `NOTIFIED` events joined to the sittings, where the next read starts |
 | `sync/SyncLimits.kt` | **Pure.** The server's per-session rules, applied before a session is queued |
-| `sync/SyncWire.kt` | **Pure.** The wire instant, the pickups-and-loops request, whether an answer acknowledged it (prompt 14) |
+| `sync/SyncWire.kt` | **Pure.** The wire instant, the extras request (pickups and loops, prompt 14; interruptions and derailments, 15), whether an answer acknowledged each kind |
 | `sync/BatchSender.kt` | **Pure.** Batching, `ResponseClassifier` (status → sent / wait / auth / rejected), bisecting a refused batch |
 | `sync/SyncEngine.kt` | One run: usage log → outbox → server. Process-wide mutex. Writes the `SyncReport` the screen shows |
-| `data/local/outbox/Outbox.kt` | Room: `pending_session` (the outbox), `pending_pickup` (prompt 14) and `sync_cursor` (both cursors), committed together |
+| `data/local/outbox/Outbox.kt` | Room: `pending_session` (the outbox), `pending_pickup` (prompt 14), `pending_interruption` / `pending_derailment` (15) and `sync_cursor` (all three cursors), committed together |
 | `data/local/AuthPreferences.kt` | Token pair, Keystore-encrypted, `commit()`; why the last session ended |
 | `data/local/SyncPreferences.kt` | Device id, the account the outbox belongs to, the last `SyncReport` |
 | `auth/RefreshPolicy.kt` | **Pure.** When a refresh saves, retries, keeps the tokens, or signs out |
@@ -71,7 +72,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 
 `app/schemas/` holds Room's exported schemas, one folder per database (`outbox.db`, `loops.db` since prompt 12, `capture.db` since 18). Commit
 them with any entity change and write a real migration (its SQL copied from the exported `createSql`, as prompt 14's
-`MIGRATION_1_2` in `outbox.db` and `loops.db` are). No test runs a migration: the JVM tests can't open Room, and there are
+`MIGRATION_1_2` in `outbox.db` and `loops.db` and 15's `MIGRATION_2_3` in `outbox.db` are). No test runs a migration: the JVM tests can't open Room, and there are
 no instrumented tests. **The first build of a new `@Database`** — or of a new schema version — can fail
 `kspReleaseKotlin` with `JsonDecodingException: Expected start of the object '{', but had 'EOF'`: the debug and release KSP
 tasks race to write its new schema file. The file is fine once one of them has; run the build again.
@@ -171,6 +172,15 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   without them, so nothing is marked and the rest of the pass isn't sent to it; the rows wait for an updated server, 30
   days at most. Repeats are the server's `(user, device, start)`, skipped: re-sending is safe. A batch refused down to one
   row drops that row, as for sessions. Deploy order doesn't matter. The status screen's "sent" still means sessions.
+- **Interruptions and derailments ride the sync too (prompt 15)**: `interruptions: [{atUtc, packageName}]` and `derailments:
+  [{packageName, notifiedUtc, startUtc, endUtc, endedBy}]` (`DerailmentEnd.wire`: `Returned` / `ScreenOff` / `Capped`), **in
+  requests of their own after the pickups-and-loops group** (`SyncEngine.sendExtraGroup`, up to
+  `SyncLimits.MAX_NOTIFICATION_ROWS_PER_REQUEST`), acknowledged by `interruptionsStored` / `derailmentsStored`. Separate
+  because the acknowledgement is per kind: a server from 14 acknowledges pickups and not these, and must keep taking pickups.
+  A server that ignored pickups isn't sent these at all. Repeats: `(user, device, at, package)` / `(user, device, start)`.
+  **Only the package and the instant, never the notification's text, title or channel** (decision 15-5; the log has no
+  text, and the channel id is blanked for this app anyway). The server drops an ignored package's rows too and purges them
+  on an ignore.
 - **The sync, rules, ignore, mapping, `/now`, capture and budget answers** (`activities`, `activityCreated`, `problem`, `distraction`,
   `appCategoryLink`, `now`, `captured`, `budgets`, `budgetClaimed`), **and the requests the phone writes** (`syncRequest`, `ignoreRequest`,
   `startBlockRequest`, `captureRequest`, `budgetClaimRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
@@ -203,6 +213,22 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   (no lock screen, `LoopPreferences.sawUnlock`, shared with the loop check and set by the sync's read too), a pickup that
   brought an app other than the home screen or this one to the front counts as unlocked. Sent pickups are pruned once the
   pickup cursor passes them, unsent ones after 30 days; an account switch drops them with the sessions.
+- **Notifications have a cursor of their own** (`sync_cursor.derailmentCursorMs`, prompt 15), and the read reaches
+  `DerailmentLinker.LOOKBACK_MS` (3 h) before it, so the app in front when a notification came is known. The event is
+  `NOTIFICATION_INTERRUPTION` (12) — **`@SystemApi`, so the SDK hides the constant** (`UsageStatsCollector` names it
+  itself), but it reaches an app with usage access with only its channel id blanked; **not yet seen on a device**. What
+  counts (`DerailmentLinker`, pure, `DerailmentLinkerTest`):
+  - **Every interruption is kept**, as soon as it is read, except this app's own nudges and the ignored apps'.
+  - **A derailment** is the notifying app coming to the front within 60 s — not when it was in front already, not a pickup
+    that didn't open it. It **ends** when the app in front at the notification is in front again (`Returned`), the screen
+    goes off (`ScreenOff`), or 2 h after it opened (`Capped`). The home screen and this app are nothing to go back to.
+  - **One at a time:** a notification whose app opens inside a derailment already going (a burst, Slack while still in
+    WhatsApp's) starts none; the first one owns the stretch. Its length is phone time from the opening.
+  - **The cursor** rests at the earliest notification still undecided (its minute not up, or its derailment still going) —
+    and never inside a settled derailment a later notification depends on, or that one would be read again without it and
+    start a derailment of its own. Re-reading in pieces gives what one long read gives.
+  Sent rows are pruned once the cursor passes their notification, unsent ones after 30 days; an ignore deletes an app's
+  unsent ones (`OutboxDao.deleteUnsentOf`); an account switch drops them with the sessions.
 - Sessions under 5 s are not queued (client policy, `SyncLimits.MIN_SESSION_MS`).
 - **The home screen and Recents are not sent.** They are the launcher's activities, so the log counts them as an
   app in front (a 6 s `com.sec.android.app.launcher` row between every two apps). `UsageStatsCollector.collect`
@@ -643,7 +669,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - No email, name, password or token in logs. The OkHttp logger is `BASIC` in debug and off in release, with
   `Authorization` redacted. **Never `BODY`**: the login body is the password, auth bodies are tokens, a sync body
   is every app the person used.
-- Package names and app labels are personal (they say what someone does on their phone); don't log them either.
+- Package names and app labels are personal (they say what someone does on their phone); don't log them either. So is
+  which apps notify and when (prompt 15): never logged, and a notification's text is never read at all.
 
 ### Device identity
 - `deviceId` is kept once stored. New installs use `"android-" + ANDROID_ID` (stable across reinstall, scoped to

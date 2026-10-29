@@ -18,36 +18,55 @@ class UsageStatsCollector(context: Context) {
 
     private val ownPackage = context.packageName
 
-    /** One read of the log for the sync: the sessions from their cursor, the pickups (prompt 14) from theirs. */
-    data class Collected(val sessions: BuildResult, val pickups: PickupCount)
+    /**
+     * One read of the log for the sync: the sessions from their cursor, the pickups (prompt 14) from theirs, the
+     * notifications and derailments (prompt 15) from theirs.
+     */
+    data class Collected(val sessions: BuildResult, val pickups: PickupCount, val derailments: DerailmentRead)
 
     /**
      * The home screen and Recents are left out of what is sent (client policy, like `SyncLimits.MIN_SESSION_MS`), and
      * so are the [ignoredPackages] (the user's ignore rules, `IgnoreState.ignored`). Both still count as "another app"
-     * inside [SessionBuilder]'s merge rule.
+     * inside [SessionBuilder]'s merge rule. An ignored app's notifications, and this app's own, are not read.
      *
-     * The log is read once, from the earlier of the two cursors: [SessionBuilder] gets only the events from [fromMs] (it
+     * The log is read once, from the earliest of the three cursors: [SessionBuilder] gets only the events from [fromMs] (it
      * must not see a sitting twice), [PickupCounter] everything from [pickupsFromMs] — which usually lies before [fromMs],
-     * since a pickup begins before the app it opens.
+     * since a pickup begins before the app it opens — and [DerailmentLinker] everything from [DerailmentLinker.LOOKBACK_MS]
+     * before [derailmentsFromMs], so it knows what was in front when a notification came.
      */
     fun collect(
         fromMs: Long,
         toMs: Long,
         ignoredPackages: Set<String>,
         pickupsFromMs: Long,
-        sawUnlock: Boolean
+        sawUnlock: Boolean,
+        derailmentsFromMs: Long
     ): Collected {
         val builder = SessionBuilder()
         val pickupEvents = mutableListOf<UsageEventRecord>()
-        val read = forEachEvent(minOf(fromMs, pickupsFromMs), toMs) { event ->
+        val derailmentEvents = mutableListOf<UsageEventRecord>()
+        val lookbackFromMs = derailmentsFromMs - DerailmentLinker.LOOKBACK_MS
+        val read = forEachEvent(minOf(fromMs, pickupsFromMs, lookbackFromMs), toMs) { event ->
             if (event.timestampMs >= fromMs) builder.onEvent(event)
             if (event.timestampMs >= pickupsFromMs) pickupEvents += event
+            if (event.timestampMs >= lookbackFromMs) derailmentEvents += event
         }
-        if (!read) return Collected(builder.build(fromMs), PickupCount(emptyList(), pickupsFromMs, sawUnlock))
+        if (!read) {
+            return Collected(
+                builder.build(fromMs),
+                PickupCount(emptyList(), pickupsFromMs, sawUnlock),
+                DerailmentRead(emptyList(), emptyList(), derailmentsFromMs)
+            )
+        }
 
         return Collected(
             builder.build(toMs).forOutbox(installedApps.homePackages, ignoredPackages),
-            PickupCounter.count(pickupEvents, toMs, sawUnlock, installedApps.homePackages + ownPackage)
+            PickupCounter.count(pickupEvents, toMs, sawUnlock, installedApps.homePackages + ownPackage),
+            DerailmentLinker.link(
+                derailmentEvents, derailmentsFromMs, toMs,
+                excluded = installedApps.homePackages + ownPackage,
+                dropped = ignoredPackages + ownPackage
+            )
         )
     }
 
@@ -91,6 +110,17 @@ class UsageStatsCollector(context: Context) {
         UsageEvents.Event.DEVICE_STARTUP -> EventKind.DEVICE_STARTUP
         UsageEvents.Event.SCREEN_INTERACTIVE -> EventKind.SCREEN_ON
         UsageEvents.Event.KEYGUARD_HIDDEN -> EventKind.UNLOCKED
+        NOTIFICATION_INTERRUPTION -> EventKind.NOTIFIED
         else -> EventKind.OTHER
+    }
+
+    private companion object {
+        /**
+         * `UsageEvents.Event.NOTIFICATION_INTERRUPTION` (prompt 15). The constant is `@SystemApi`, so the SDK hides it, but the
+         * event itself reaches an app with usage access: the platform blanks only its channel id for such callers
+         * (`UsageEvents.OBFUSCATED_NOTIFICATION_CHANNEL_ID`), and nothing here reads the channel. The value is fixed by the
+         * platform's event list since API 28.
+         */
+        const val NOTIFICATION_INTERRUPTION = 12
     }
 }

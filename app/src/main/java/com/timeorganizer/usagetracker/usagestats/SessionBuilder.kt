@@ -45,8 +45,9 @@ class SessionBuilder(private val mergeGapMs: Long = MERGE_GAP_MS) {
                 val beforeBoot = lastEventMs
                 if (beforeBoot != null) closeAll(beforeBoot) else open.clear()
             }
-            // Pickups (`Pickups`) read these; a session starts with an app's resume, not with the screen.
-            EventKind.SCREEN_ON, EventKind.UNLOCKED, EventKind.OTHER -> Unit
+            // Pickups (`Pickups`) and the derailment linker read these; a session starts with an app's resume, not with
+            // the screen or a notification.
+            EventKind.SCREEN_ON, EventKind.UNLOCKED, EventKind.NOTIFIED, EventKind.OTHER -> Unit
         }
         lastEventMs = maxOf(lastEventMs ?: event.timestampMs, event.timestampMs)
     }
@@ -142,6 +143,12 @@ enum class EventKind {
 
     /** `KEYGUARD_HIDDEN`: the lock screen was dismissed. */
     UNLOCKED,
+
+    /**
+     * `NOTIFICATION_INTERRUPTION`: a notification of [UsageEventRecord.packageName] interrupted (sound, vibration, a heads-up)
+     * — `DerailmentLinker` reads it (prompt 15). Only the package and the instant; the log carries no text.
+     */
+    NOTIFIED,
 
     OTHER
 }

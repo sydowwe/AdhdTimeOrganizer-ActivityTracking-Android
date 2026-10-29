@@ -65,7 +65,7 @@ object Pickups {
                     if (beforeBoot != null) close(beforeBoot) else startMs = null
                     closedLocked = null
                 }
-                EventKind.RESUMED, EventKind.PAUSED, EventKind.STOPPED, EventKind.OTHER -> Unit
+                EventKind.RESUMED, EventKind.PAUSED, EventKind.STOPPED, EventKind.NOTIFIED, EventKind.OTHER -> Unit
             }
             lastEventMs = event.timestampMs
         }

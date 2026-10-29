@@ -12,6 +12,8 @@ import com.timeorganizer.usagetracker.data.api.dto.AndroidSyncRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
+import com.timeorganizer.usagetracker.data.local.outbox.PendingDerailmentEntity
+import com.timeorganizer.usagetracker.data.local.outbox.PendingInterruptionEntity
 import com.timeorganizer.usagetracker.data.local.outbox.PendingPickupEntity
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
 import com.timeorganizer.usagetracker.drift.DriftMonitor
@@ -126,8 +128,12 @@ class SyncEngine(context: Context) {
         val cursorMs = minOf(dao.cursorMs() ?: prefs.legacyCursorMs ?: (nowMs - Constants.FIRST_RUN_BACKFILL_MS), nowMs)
         // Prompt 14: the pickups' own cursor, usually before the sessions' (a pickup begins before the app it opens).
         val pickupCursorMs = minOf(dao.pickupCursorMs() ?: cursorMs, nowMs)
+        // Prompt 15: the notifications' own, at the earliest one still undecided.
+        val derailmentCursorMs = minOf(dao.derailmentCursorMs() ?: cursorMs, nowMs)
         val loopPrefs = LoopPreferences(appContext)
-        val built = collector.collect(cursorMs, nowMs, ignoreStore.state().ignored(nowMs), pickupCursorMs, loopPrefs.sawUnlock)
+        val built = collector.collect(
+            cursorMs, nowMs, ignoreStore.state().ignored(nowMs), pickupCursorMs, loopPrefs.sawUnlock, derailmentCursorMs
+        )
         if (built.pickups.sawUnlock && !loopPrefs.sawUnlock) loopPrefs.sawUnlock = true
 
         val rows = built.sessions.sessions.flatMap { session ->
@@ -136,9 +142,22 @@ class SyncEngine(context: Context) {
             }
         }
         val pickups = built.pickups.closed.map { PendingPickupEntity(startMs = it.startMs, endMs = it.endMs, unlocked = it.unlocked) }
+        // Packages over the server's width can't be stored there; such an app never posts one in practice.
+        val interruptions = built.derailments.interruptions
+            .filter { it.packageName.length <= SyncLimits.MAX_PACKAGE_NAME_LENGTH }
+            .map { PendingInterruptionEntity(packageName = it.packageName, atMs = it.atMs) }
+        val derailments = built.derailments.derailments
+            .filter { it.packageName.length <= SyncLimits.MAX_PACKAGE_NAME_LENGTH }
+            .map {
+                PendingDerailmentEntity(
+                    packageName = it.packageName, notifiedMs = it.notifiedMs, startMs = it.startMs, endMs = it.endMs,
+                    endedBy = it.endedBy.name
+                )
+            }
         dao.record(
             rows, maxOf(built.sessions.resumeFromMs, cursorMs),
-            pickups, maxOf(built.pickups.resumeFromMs, pickupCursorMs)
+            pickups, maxOf(built.pickups.resumeFromMs, pickupCursorMs),
+            interruptions, derailments, maxOf(built.derailments.resumeFromMs, derailmentCursorMs)
         )
     }
 
@@ -148,6 +167,8 @@ class SyncEngine(context: Context) {
         dao.keepNewestUnsent(Constants.OUTBOX_MAX_UNSENT)
         dao.pickupCursorMs()?.let { dao.pruneSentPickups(it) }
         dao.pruneUnsentPickupsEndingBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
+        dao.derailmentCursorMs()?.let { dao.pruneSentDerailmentRows(it) }
+        dao.pruneUnsentDerailmentRowsBefore(nowMs - Constants.OUTBOX_MAX_AGE_MS)
     }
 
     /** Rows queued before the phone learnt a package is ignored never leave. */
@@ -180,10 +201,12 @@ class SyncEngine(context: Context) {
     }
 
     /**
-     * Prompt 14: the pickups and the loop check's loops, once every session is sent, in requests of their own. A row leaves
-     * the "unsent" queue only when the answer acknowledges it (`SyncWire.acknowledged`); a server from before 14 answers 200
-     * without, so the rest of the pass isn't sent to it at all and everything waits for an updated server (30 days at most,
-     * like the outbox). A batch refused down to one row drops that row, as for sessions.
+     * Prompt 14: the pickups and the loop check's loops, once every session is sent, in requests of their own; then (prompt
+     * 15) the interruptions and derailments, in requests of their own again, so a server from 14 — which acknowledges the
+     * first group and not the second — keeps taking pickups. A row leaves the "unsent" queue only when the answer
+     * acknowledges it (`SyncWire.acknowledged`); a server that answers 200 without isn't sent the rest of that group, and
+     * the rows wait for an updated server (30 days at most, like the outbox). A batch refused down to one row drops that row,
+     * as for sessions.
      */
     private suspend fun sendExtras(nowMs: Long, counts: SyncCounts, rejected: Int): SendOutcome {
         val deviceId = prefs.deviceId
@@ -191,12 +214,37 @@ class SyncEngine(context: Context) {
         // The status screen's "sent" is about sessions, as before 14: pickups go out on nearly every run.
         val answered = counts != SyncCounts() || rejected > 0
 
+        val pickups = sendExtraGroup(nowMs, deviceId, loopDao, SyncLimits.MAX_EXTRAS_PER_REQUEST) {
+            loopDao.unsent(PAGE_SIZE).map { SyncExtra.Loop(it) } + dao.unsentPickups(PAGE_SIZE).map { SyncExtra.Pickup(it) }
+        }
+        if (pickups.stoppedBy != null) return SendOutcome(counts, rejected, pickups.stoppedBy, true)
+        // A server that ignored pickups knows nothing of notifications either.
+        if (pickups.unacknowledged) return SendOutcome(counts, rejected, null, answered)
+
+        val notifications = sendExtraGroup(nowMs, deviceId, loopDao, SyncLimits.MAX_NOTIFICATION_ROWS_PER_REQUEST) {
+            dao.unsentInterruptions(PAGE_SIZE).map { SyncExtra.Interruption(it) } +
+                dao.unsentDerailments(PAGE_SIZE).map { SyncExtra.Derailment(it) }
+        }
+        if (notifications.stoppedBy != null) return SendOutcome(counts, rejected, notifications.stoppedBy, true)
+        return SendOutcome(counts, rejected, null, answered)
+    }
+
+    private class GroupOutcome(val stoppedBy: BatchResult?, val unacknowledged: Boolean)
+
+    /** One group of extras, page by page, until it is empty, has to wait, or meets a server that doesn't acknowledge it. */
+    private suspend fun sendExtraGroup(
+        nowMs: Long,
+        deviceId: String,
+        loopDao: PickupLoopDao,
+        perRequest: Int,
+        nextPage: suspend () -> List<SyncExtra>
+    ): GroupOutcome {
         while (true) {
-            val extras = loopDao.unsent(PAGE_SIZE).map { SyncExtra.Loop(it) } + dao.unsentPickups(PAGE_SIZE).map { SyncExtra.Pickup(it) }
-            if (extras.isEmpty()) return SendOutcome(counts, rejected, null, answered)
+            val extras = nextPage()
+            if (extras.isEmpty()) return GroupOutcome(null, false)
 
             var unacknowledged = false
-            val sender = BatchSender<SyncExtra>(SyncLimits.MAX_EXTRAS_PER_REQUEST) { batch ->
+            val sender = BatchSender<SyncExtra>(perRequest) { batch ->
                 if (unacknowledged) {
                     BatchResult.Sent(SyncCounts()) // an older server: don't send it the rest
                 } else {
@@ -210,8 +258,8 @@ class SyncEngine(context: Context) {
                 onSent = { batch -> if (!unacknowledged) markSent(batch, nowMs, loopDao) },
                 onRejected = { markSent(listOf(it), nowMs, loopDao) }
             )
-            if (pass.stoppedBy != null) return SendOutcome(counts, rejected, pass.stoppedBy, true)
-            if (unacknowledged) return SendOutcome(counts, rejected, null, answered)
+            if (pass.stoppedBy != null) return GroupOutcome(pass.stoppedBy, false)
+            if (unacknowledged) return GroupOutcome(null, true)
         }
     }
 
@@ -220,6 +268,10 @@ class SyncEngine(context: Context) {
             .forEach { dao.markPickupsSent(it, nowMs) }
         batch.filterIsInstance<SyncExtra.Loop>().map { it.row.id }.chunked(SQL_VARIABLES_PER_QUERY)
             .forEach { loopDao.markSent(it, nowMs) }
+        batch.filterIsInstance<SyncExtra.Interruption>().map { it.row.id }.chunked(SQL_VARIABLES_PER_QUERY)
+            .forEach { dao.markInterruptionsSent(it, nowMs) }
+        batch.filterIsInstance<SyncExtra.Derailment>().map { it.row.id }.chunked(SQL_VARIABLES_PER_QUERY)
+            .forEach { dao.markDerailmentsSent(it, nowMs) }
     }
 
     /** The answer, and whether it acknowledged the batch. Nothing known (offline, unreadable) is a wait, as for sessions. */

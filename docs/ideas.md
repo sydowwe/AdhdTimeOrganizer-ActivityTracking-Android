@@ -136,8 +136,8 @@ answer, and a "typically" baseline. See `CLAUDE.md` → "The wire contract" and 
 - **The morning briefing's line** (decision 14-2: left out). At wake-up time the phone's last sync is often older than the
   first unlock, and "you just picked the phone up" tells nothing. A later line could say yesterday's, or the week's trend
   ("first pickup ~40 min before you got up this week").
-- **Pickups inside planned blocks** against outside them — a strong signal, but it needs the planner lookup; it fits
-  prompt 15 (derailments), which can read the pickup rows' exact instants.
+- **Pickups inside planned blocks** against outside them — a strong signal. Prompt 15 added the range lookup it needs
+  (`IPlannedBlockLookup.PlannedOverAsync`) for the notifications; pickups weren't added to it.
 - **Pickups on the phone's own status screen** ("42 pickups today, first 06:12"): the counter has everything; no card yet.
 
 ## 5. Screen time before bed
@@ -175,20 +175,31 @@ messaging. "It never leaves the phone" beats "it's deleted on arrival".
 **Catches.** Dropping sessions silently changes totals; make "private" vs "drop" an explicit choice. Paused time
 must not look like the tracker went silent — send an empty sync anyway so `TrackerSourceStatus` stays fresh.
 
-## 7. Notification-interruption counts
+## 7. Notification-interruption counts — built 2026-10-29 (prompt 15), not yet seen on a device; the web's view is a frontend prompt
 
 **Why.** Notifications are the main way a phone pulls someone out of focus. "Slack interrupted you 34 times
 today, 9 of them during your Thesis block" is directly actionable (mute it during blocks).
 
-**How.**
-- **Phone:** `NOTIFICATION_INTERRUPTION` (12) events carry the posting package. **Verify on real devices first**
-  that a non-system caller with usage access receives them — the constant is public but some event types are
-  filtered for third-party callers. The alternative is a `NotificationListenerService`, which sees every
-  notification *including its text* — a much bigger privacy ask; if used, read only the package and timestamp.
-- **Server:** per-hour per-package counts, same shape and dedup as #4. Overlay on the timeline: interruptions
-  during planned blocks.
+**What was built.** The usage log's `NOTIFICATION_INTERRUPTION` (12) — a notification that sounded, vibrated or peeked — read
+for its package and instant only, **never its text** (decision 15-5). The constant is `@SystemApi` (the SDK hides it, which
+the prompt didn't know); the platform blanks only the channel id for an app like this one, so the event should arrive. The
+pure `DerailmentLinker` turns them into **derailments**: the app opened within a minute, until the user went back to the app
+they were in, the screen went off, or two hours (decision 15-2: on the phone, which has the timing). Both go to the server one
+row each (decision 15-3), in requests of their own after the pickups; `POST /activity-tracking/android/interruptions` answers
+per day, per hour, per app, the longest derailments, and per planned activity the interruptions inside its blocks. See
+`CLAUDE.md` → "The wire contract" and "Sessions and the cursor".
 
-**Catches.** Never store notification content. A listener service is also a Play-policy-sensitive permission.
+**Not built, still open.**
+- **Seeing it on a device.** Whether MIUI (or any OEM) writes the event at all: `adb shell dumpsys usagestats` lists
+  `NOTIFICATION_INTERRUPTION` rows if it does; then the `android_notification_interruption` rows on the test DB. If it
+  doesn't, the alternative is a `NotificationListenerService` reading only package and instant — a Play-sensitive
+  permission and a privacy ask; decide with the owner first.
+- **The web's view.** The frontend prompt `prompts/activity-tracking/android-notifications-dashboard.md` in the frontend repo.
+- **Acting on it from the phone:** "Slack interrupted 9 times in Thesis — mute it during blocks?" (Android can't mute
+  another app's notifications without a listener; it could open that app's notification settings, or suggest DND rules).
+- **A baseline** ("typically 40 a day"), as the pickups dashboard has.
+- **Pickups that weren't opened by a notification** against those that were: a pickup within a minute of an interruption
+  that opened something else is today neither a derailment nor counted apart.
 
 ## 8. Digital Wellbeing overlap
 
@@ -434,7 +445,7 @@ capture list ("Inbox", made on the first capture). Never lost offline or signed 
 - **The phone's data in the GDPR export (server).** `GET /user/data-export` carries the desktop and web-extension ledgers
   and `TrackerSourceStatus`, but nothing the phone sent: `AndroidSessionData` and `AndroidReportedApp` are listed as known
   gaps in `UserDataExportAndDeletionTests.KnownGaps`, and prompt 14's pickup and loop tables join them (the owner,
-  2026-10-29: "write it in the future ideas"). Erasure is covered: every one cascades from the user. One query per table in
+  2026-10-29: "write it in the future ideas"), as do 15's interruption and derailment tables (decision 15-6). Erasure is covered: every one cascades from the user. One query per table in
   `GetUserDataExportEndpoint`, then off the known-gaps list.
 - **Expedited sync on app close.** When the status screen goes to the background, enqueue an expedited one-off
   sync so what the user just saw counted is on the server a minute later rather than fifteen.

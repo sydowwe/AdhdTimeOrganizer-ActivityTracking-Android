@@ -19,5 +19,11 @@ data class AndroidSyncResponse(
     /** The loops' acknowledgement, as [pickupsStored]. */
     val loopsStored: Int?,
     val loopsDropped: Int?,
-    val syncedUpToUtc: String?
+    val syncedUpToUtc: String?,
+    /** The interruptions' acknowledgement (prompt 15), as [pickupsStored]: `null` from a server before 15. */
+    val interruptionsStored: Int? = null,
+    val interruptionsDropped: Int? = null,
+    /** The derailments' acknowledgement, as [interruptionsStored]. */
+    val derailmentsStored: Int? = null,
+    val derailmentsDropped: Int? = null
 )
