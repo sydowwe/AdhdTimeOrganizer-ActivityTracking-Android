@@ -132,6 +132,16 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **Tags** are annotated, `v`-prefixed, and local. A tag that was never pushed may be moved (`git tag -f -a`); a
   pushed one never is. Push only when the owner asks, by name (`git push origin vX.Y.Z`, never `--tags`).
   `v1.0` is the first build, `v1.1` the durable-outbox rewrite.
+- **Release signing.** The release build is signed with the owner's key, kept outside the repo. `app/build.gradle.kts`
+  reads its path, alias and passwords from the gitignored `keystore.properties` at the repo root (`storeFile`,
+  `storePassword`, `keyAlias`, `keyPassword`; forward slashes in the path, a backslash is an escape there), or from
+  `RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD`. Without them, or with a
+  path that doesn't exist (Gradle warns), the release comes out unsigned (`app-release-unsigned.apk`) and every other
+  build is unaffected. **Never commit the key, its passwords or its path.** **Losing the key, or signing with a
+  different one, means every installed copy must be uninstalled to update** — and an uninstall deletes the outbox —
+  so a copy of the `.jks` lives off this PC. A new signing key also needs its own Android OAuth client and its SHA-256
+  in the web's `assetlinks.json` (*Auth*). The owner's phone stays on debug builds against the test server
+  (`test-release`); the release build is not installed on it (decision 25).
 - **Production release** is a separate script (`prod-release`, **not written yet**). When it is: switch
   `SERVER_ROOT` to production in its own commit; build and sign with the real release key (kept outside the repo —
   an unsigned release cannot be installed, and a different key forces an uninstall); **deploy the server first**

@@ -15,6 +15,12 @@
 local.properties
 /.idea/
 
+# Release signing: the key, its passwords and its path never enter the repo. Release APKs from prod-release.
+keystore.properties
+*.jks
+*.keystore
+/releases/
+
 # Compiled class file
 *.class
 
