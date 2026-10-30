@@ -128,7 +128,7 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   `app/build.gradle.kts`; the annotated tag `vX.Y.Z` is on it. The tree is clean before it, so the tag is exactly
   what was built and installed. The script refuses a dirty tree (`-AllowDirty` overrides, and says the tag will not
   contain the dirt).
-- **Test release** (`scripts/test-release.ps1`, for the phone on the desk, against `SERVER_ROOT` as it stands):
+- **Test release** (`scripts/test-release.ps1`, for the phone on the desk: a debug build, so the test server):
   bump → `testDebugUnitTest` + `assembleDebug` → commit → tag → `adb install -r` → read the installed version back.
   A failed build restores the version file and commits nothing. `-NoBump` rebuilds and reinstalls without a commit
   or tag (dev iteration — most installs are this); bump when a build is worth naming, e.g. a fix you will verify on
@@ -147,10 +147,27 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   so a copy of the `.jks` lives off this PC. A new signing key also needs its own Android OAuth client and its SHA-256
   in the web's `assetlinks.json` (*Auth*). The owner's phone stays on debug builds against the test server
   (`test-release`); the release build is not installed on it (decision 25).
-- **Production release** is a separate script (`prod-release`, **not written yet**). When it is: switch
-  `SERVER_ROOT` to production in its own commit; build and sign with the real release key (kept outside the repo —
-  an unsigned release cannot be installed, and a different key forces an uninstall); **deploy the server first**
-  (the auth lost-response recovery lives there); tag; switch `SERVER_ROOT` back to test.
+- **Production release** (`scripts/prod-release.ps1`) **promotes what was tested; it never makes a version.** Run
+  `test-release` first (its tag is the release), then `prod-release -ServerDeployed`. It refuses at the first failure:
+  not on `main`; a dirty tree (only `CHANGELOG.md` may be uncommitted); `HEAD` not a `vX.Y.Z` tag — the latest on
+  `HEAD`, or `-Version X.Y.Z` — or past it by anything but `CHANGELOG.md`; no `-ServerDeployed`; no release key; no
+  finished `CHANGELOG.md` section. Then `testDebugUnitTest` + `assembleRelease`, and the checks: the release's
+  generated servers are production's (`BuildConfig.java` and the asset statements — the guard against shipping the
+  test URL), `apksigner verify` accepts the APK (and its certificate is `$expectedCertSha256` in the script, once set),
+  `aapt2` reads the tag's versionName and versionCode back. It copies the APK to the gitignored
+  `releases\adhd-tracker-X.Y.Z-<code>.apk`, prints its SHA-256, puts the annotated tag **`prod/vX.Y.Z`** on the release
+  commit with the changelog section as its message, commits an uncommitted `CHANGELOG.md` alone, and prints the two
+  `git push origin …` lines. **Never pushes, never installs.** `-DryRun` does every check and the build and writes
+  nothing (no draft, no copy, no tag, no commit).
+  - **`-ServerDeployed` is your statement** that production runs the server this build needs: the auth lost-response
+    recovery (without it a replayed refresh revokes every session of the account), the evening-review routes, and every
+    `tracker/android/*` route the build calls. On 2026-10-30 the server's `android-tracker` work was **not** on its
+    `main`.
+  - **`CHANGELOG.md`**: one section per production release, newest first. A missing section is drafted from `git log`
+    since the previous `prod/` tag, grouped `feat` / `fix` / the rest (docs and `chore: version` dropped), and the script
+    stops; edit it and delete its `DRAFT` line.
+  - **Where the APK goes after `releases\`** (a self-hosted file, GitHub Releases, Play internal testing) is prompt 21's
+    question; this script only produces and checksums it.
 
 ## Rules that hold everywhere
 

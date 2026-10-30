@@ -230,13 +230,14 @@ it from Android Studio.
   `PACKAGE_USAGE_STATS` need a declaration and justification; `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` too. A
   self-hosted APK with an in-app "update available" check (version JSON on the server) avoids the review but
   needs "install unknown apps".
-- **Send the client version** on every request (`X-Client-Version: android/1.1 (2)`). **Server:** store it on
-  `TrackerSourceStatus` next to `LastSeenAt` (the desktop idea, same column), show it in the sources panel, and
-  let the tracker-silence notification say "your phone tracker is out of date" when that's likely.
+- **Send the client version** — built 2026-10-30 (prompt 25): `X-Client-Version: android/1.4.0 (7)` on every request;
+  the server keeps it on `TrackerSourceStatus` and calls a silent old build "out of date" (`CLAUDE.md` → *The wire
+  contract*).
 - A minimum-version gate (426) for wire-contract changes.
 
-**Catches.** The release build needs a real signing key kept outside the repo; losing it means users must
-uninstall (and lose the outbox) to update.
+**Catches.** The release signing key — set up 2026-10-30 (prompt 25): kept outside the repo, read from
+`keystore.properties`; losing it still means users must uninstall (and lose the outbox) to update (`CLAUDE.md` →
+*Versioning*). Still open: the channel and an in-app update check (prompt 21).
 
 ## 10. A push channel to the phone (FCM)
 
