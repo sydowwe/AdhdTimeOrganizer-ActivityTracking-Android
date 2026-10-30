@@ -10,6 +10,7 @@ import com.timeorganizer.usagetracker.chime.ChimeMonitor
 import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.pause.PauseNotifier
+import com.timeorganizer.usagetracker.push.PushRegistrar
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
@@ -33,6 +34,8 @@ class UsageSyncWorker(
         PauseNotifier.afterSync(applicationContext)
         // Quick capture's queue: anything the network-bound job hasn't sent yet (signed in again, back online). Never throws.
         CaptureSender.afterSync(applicationContext)
+        // Push (prompt 22): the daily "still here" registration, or a first one the sign-in's job missed. Only enqueues.
+        PushRegistrar.enqueue(applicationContext)
         askEveningReview()
         // Re-arms the watcher for a block or recent desk work, and ends a break the desk has come back from. Never throws.
         BreakMonitor.afterSync(applicationContext)

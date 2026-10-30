@@ -67,6 +67,8 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
+| `push/PushMessage.kt`, `push/PushRegistrationPolicy.kt` | **Pure.** Push from the server (prompt 22): FCM's data fields → the message (id, kind, words, buttons), its channel by kind (`ServerChannel`), where a tap goes; when to register with the server |
+| `push/PushSetup.kt`, `push/PushRegistrar.kt`, `push/PushMessagingService.kt`, `push/PushNotifier.kt`, `push/PushActionReceiver.kt` | Firebase started by hand from `BuildConfig.FIREBASE_*`; `PUT` / `DELETE tracker/android/push-device` (a network-bound job; unregister on sign-out); FCM's entry point (dropped while signed out); the notification; its buttons → `tracker/android/notifications/{id}/action/{action}` |
 | `util/InstalledApps.kt` | Labels, icons, launcher entries and the home apps from `PackageManager`, within what `<queries>` makes visible |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
 | `LoginActivity.kt`, `MainActivity.kt` | Password or Google sign-in, then 2FA; status screen (red banner while usage access is off, amber while setup is unfinished) |
@@ -327,7 +329,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **One channel per purpose** (`Notifications.createChannels`, created on every app start): "Sync problems", the
   watcher's silent "Focus watch", the "Evening review" question, the high-importance "Breaks" nudge, the
   high-importance, vibrating, soundless "Time chime", "Loop check", "Drift nudge", "Start ramp" and "Daily limits", "Phone away"
-  (default importance, the default sound), and the silent, low "Tracking paused" today. A channel's sound and vibration are fixed once it exists:
+  (default importance, the default sound), the silent, low "Tracking paused", and the five for what the server pushes
+  (*Push from the server*) today. A channel's sound and vibration are fixed once it exists:
   getting them wrong means a new channel id.
   A feature that notifies adds its own channel and its own id, so people can mute nudges without losing the
   sync warnings. Never post on another feature's channel.
@@ -657,6 +660,40 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   Resume writes the real end. Read by the sync after it takes its `nowMs`, so a pause started before the read is seen. Kept until
   every cursor has passed it and two days more (the limits read the whole day). **An account switch keeps it**: it is this
   phone's, and the new account's time in it is as private.
+
+### Push from the server (prompt 22, 2026-10-30)
+- **What it is:** the server's own notifications — a reminder, a to-do or routine item coming due, a timer phase ending, a
+  stopwatch still running, a planned block overrunning, a daily limit reached at the desk, a tracker gone quiet — reach the
+  phone through FCM, in the server's words and the user's language. **The phone's own nudges are not sent this way**: they
+  are decided here (08–13), which is what makes them prompt and offline-proof. Which kinds come is the web app's
+  notification settings, the **"Phone app"** column (the server's `NativePush` channel); its defaults are the server's
+  (decision 22-3: time-critical or asked for on, summaries and sweeps' nudges off, the block's start off because the start
+  ramp says it). The server applies its quiet hours, away hold and the rest before it sends — the phone adds no rule.
+- **Firebase without a committed config (no `google-services.json`, no plugin):** `firebase.properties` beside
+  `settings.gradle.kts` (gitignored; `appId`, `apiKey`, `projectId`, `senderId` of the Android app in the Firebase console)
+  or `FIREBASE_*` env vars → `BuildConfig.FIREBASE_*` → `PushSetup.init` starts `FirebaseApp` by hand. Blank values build
+  an app with push off that never touches Firebase. `FirebaseInitProvider` is removed in the manifest. One Firebase project
+  for both build types; each server's `FCM_SERVICE_ACCOUNT_FILE` is a key of the same project, or every send is refused
+  (`SENDER_ID_MISMATCH`) and the server deletes the registration.
+- **Registration (`PushRegistrar`, `PushRegistrationPolicy`):** `PUT tracker/android/push-device { deviceId, token }`, the
+  sync's device id and Firebase's token — through a network-bound unique job (`REPLACE`), enqueued on every app start,
+  every sign-in (`SyncEngine.onSignedIn`), every new token (`onNewToken`) and after every sync; it calls only when the token
+  or the account changed or a day has passed (the server's "last seen"; it forgets an install unseen for 180 days). An
+  install signed into another account moves to it on the server. **Sign-out** (`MainActivity.performLogout`) first
+  `DELETE`s it with the token being signed out, then deletes Firebase's token, so even a call that never arrived leaves a
+  token FCM calls `UNREGISTERED`. The token is never logged.
+- **A message (`PushMessage`, pure)** is data only — `id`, `type`, `title`, `body`, and when present `tag`, `url` (a web
+  app route), `actions` (`[{action, title}]`) — the server's `NativePushMessage`, add-only. No id or no title → not shown; a
+  bad `actions` costs the buttons only. **Signed out, every message is dropped.**
+- **Channels (`ServerChannel`):** `server_reminders`, `server_timers`, `server_planner` (high importance, default sound: the
+  user asked for that moment), `server_limits` (the daily limits' quiet buzz; never `daily_budget`, the phone's own — a stage
+  the phone said is claimed, decision 13-1, so the server never sends it), `server_other` (default). An unknown kind goes to
+  `server_other`, never dropped. Ids are fixed (`PushMessageTest`). Id 12, tag `server-id:<n>`, or `server-tag:<tag>` when the
+  server gives one so a timer's next boundary replaces the last.
+- **A tap** opens `WEB_APP_ROOT` + the route (a path only; anything else opens the root). **A button** (`PushActionReceiver`)
+  posts `tracker/android/notifications/{id}/action/{action}` (decision 22-4): done → the notification goes; anything else
+  (409 gone, 404, offline) leaves it up with a toast saying to tap it — an activity can't be started from a receiver.
+- **Not verified on a device**, and not end to end: no Firebase project or service-account key exists yet.
 
 ### Evening review of unmapped time
 - **The server decides what is unmapped and worth asking** (`GET /tracker/android/unmapped`: today on

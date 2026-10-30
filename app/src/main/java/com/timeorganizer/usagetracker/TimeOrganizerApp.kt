@@ -16,6 +16,8 @@ import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.loops.LoopMonitor
 import com.timeorganizer.usagetracker.notify.Notifications
+import com.timeorganizer.usagetracker.push.PushRegistrar
+import com.timeorganizer.usagetracker.push.PushSetup
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.worker.UsageSyncWorker
@@ -26,6 +28,8 @@ class TimeOrganizerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         RetrofitClient.init(this)
+        // Firebase by hand, before anything can ask it for a token (prompt 22); nothing at all on a build without its settings.
+        PushSetup.init(this)
         Notifications.createChannels(this)
         BreakMonitor.install(this)
         ChimeMonitor.install(this)
@@ -35,6 +39,7 @@ class TimeOrganizerApp : Application() {
         DriftMonitor.install(this)
         BudgetMonitor.install(this)
         enqueuePeriodicSync(this)
+        PushRegistrar.enqueue(this)
     }
 
     companion object {

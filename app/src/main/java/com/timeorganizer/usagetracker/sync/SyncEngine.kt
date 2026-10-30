@@ -17,6 +17,8 @@ import com.timeorganizer.usagetracker.data.local.outbox.PendingInterruptionEntit
 import com.timeorganizer.usagetracker.data.local.outbox.PendingPickupEntity
 import com.timeorganizer.usagetracker.data.local.outbox.PendingSessionEntity
 import com.timeorganizer.usagetracker.drift.DriftMonitor
+import com.timeorganizer.usagetracker.push.PushNotifier
+import com.timeorganizer.usagetracker.push.PushRegistrar
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoreSync
@@ -403,9 +405,12 @@ class SyncEngine(context: Context) {
                 DriftMonitor.reset(context)
                 BudgetMonitor.reset(context)
                 CaptureSender.reset(context)
+                PushNotifier.cancelAll(context)
             }
             prefs.accountId = account
             CaptureSender.enqueue(context)
+            // Push (prompt 22): this account is now where the server pushes this phone; the registration moves it.
+            PushRegistrar.enqueue(context)
         }
     }
 }

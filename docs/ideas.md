@@ -13,9 +13,9 @@ Two constraints shape almost every idea below:
 - **The phone does not know what an app *means*.** Mapping a package to an activity happens only on the server
   (`AndroidMappingRuleSet`). Any feature that needs "this is YouTube = Distraction" asks the server, or gets it
   pushed down — it never re-implements the matcher.
-- **The phone has no push channel.** The server's notification pipeline delivers Web Push and email
-  (`Sydowwe.Notifications`, `PushSubscription`); nothing reaches this app. Phone-side nudges are local
-  notifications decided on the phone, or a new FCM channel on the server (a real project — see #10).
+- **The phone's nudges are decided on the phone.** Since prompt 22 (2026-10-30) the server can push the app too (its
+  `NativePush` channel over FCM, #10), but that carries the server's own notifications — reminders, timers, desk-crossed
+  limits. A nudge about what the phone is doing right now stays a local notification: prompt, and working offline.
 
 ---
 
@@ -239,19 +239,20 @@ it from Android Studio.
 `keystore.properties`; losing it still means users must uninstall (and lose the outbox) to update (`CLAUDE.md` →
 *Versioning*). Still open: the channel and an in-app update check (prompt 21).
 
-## 10. A push channel to the phone (FCM)
+## 10. A push channel to the phone (FCM) — built 2026-10-30
 
-**Why.** #1, #2 and the tracker-silence notification all want to reach *this* app. Today the server's pipeline
-can only reach a browser.
+Built by prompt 22: the server's `NativePush` channel (the device table and every delivery rule in `Sydowwe.Notifications`,
+the FCM transport in the opt-in `Sydowwe.Notifications.Fcm`), the "Phone app" column in the web app's notification
+settings, and the phone's registration, channels and buttons. See `CLAUDE.md` → *Push from the server*. The phone's own
+nudges (#1, #2, …) stay local, deliberately: decided here, they are prompt and work offline.
 
-**How.**
-- **Server:** a second delivery channel in `Sydowwe.Notifications` beside Web Push: an `FcmRegistration` entity
-  (token, device id, user), an FCM sender, and per-kind channel preferences. Budget and drift notifications could
-  then be delivered to the phone app instead of the browser.
-- **Phone:** Firebase Messaging, register the token after sign-in, show notifications with actions.
-
-**Catches.** A Google dependency in a framework module; a server credential to manage. Worth it only once two or
-more of #1/#2/#5 exist.
+**Not built, still open.**
+- **Setup outside the code:** a Firebase project with this Android app, its values in `firebase.properties`, and its
+  service-account key on each server (`FCM_SERVICE_ACCOUNT_FILE`). Until then the column reads "not set up".
+- **A "late" line** for a delivery held by quiet hours (the server sends `originallyDueAt`; the phone shows nothing of it yet).
+- **The notification's subject** (`subjectKind` / `subjectId`) to open the web app on the exact item, as its bell does; the
+  phone opens the producer's route or the web app's root today.
+- **A status-screen line** saying whether push is set up and registered.
 
 ## 11. "Sync blocked" notification
 

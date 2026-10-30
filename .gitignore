@@ -21,6 +21,11 @@ keystore.properties
 *.keystore
 /releases/
 
+# Push (prompt 22): the Firebase app's settings stay out of the repo too, as do the files Firebase hands out.
+firebase.properties
+google-services.json
+*firebase-adminsdk*.json
+
 # Compiled class file
 *.class
 

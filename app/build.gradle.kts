@@ -15,6 +15,17 @@ val keystoreProperties = Properties().apply {
 fun releaseSigning(property: String, env: String): String? =
     keystoreProperties.getProperty(property)?.takeIf { it.isNotBlank() } ?: System.getenv(env)?.takeIf { it.isNotBlank() }
 
+// The Firebase app this build registers with for push (prompt 22). Not committed, and not google-services.json (the
+// plugin would make the file mandatory): `firebase.properties` beside settings.gradle.kts (gitignored) or the FIREBASE_*
+// env vars. Missing values build an app with push off — it never touches Firebase — and everything else works.
+val firebaseProperties = Properties().apply {
+    val file = rootProject.file("firebase.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun firebase(property: String, env: String): String =
+    firebaseProperties.getProperty(property)?.takeIf { it.isNotBlank() } ?: System.getenv(env)?.takeIf { it.isNotBlank() } ?: ""
+
 /**
  * Which servers a build type talks to (decision 25-1): the API, the web app that goes with it (its own origin), the
  * server's **web** OAuth client id for "Sign in with Google" (blank hides the button), and the Digital Asset Link to that
@@ -46,6 +57,13 @@ android {
         versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // One Firebase project for both build types: the package is the same, and each server's FCM_SERVICE_ACCOUNT_FILE
+        // names a key of this project. The four values are the Android app's, from the Firebase console.
+        buildConfigField("String", "FIREBASE_APP_ID", "\"${firebase("appId", "FIREBASE_APP_ID")}\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"${firebase("apiKey", "FIREBASE_API_KEY")}\"")
+        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"${firebase("projectId", "FIREBASE_PROJECT_ID")}\"")
+        buildConfigField("String", "FIREBASE_SENDER_ID", "\"${firebase("senderId", "FIREBASE_SENDER_ID")}\"")
     }
 
     signingConfigs {
@@ -126,6 +144,8 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

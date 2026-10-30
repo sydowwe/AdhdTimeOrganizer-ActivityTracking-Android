@@ -12,6 +12,7 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.timeorganizer.usagetracker.R
+import com.timeorganizer.usagetracker.push.ServerChannel
 
 /**
  * The app's notification channels and the one check every poster makes.
@@ -77,6 +78,10 @@ object Notifications {
     /** "Tracking paused until 15:00 · Resume" (prompt 17): low importance and silent — a reminder, never an interruption. */
     const val CHANNEL_PAUSE = "pause"
 
+    // What the server pushes (prompt 22) goes on five channels of its own, by kind — their ids are `push/ServerChannel`'s.
+    // Reminders, timers and the planner are things the user asked for at an instant: high importance with the default sound,
+    // so a phone in a pocket hears them. A limit reached elsewhere is the daily limits' quiet buzz. The rest is default.
+
     /** One id per thing shown, so a repost replaces the notification rather than stacking another. */
     const val ID_SYNC_BLOCKED = 1
     const val ID_FOREGROUND_WATCH = 2
@@ -91,6 +96,9 @@ object Notifications {
     /** With the budget's id as the tag: one per budget, so an activity's limit and its category's can both show. */
     const val ID_BUDGET = 10
     const val ID_PAUSE = 11
+
+    /** With `server-…` as the tag: one per notification the server pushed, or per its `tag` (prompt 22). */
+    const val ID_SERVER = 12
 
     /** Two short taps. */
     private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
@@ -166,6 +174,29 @@ object Notifications {
                     .setName(context.getString(R.string.channel_pause))
                     .setDescription(context.getString(R.string.channel_pause_description))
                     .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(ServerChannel.REMINDERS.id, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_server_reminders))
+                    .setDescription(context.getString(R.string.channel_server_reminders_description))
+                    .build(),
+                NotificationChannelCompat.Builder(ServerChannel.TIMERS.id, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_server_timers))
+                    .setDescription(context.getString(R.string.channel_server_timers_description))
+                    .build(),
+                NotificationChannelCompat.Builder(ServerChannel.PLANNER.id, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_server_planner))
+                    .setDescription(context.getString(R.string.channel_server_planner_description))
+                    .build(),
+                NotificationChannelCompat.Builder(ServerChannel.LIMITS.id, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(context.getString(R.string.channel_server_limits))
+                    .setDescription(context.getString(R.string.channel_server_limits_description))
+                    .setSound(null, null)
+                    .setVibrationEnabled(true)
+                    .setVibrationPattern(CHIME_VIBRATION)
+                    .build(),
+                NotificationChannelCompat.Builder(ServerChannel.OTHER.id, NotificationManagerCompat.IMPORTANCE_DEFAULT)
+                    .setName(context.getString(R.string.channel_server_other))
+                    .setDescription(context.getString(R.string.channel_server_other_description))
                     .build()
             )
         )

@@ -19,6 +19,7 @@ import com.timeorganizer.usagetracker.data.api.dto.CaptureResponse
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityRequest
 import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
 import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
+import com.timeorganizer.usagetracker.data.api.dto.PushDeviceRequest
 import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
 import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
 import com.timeorganizer.usagetracker.data.api.dto.StartBlockRequest
@@ -156,6 +157,25 @@ interface ApiService {
         @Path("id") budgetId: Long,
         @Body request: BudgetClaimRequest
     ): Response<BudgetClaimResponse>
+
+    /**
+     * Push (prompt 22): this phone can be pushed at the request's FCM token. 204; idempotent, and a repeat is the server's
+     * "last seen". A phone signed into another account before moves to this one.
+     */
+    @PUT("tracker/android/push-device")
+    suspend fun registerPushDevice(
+        @Body request: PushDeviceRequest
+    ): Response<Unit>
+
+    /**
+     * A button on a notification the server pushed. 204 done (the notification is read); 404 not ours or not a button it
+     * showed; 409 what it was about can no longer take it.
+     */
+    @POST("tracker/android/notifications/{id}/action/{action}")
+    suspend fun takeNotificationAction(
+        @Path("id") notificationId: Long,
+        @Path("action") action: String
+    ): Response<Unit>
 
     /** When the user's evening begins (bed time less their evening-shutdown offset); the review runs then. */
     @GET("tracker/evening-shutdown-moment")

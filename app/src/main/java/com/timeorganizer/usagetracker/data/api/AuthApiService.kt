@@ -7,9 +7,11 @@ import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.api.dto.TwoFactorLoginRequest
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Url
 
 /**
@@ -38,6 +40,16 @@ interface AuthApiService {
     suspend fun logout(
         @Header("Authorization") authorization: String,
         @Body request: LogoutRequest
+    ): Response<Unit>
+
+    /**
+     * Sign-out's first call (prompt 22): stop pushing to this phone. Here, with the token passed by hand like [logout],
+     * because sign-out clears the stored tokens before it runs. 204 whether or not it was registered.
+     */
+    @DELETE("tracker/android/push-device/{deviceId}")
+    suspend fun unregisterPushDevice(
+        @Header("Authorization") authorization: String,
+        @Path("deviceId") deviceId: String
     ): Response<Unit>
 
     @GET

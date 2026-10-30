@@ -52,6 +52,8 @@ import com.timeorganizer.usagetracker.notify.Notifications
 import com.timeorganizer.usagetracker.pause.PauseLength
 import com.timeorganizer.usagetracker.pause.PauseNotifier
 import com.timeorganizer.usagetracker.pause.Pauses
+import com.timeorganizer.usagetracker.push.PushNotifier
+import com.timeorganizer.usagetracker.push.PushRegistrar
 import com.timeorganizer.usagetracker.ramp.RampBlocks
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.ramp.StartRampPreferences
@@ -614,10 +616,14 @@ class MainActivity : AppCompatActivity() {
         val savedRefreshToken = authPrefs.refreshToken
 
         authPrefs.clearTokens(SignOutReason.USER)
+        PushNotifier.cancelAll(this)
 
         // Fire-and-forget on GlobalScope so it survives this Activity finishing
         if (savedToken != null && savedRefreshToken != null) {
+            val appContext = applicationContext
             GlobalScope.launch(Dispatchers.IO) {
+                // Before the logout revokes the token it is made with: stop pushing to this phone (prompt 22). Never throws.
+                PushRegistrar.unregister(appContext, savedToken)
                 try {
                     RetrofitClient.authApiService.logout(
                         authorization = "Bearer $savedToken",

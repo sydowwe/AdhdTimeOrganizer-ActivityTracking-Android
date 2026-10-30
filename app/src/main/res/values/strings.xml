@@ -176,6 +176,20 @@
     <string name="notify_pause_title">Tracking paused %1$s</string>
     <string name="notify_pause_text">Nothing is recorded meanwhile.</string>
 
+    <!-- Push from the server (prompt 22): one channel per kind of thing. Which kinds come at all is set in the web app's
+         notification settings, the "Phone app" column. -->
+    <string name="channel_server_reminders">Reminders and due items</string>
+    <string name="channel_server_reminders_description">Your reminders, to-dos and routine items when they come due, from the web app</string>
+    <string name="channel_server_timers">Timers</string>
+    <string name="channel_server_timers_description">A timer or pomodoro phase ending, a stopwatch still running</string>
+    <string name="channel_server_planner">Planner</string>
+    <string name="channel_server_planner_description">A planned block running past its end, and others you turn on in the web app</string>
+    <string name="channel_server_limits">Daily limits reached elsewhere</string>
+    <string name="channel_server_limits_description">A daily limit your time at the desk or on another device reached</string>
+    <string name="channel_server_other">Other notifications from the web app</string>
+    <string name="channel_server_other_description">A tracker that went quiet, and anything else you turn on in the web app</string>
+    <string name="push_action_failed">Couldn\'t do that from here. Tap the notification to open it in the web app.</string>
+
     <!-- Daily limits: notification. The server's words, so a limit reads the same on the phone and in the browser. -->
     <string name="channel_budget">Daily limits</string>
     <string name="channel_budget_description">A short buzz and a heads-up when an app reaches 80 % of a daily limit you set, and when it reaches the limit</string>

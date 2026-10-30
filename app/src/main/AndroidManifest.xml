@@ -186,6 +186,29 @@
             android:name=".pause.PauseActionReceiver"
             android:exported="false" />
 
+        <!-- Push from the server (prompt 22): FCM's messages and new tokens. Firebase's own receiver hands them on. -->
+        <service
+            android:name=".push.PushMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- The buttons on a notification the server pushed; only the app's own PendingIntents reach it. -->
+        <receiver
+            android:name=".push.PushActionReceiver"
+            android:exported="false" />
+
+        <!--
+            Firebase is started by hand (PushSetup) from the build's own settings, never from google-services.json, so its
+            automatic start-up, which would look for that file and log a failure on every launch, is taken out.
+        -->
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            tools:node="remove" />
+
         <!-- WorkManager initializer -->
         <provider
             android:name="androidx.startup.InitializationProvider"
