@@ -142,7 +142,12 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   `storePassword`, `keyAlias`, `keyPassword`; forward slashes in the path, a backslash is an escape there), or from
   `RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD`. Without them, or with a
   path that doesn't exist (Gradle warns), the release comes out unsigned (`app-release-unsigned.apk`) and every other
-  build is unaffected. **Never commit the key, its passwords or its path.** **Losing the key, or signing with a
+  build is unaffected. **Never commit the key, its passwords or its path.** A hook keeps a Claude session away from
+  all of it: `.claude/hooks/guard-signing-secrets.mjs` denies reading, writing or naming in a command
+  `keystore.properties`, `*.jks` / `*.keystore` / `*.p12` / `*.pfx` and anything under `.android-keys` (registered in
+  this repo's `.claude/settings.json` and in the owner's `~/.claude/settings.json`, since tracker sessions usually start
+  in the server repo; Gradle and `prod-release.ps1` still read them; self-test
+  `node .claude/hooks/guard-signing-secrets.test.mjs`). **Losing the key, or signing with a
   different one, means every installed copy must be uninstalled to update** — and an uninstall deletes the outbox —
   so a copy of the `.jks` lives off this PC. A new signing key also needs its own Android OAuth client and its SHA-256
   in the web's `assetlinks.json` (*Auth*). The owner's phone stays on debug builds against the test server
