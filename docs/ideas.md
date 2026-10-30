@@ -140,22 +140,31 @@ answer, and a "typically" baseline. See `CLAUDE.md` → "The wire contract" and 
   (`IPlannedBlockLookup.PlannedOverAsync`) for the notifications; pickups weren't added to it.
 - **Pickups on the phone's own status screen** ("42 pickups today, first 06:12"): the counter has everything; no card yet.
 
-## 5. Screen time before bed
+## 5. Screen time before bed — server half built 2026-10-30 (prompt 16); the web's view is in a frontend prompt
 
-**Why.** ADHD and sleep are tightly linked, and late phone use is the most common delay. The server already knows
-the user's `DefaultBedTime` (it uses it for quiet hours and tracker-silence). "You used the phone 48 minutes
-after your bedtime last night" is a fact the user can't easily see anywhere else.
+**Why.** ADHD and sleep are tightly linked, and late phone use is the most common delay. "Phone in use until 01:12
+last night" is a fact the user can't easily see anywhere else.
 
-**How.**
-- **Server only, mostly:** the android ledger already has the sessions. A daily computation of minutes of phone
-  use between the user's `DefaultBedTime` and the next `DefaultWakeUpTime` (already read by the tracker-silence
-  sweep), plus the last session's end — a line in the morning briefing and a weekly trend on the android
-  dashboard.
-- **Phone (optional):** a wind-down nudge at bedtime − 15 min if a budgeted/distraction app is open (reuse #1's
-  detection).
+**What was built (server only, no phone change).** The night is the server's sleep night: the day's bed time (its own
+calendar row, else `DefaultBedTime`) to the next day's wake-up, after midnight when bed time is at or before the wake-up.
+The stored sessions inside it give the minutes after bed time, "in use until" (the end of the first run of use, split by a
+phone-free hour) and the top apps, on each day of `POST /activity-tracking/android/pickups` (`night`), and a morning-briefing
+line — "Phone in use until 01:12 last night", a time, never the minutes — from 30 minutes after bed time, riding only on a
+briefing that goes out anyway. Every stored app counts: ignore an app to leave it out. The web's view was added to the
+frontend prompt `prompts/activity-tracking/android-pickups-dashboard.md`. Decisions: the server repo's
+`review/androidTrackerPrompts/decisions.md` → 16.
 
-**Catches.** Night-shift users: use their configured window, never a fixed 23:00. Alarm-clock / white-noise apps
-should not count — let ignore rules cover them (they already drop to `IsIgnored` on the server).
+**Not built, still open.**
+- **A wind-down nudge** at bed time − 15 min while a distraction app is in front (decision 16-5: a later prompt, not 16).
+  What it needs: the day's bed time on `/now` (beside `nextWakeUpAt`, the same calendar read), a `wind_down` channel, its place
+  in the 10-minute gap between nudge kinds (`NudgeGap`, probably waiting like drift), the watcher armed from the sync before
+  bed time as the drift nudge arms for the next block, and its buttons (*Putting it down* / *5 more minutes*). Wait until
+  the nudges already built have been seen on the phone.
+- **A setting to leave an app out of the night only** (an e-reader, a meditation app) without ignoring it everywhere.
+- **The laptop after bed time** — the desktop tracker's minutes through the unified dashboards; the briefing would then say
+  "screens", not "phone".
+- **Syncs at night**: Doze defers the 15-minute sync, so a briefing at wake-up can miss the night's last minutes. Whether it
+  does on the owner's Xiaomi is not yet seen.
 
 ## 6. Pause and privacy before upload — pause built 2026-10-29 (prompt 17), not yet seen on a device
 
