@@ -96,16 +96,21 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   the outbox.
 - AGP 9 runs Kotlin built in (no `kotlin-android` plugin). KSP must be one that registers its output through
   the Android source sets — 2.3.12 is; 2.3.1 failed with "Using kotlin.sourceSets DSL … is not allowed".
-- **`SERVER_ROOT` in `util/Constants.kt` is the test server (`https://test.backend.adhdtimeorganizer.com/`) on
-  `main`, in every build type** (since 2026-10-22). Production is switched in only for a real release, in its own
-  commit, and switched back after; until `prod-release` exists nothing ships to production. Point it at
-  `10.0.2.2:8081` (emulator → host) by hand for a local server; the debug build allows cleartext to it
-  (`src/debug/res/xml/network_security_config.xml`), release does not. `scripts/test-release.ps1` prints the URL it
-  built against and warns if it is production.
-- **`WEB_APP_ROOT` beside it is the web app that goes with that server** (`https://test.adhdtimeorganizer.com/` on
-  `main`; production is `https://adhdtimeorganizer.com/`), its own origin — the API is not the web app. The drift
-  nudge's "Switch plan" opens its `day-planner`. Switch both together, with `GOOGLE_SERVER_CLIENT_ID` beside them and
-  `res/values/asset_statements.xml` (*Auth*).
+- **Which servers a build talks to is its build type** (decision 25-1): **debug = the test environment, release =
+  production**, set by one `environment(serverRoot, webAppRoot, googleServerClientId)` call per build type in
+  `app/build.gradle.kts`. It writes `BuildConfig.SERVER_ROOT` / `WEB_APP_ROOT` / `GOOGLE_SERVER_CLIENT_ID` (read through
+  `Constants`; `API_BASE_URL` and `HEALTH_URL` are derived) and generates the manifest's `asset_statements` string from
+  the web app's root, so the four can't drift apart. Nothing is switched by hand for a release.
+  - Test: `https://test.backend.adhdtimeorganizer.com/`, `https://test.adhdtimeorganizer.com/`, the test server's
+    Google web client id. Production: `https://backend.adhdtimeorganizer.com/`, `https://adhdtimeorganizer.com/`, and
+    **a blank Google client id** (the button hidden) until the production server's `OAUTH2_GOOGLE_CLIENT_ID` is filled
+    into the release block.
+  - **A local server**: the commented `environment(…10.0.2.2:8081…)` line in the debug block, used instead of the line
+    above it. The debug build allows cleartext to it (`src/debug/res/xml/network_security_config.xml`), release does not.
+  - `WEB_APP_ROOT` is the web app's own origin — the API is not the web app. The drift nudge's "Switch plan" opens its
+    `day-planner`, the start ramp its `?track=` link.
+  - `scripts/test-release.ps1` prints the server the debug build was generated with (its `BuildConfig.java`) and warns
+    if it is production; `scripts/prod-release.ps1` refuses a release whose generated values aren't production's.
 
 ## Versioning
 
@@ -284,10 +289,10 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   only when its `azp` is one of our Android OAuth clients (`OAUTH2_GOOGLE_ANDROID_CLIENT_IDS`), and always issues the
   phone's session for it. **Setup outside the code:** an Android OAuth client in the server's Google Cloud project for
   each signing key (package + SHA-1; Google refuses a build whose key has none), its id in the server's env var, and the
-  server's web client id in `Constants.GOOGLE_SERVER_CLIENT_ID` (blank hides the button; switch it with `SERVER_ROOT`).
+  server's web client id as the build type's `googleServerClientId` in `app/build.gradle.kts` (blank hides the button).
 - **Google Password Manager offers the web's saved sign-ins** through a Digital Asset Link: the email and password
-  fields carry `autofillHints`, the manifest's `asset_statements` (`res/values/asset_statements.xml`, must name
-  `WEB_APP_ROOT` — `AssetStatementsTest`) points at the web app's `/.well-known/assetlinks.json`, a static file in the
+  fields carry `autofillHints`, the manifest's `asset_statements` (generated per build type from `WEB_APP_ROOT` by
+  `environment(…)`) points at the web app's `/.well-known/assetlinks.json`, a static file in the
   frontend repo's `public/` listing this app's signing-key SHA-256s. **A new signing key (the release key, prompt 25)
   goes into that file and gets its own Android OAuth client**, or both features stop for builds signed with it.
 

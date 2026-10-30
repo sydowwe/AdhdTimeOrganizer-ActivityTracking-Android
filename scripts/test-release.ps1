@@ -3,8 +3,8 @@
     Bump the app version, tag it, build it and install it on the phone connected through adb. Never pushes.
 
 .DESCRIPTION
-    A test release: for the phone on your desk, against whatever SERVER_ROOT says (the test server on main).
-    A release for production is a different script (prod-release, not written yet).
+    A test release: for the phone on your desk, a debug build, against the debug build type's server in
+    app/build.gradle.kts (the test server). A release for production is a different script (prod-release.ps1).
 
       1. refuses a dirty tree (the tag must describe what gets installed) unless -AllowDirty
       2. versionCode + 1 and versionName bumped (patch by default) in app/build.gradle.kts
@@ -39,7 +39,7 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
 $gradleFile = Join-Path $root 'app\build.gradle.kts'
-$constantsFile = Join-Path $root 'app\src\main\java\com\timeorganizer\usagetracker\util\Constants.kt'
+$buildConfigFile = Join-Path $root 'app\build\generated\source\buildConfig\debug\com\timeorganizer\usagetracker\BuildConfig.java'
 $apk = Join-Path $root 'app\build\outputs\apk\debug\app-debug.apk'
 $prodRoot = 'https://backend.adhdtimeorganizer.com/'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -54,15 +54,6 @@ function Invoke-Git {
     $output = & git -C $root @args 2>&1
     if ($LASTEXITCODE -ne 0) { Fail "git $($args -join ' ') failed:`n$output" }
     return $output
-}
-
-# ---- where the build points -------------------------------------------------------------------------------
-$constants = [System.IO.File]::ReadAllText($constantsFile)
-$serverMatch = [regex]::Match($constants, '(?m)^\s*const val SERVER_ROOT = "([^"]+)"')
-if (-not $serverMatch.Success) { Fail 'cannot find SERVER_ROOT in Constants.kt' }
-$serverRoot = $serverMatch.Groups[1].Value
-if ($serverRoot -eq $prodRoot) {
-    Write-Host "test-release: WARNING - this build talks to PRODUCTION ($serverRoot)." -ForegroundColor Yellow
 }
 
 # ---- the current version ----------------------------------------------------------------------------------
@@ -152,7 +143,7 @@ if (-not $NoBump) {
     [System.IO.File]::WriteAllText($gradleFile, $edited, $utf8)
 }
 
-Write-Host "test-release: $oldName ($oldCode) -> $newName ($newCode), server $serverRoot" -ForegroundColor Cyan
+Write-Host "test-release: $oldName ($oldCode) -> $newName ($newCode)" -ForegroundColor Cyan
 Push-Location $root
 try {
     # @(...) around the if: a one-element array coming out of it unwraps to a string, which @tasks splats per character.
@@ -165,6 +156,14 @@ try {
 if ($gradleExit -ne 0) {
     if (-not $NoBump) { [System.IO.File]::WriteAllText($gradleFile, $original, $utf8) }
     Fail 'the build or the tests failed; the version file is restored and nothing was committed'
+}
+
+# ---- where the build points: the debug build type's server, as Gradle generated it -------------------------
+$serverMatch = [regex]::Match([System.IO.File]::ReadAllText($buildConfigFile), 'String SERVER_ROOT = "([^"]+)"')
+if (-not $serverMatch.Success) { Fail "cannot find SERVER_ROOT in $buildConfigFile" }
+$serverRoot = $serverMatch.Groups[1].Value
+if ($serverRoot -eq $prodRoot) {
+    Write-Host "test-release: WARNING - this build talks to PRODUCTION ($serverRoot)." -ForegroundColor Yellow
 }
 
 $aapt = $null

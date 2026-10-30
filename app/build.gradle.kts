@@ -15,6 +15,25 @@ val keystoreProperties = Properties().apply {
 fun releaseSigning(property: String, env: String): String? =
     keystoreProperties.getProperty(property)?.takeIf { it.isNotBlank() } ?: System.getenv(env)?.takeIf { it.isNotBlank() }
 
+/**
+ * Which servers a build type talks to (decision 25-1): the API, the web app that goes with it (its own origin), the
+ * server's **web** OAuth client id for "Sign in with Google" (blank hides the button), and the Digital Asset Link to that
+ * web app's saved sign-ins (the manifest's `asset_statements`). One call sets all four, so they can't drift apart; the
+ * code reads them as `BuildConfig.*` through `Constants`. `scripts/prod-release.ps1` refuses a release that names the test
+ * server.
+ */
+fun com.android.build.api.dsl.ApplicationBuildType.environment(
+    serverRoot: String,
+    webAppRoot: String,
+    googleServerClientId: String,
+) {
+    buildConfigField("String", "SERVER_ROOT", "\"$serverRoot\"")
+    buildConfigField("String", "WEB_APP_ROOT", "\"$webAppRoot\"")
+    buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$googleServerClientId\"")
+    // A strings resource drops unescaped double quotes: the JSON's are written as \" here.
+    resValue("string", "asset_statements", "[{\\\"include\\\": \\\"${webAppRoot}.well-known/assetlinks.json\\\"}]")
+}
+
 android {
     namespace = "com.timeorganizer.usagetracker"
     compileSdk = 35
@@ -45,7 +64,23 @@ android {
     }
 
     buildTypes {
+        debug {
+            // The test server; test-release installs this build on the owner's phone.
+            environment(
+                serverRoot = "https://test.backend.adhdtimeorganizer.com/",
+                webAppRoot = "https://test.adhdtimeorganizer.com/",
+                googleServerClientId = "579844911566-22rdpksfphokkmjp7ttac03r2qc5feg4.apps.googleusercontent.com",
+            )
+            // A local server from the emulator (cleartext is allowed to it in debug only): this line instead of the above.
+            // environment(serverRoot = "http://10.0.2.2:8081/", webAppRoot = "https://10.0.2.2:3001/", googleServerClientId = "")
+        }
         release {
+            // Production. The Google button stays hidden until the production server's web client id is filled in.
+            environment(
+                serverRoot = "https://backend.adhdtimeorganizer.com/",
+                webAppRoot = "https://adhdtimeorganizer.com/",
+                googleServerClientId = "",
+            )
             // Only when the key is configured: a checkout without it still builds, unsigned.
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
@@ -57,6 +92,8 @@ android {
     }
     buildFeatures {
         buildConfig = true
+        // environment(...)'s asset_statements string.
+        resValues = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

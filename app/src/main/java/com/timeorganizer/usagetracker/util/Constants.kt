@@ -1,24 +1,28 @@
 package com.timeorganizer.usagetracker.util
 
+import com.timeorganizer.usagetracker.BuildConfig
+
 object Constants {
-//    const val SERVER_ROOT = "http://10.0.2.2:8081/"
-    const val SERVER_ROOT = "https://test.backend.adhdtimeorganizer.com/"
+    /**
+     * The API this build talks to, per build type in `app/build.gradle.kts` (`environment(…)`): debug is the test
+     * server, release production. A local server from the emulator is a commented line there.
+     */
+    const val SERVER_ROOT = BuildConfig.SERVER_ROOT
     const val API_BASE_URL = SERVER_ROOT + "api/"
 
     /**
-     * The web app that goes with [SERVER_ROOT] (its own origin: the API is not the web app). Switched with it for a
-     * production release (`https://adhdtimeorganizer.com/`). The drift nudge's "Switch plan" opens its day planner.
+     * The web app that goes with [SERVER_ROOT] (its own origin: the API is not the web app), set beside it. The drift
+     * nudge's "Switch plan" opens its day planner.
      */
-//    const val WEB_APP_ROOT = "https://10.0.2.2:3001/"
-    const val WEB_APP_ROOT = "https://test.adhdtimeorganizer.com/"
+    const val WEB_APP_ROOT = BuildConfig.WEB_APP_ROOT
 
     /**
      * "Sign in with Google": the server's **web** OAuth client id (its `OAUTH2_GOOGLE_CLIENT_ID`), which Credential
-     * Manager names as the ID token's audience. Public, not a secret. Goes with [SERVER_ROOT]: switch them together.
+     * Manager names as the ID token's audience. Public, not a secret. Set beside [SERVER_ROOT].
      * Blank hides the Google button. Google accepts the request only from a build whose signing key's SHA-1 is on an
      * Android OAuth client in the same Google Cloud project — the ids the server lists in `OAUTH2_GOOGLE_ANDROID_CLIENT_IDS`.
      */
-    const val GOOGLE_SERVER_CLIENT_ID = "579844911566-22rdpksfphokkmjp7ttac03r2qc5feg4.apps.googleusercontent.com"
+    const val GOOGLE_SERVER_CLIENT_ID = BuildConfig.GOOGLE_SERVER_CLIENT_ID
 
     /** The anonymous liveness route — outside `/api` (`Program.HealthCheckPath`). */
     const val HEALTH_URL = SERVER_ROOT + "health"
