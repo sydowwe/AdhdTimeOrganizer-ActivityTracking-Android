@@ -75,7 +75,8 @@
     <string name="backend_connected">Backend: Connected</string>
     <string name="backend_unreachable">Backend: Unreachable</string>
     <string name="backend_checking">Backend: Checking…</string>
-    <string name="backend_url_label">Server: %1$s</string>
+    <!-- The installed build and the server it talks to: "1.4.0 (7) · test.backend.adhdtimeorganizer.com". -->
+    <string name="build_and_server_label">%1$s (%2$d) · %3$s</string>
 
     <!-- Manual sync -->
     <string name="btn_sync_now">Sync Now</string>

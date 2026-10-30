@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkManager
 import com.timeorganizer.usagetracker.auth.SignOutReason
+import com.timeorganizer.usagetracker.data.api.ClientVersion
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
@@ -178,7 +179,12 @@ class MainActivity : AppCompatActivity() {
             performLogout()
         }
 
-        tvApiUrl.text = getString(R.string.backend_url_label, Constants.SERVER_ROOT)
+        tvApiUrl.text = getString(
+            R.string.build_and_server_label,
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE,
+            ClientVersion.host(Constants.SERVER_ROOT),
+        )
 
         // Refresh the card when a "Sync Now" run finishes, not only on the next resume.
         WorkManager.getInstance(this)

@@ -27,6 +27,7 @@ object RetrofitClient {
 
     private val baseClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor(clientVersionInterceptor)
             .addInterceptor(loggingInterceptor())
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -49,6 +50,15 @@ object RetrofitClient {
             .authenticator(tokenAuthenticator)
             .build()
         retrofit(client).create(ApiService::class.java)
+    }
+
+    /**
+     * On every request — login, refresh and sync alike, since each client is built from [baseClient] — so the server
+     * can tell an out-of-date phone from a broken one.
+     */
+    private val clientVersionInterceptor = Interceptor { chain ->
+        val version = ClientVersion.header(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+        chain.proceed(chain.request().newBuilder().header(ClientVersion.HEADER, version).build())
     }
 
     private val authInterceptor = Interceptor { chain ->

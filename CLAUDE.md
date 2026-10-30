@@ -31,7 +31,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `auth/RefreshPolicy.kt` | **Pure.** When a refresh saves, retries, keeps the tokens, or signs out |
 | `auth/TokenRefresher.kt` | The refresh call (raw OkHttp, so it knows whether a failed request was written) |
 | `auth/KeystoreCipher.kt`, `auth/JwtSubject.kt` | AES-GCM with a Keystore key; reading `sub` to notice an account switch |
-| `data/api/` | Retrofit services, `RetrofitClient` (auth interceptor + authenticator), wire DTOs |
+| `data/api/` | Retrofit services, `RetrofitClient` (version + auth interceptors, authenticator), wire DTOs; **pure** `ClientVersion` (the `X-Client-Version` header, the status screen's host) |
 | `notify/Notifications.kt` | Channels, the permission check every poster makes, notification ids |
 | `notify/SyncBlockedDecider.kt` | **Pure.** A run's facts + what was shown → post / clear / nothing |
 | `notify/SyncBlockedNotifier.kt` | Runs the decider after every `SyncEngine.run`, builds the notification, keeps its state |
@@ -183,6 +183,11 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   read there as "declares none". So is an app uninstalled between its use and the send. A name the server doesn't know
   costs only that report, never the batch. A new Android `CATEGORY_*` goes into the server's enum first.
 - **Package names are identity.** Users' mapping rules match on them; never rewrite one.
+- **Every request names the build** (prompt 25): `X-Client-Version: android/<versionName> (<versionCode>)`, added by
+  `RetrofitClient`'s first interceptor on `baseClient`, so login, refresh and sync all carry it. The server keeps the last
+  one per source on `TrackerSourceStatus.ClientVersion` (stamped with `LastSeenAt`, so at most hourly) and calls a silent
+  phone "out of date" below `TrackerMinimumClientVersion:Android`. The status screen's quiet line shows the same build and
+  the server's host: `1.4.0 (7) · test.backend.adhdtimeorganizer.com`.
 - **Pickups and loops ride the sync (prompt 14)** as two optional arrays (`pickups: [{startUtc, endUtc, unlocked}]`, `loops:
   [{startUtc, endUtc, rule, pickups, apps, answer}]`, rule / answer by the server's member names, `LoopRule.wire` /
   `LoopAnswer.wire`), in requests of their own with `sessions: []`, sent after every session is (`SyncEngine.sendExtras`,
