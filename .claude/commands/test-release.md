@@ -5,7 +5,8 @@
 > `CLAUDE.md` first if you have not.
 
 A test release puts a new version on the phone connected through adb, against the test server. It is not a
-release to production (`prod-release` is a separate script, not written yet — don't improvise one).
+release to production: that is `scripts/prod-release.ps1`, which promotes a tag this command made (`CLAUDE.md` →
+Versioning). Don't run it unless the user asks.
 
 1. Decide the bump from what changed since the last tag (`git log --oneline $(git describe --tags --abbrev=0)..HEAD`)
    using the rules in CLAUDE.md. If `$ARGUMENTS` names one, use that. Say which and why in one line.
