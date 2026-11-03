@@ -78,6 +78,9 @@ object Notifications {
     /** "Tracking paused until 15:00 · Resume" (prompt 17): low importance and silent — a reminder, never an interruption. */
     const val CHANNEL_PAUSE = "pause"
 
+    /** "Version 1.7.0 is available" (prompt 21): low importance and silent, once per version — news, not an interruption. */
+    const val CHANNEL_UPDATES = "app_updates"
+
     // What the server pushes (prompt 22) goes on five channels of its own, by kind — their ids are `push/ServerChannel`'s.
     // Reminders, timers and the planner are things the user asked for at an instant: high importance with the default sound,
     // so a phone in a pocket hears them. A limit reached elsewhere is the daily limits' quiet buzz. The rest is default.
@@ -99,6 +102,7 @@ object Notifications {
 
     /** With `server-…` as the tag: one per notification the server pushed, or per its `tag` (prompt 22). */
     const val ID_SERVER = 12
+    const val ID_UPDATE = 13
 
     /** Two short taps. */
     private val CHIME_VIBRATION = longArrayOf(0L, 120L, 100L, 120L)
@@ -174,6 +178,10 @@ object Notifications {
                     .setName(context.getString(R.string.channel_pause))
                     .setDescription(context.getString(R.string.channel_pause_description))
                     .setShowBadge(false)
+                    .build(),
+                NotificationChannelCompat.Builder(CHANNEL_UPDATES, NotificationManagerCompat.IMPORTANCE_LOW)
+                    .setName(context.getString(R.string.channel_updates))
+                    .setDescription(context.getString(R.string.channel_updates_description))
                     .build(),
                 NotificationChannelCompat.Builder(ServerChannel.REMINDERS.id, NotificationManagerCompat.IMPORTANCE_HIGH)
                     .setName(context.getString(R.string.channel_server_reminders))

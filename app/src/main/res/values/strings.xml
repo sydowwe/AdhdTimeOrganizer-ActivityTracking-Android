@@ -77,6 +77,8 @@
     <string name="backend_checking">Backend: Checking…</string>
     <!-- The installed build and the server it talks to: "1.4.0 (7) · test.backend.adhdtimeorganizer.com". -->
     <string name="build_and_server_label">%1$s (%2$d) · %3$s</string>
+    <!-- A newer production build (prompt 21); tapping opens the download in the browser. -->
+    <string name="update_available_line">Version %1$s is available · Tap to download</string>
 
     <!-- Manual sync -->
     <string name="btn_sync_now">Sync Now</string>
@@ -173,6 +175,10 @@
     <string name="pause_until_resumed">until you resume</string>
     <string name="channel_pause">Tracking paused</string>
     <string name="channel_pause_description">A quiet reminder while tracking is paused, with Resume</string>
+    <string name="channel_updates">App updates</string>
+    <string name="channel_updates_description">Once per new version, when one is published</string>
+    <string name="notify_update_title">Version %1$s is available</string>
+    <string name="notify_update_text">You have %1$s. Tap to download; Android asks before installing.</string>
     <string name="notify_pause_title">Tracking paused %1$s</string>
     <string name="notify_pause_text">Nothing is recorded meanwhile.</string>
 

@@ -14,6 +14,7 @@ import com.timeorganizer.usagetracker.push.PushRegistrar
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
+import com.timeorganizer.usagetracker.update.UpdateChecker
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -49,6 +50,8 @@ class UsageSyncWorker(
         DriftMonitor.afterSync(applicationContext)
         // Reads the budgets' figures again (the sync moved them) and says a limit the phone's time crossed. Never throws.
         BudgetMonitor.afterSync(applicationContext)
+        // Release builds: once a day, is a newer production build published? One notification per version. Never throws.
+        UpdateChecker.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

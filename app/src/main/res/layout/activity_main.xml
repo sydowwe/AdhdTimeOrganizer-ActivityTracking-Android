@@ -783,6 +783,19 @@
                     android:textAppearance="?attr/textAppearanceBodySmall"
                     android:layout_marginTop="4dp" />
 
+                <!-- A newer production build (prompt 21): shown only when there is one; a tap opens the download. -->
+                <TextView
+                    android:id="@+id/tvUpdateAvailable"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:minHeight="48dp"
+                    android:gravity="center_vertical"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorPrimary"
+                    android:visibility="gone" />
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

@@ -62,6 +62,7 @@ import com.timeorganizer.usagetracker.review.ReviewPreferences
 import com.timeorganizer.usagetracker.sync.SyncEngine
 import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
+import com.timeorganizer.usagetracker.update.UpdateChecker
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.InstalledApps
 import com.timeorganizer.usagetracker.util.PermissionHelper
@@ -232,7 +233,18 @@ class MainActivity : AppCompatActivity() {
         updateBudgetCard()
         updateChimeCard()
         updateLoopCard()
+        updateUpdateLine()
         checkBackendHealth()
+    }
+
+    /** Release builds: the newer production build the last daily check found, opening its download (prompt 21). */
+    private fun updateUpdateLine() {
+        val line = findViewById<TextView>(R.id.tvUpdateAvailable)
+        val update = UpdateChecker.available(this)
+        line.visibility = if (update == null) View.GONE else View.VISIBLE
+        if (update == null) return
+        line.text = getString(R.string.update_available_line, update.versionName)
+        line.setOnClickListener { startActivity(UpdateChecker.downloadIntent(update)) }
     }
 
     /** The break nudge's switch and length; each change is decided on at once, so switching it off clears a nudge. */

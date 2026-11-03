@@ -91,6 +91,8 @@ android {
             )
             // A local server from the emulator (cleartext is allowed to it in debug only): this line instead of the above.
             // environment(serverRoot = "http://10.0.2.2:8081/", webAppRoot = "https://10.0.2.2:3001/", googleServerClientId = "")
+            // No update check (prompt 21): a debug build is debug-signed, so no production APK installs over it.
+            buildConfigField("boolean", "UPDATE_CHECK", "false")
         }
         release {
             // Production. The Google button stays hidden until the production server's web client id is filled in.
@@ -99,6 +101,8 @@ android {
                 webAppRoot = "https://adhdtimeorganizer.com/",
                 googleServerClientId = "",
             )
+            // Once a day after a sync: is a newer production build published on this server (prompt 21)?
+            buildConfigField("boolean", "UPDATE_CHECK", "true")
             // Only when the key is configured: a checkout without it still builds, unsigned.
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true

@@ -2,6 +2,7 @@ package com.timeorganizer.usagetracker.data.api
 
 import com.timeorganizer.usagetracker.data.api.dto.AuthResponse
 import com.timeorganizer.usagetracker.data.api.dto.GoogleLoginRequest
+import com.timeorganizer.usagetracker.data.api.dto.LatestReleaseResponse
 import com.timeorganizer.usagetracker.data.api.dto.LoginRequest
 import com.timeorganizer.usagetracker.data.api.dto.LogoutRequest
 import com.timeorganizer.usagetracker.data.api.dto.TwoFactorLoginRequest
@@ -54,4 +55,11 @@ interface AuthApiService {
 
     @GET
     suspend fun health(@Url url: String): Response<Unit>
+
+    /**
+     * The update check (prompt 21): anonymous, so here, without the authenticator — a signed-out phone can still be told
+     * to update. 204 when nothing is published.
+     */
+    @GET("android-release/latest")
+    suspend fun latestRelease(): Response<LatestReleaseResponse>
 }
