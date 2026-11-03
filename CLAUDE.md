@@ -164,8 +164,8 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   `aapt2` reads the tag's versionName and versionCode back. It copies the APK to the gitignored
   `releases\adhd-tracker-X.Y.Z-<code>.apk`, prints its SHA-256, puts the annotated tag **`prod/vX.Y.Z`** on the release
   commit with the changelog section as its message, commits an uncommitted `CHANGELOG.md` alone, and prints the two
-  `git push origin …` lines. **Never pushes, never installs.** `-DryRun` does every check and the build and writes
-  nothing (no draft, no copy, no tag, no commit).
+  `git push origin …` lines. **Never pushes git, never installs.** `-DryRun` does every check and the build and writes
+  nothing (no draft, no copy, no upload, no tag, no commit).
   - **`-ServerDeployed` is your statement** that production runs the server this build needs: the auth lost-response
     recovery (without it a replayed refresh revokes every session of the account), the evening-review routes, and every
     `tracker/android/*` route the build calls. On 2026-10-30 the server's `android-tracker` work was **not** on its
@@ -173,8 +173,29 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   - **`CHANGELOG.md`**: one section per production release, newest first. A missing section is drafted from `git log`
     since the previous `prod/` tag, grouped `feat` / `fix` / the rest (docs and `chore: version` dropped), and the script
     stops; edit it and delete its `DRAFT` line.
-  - **Where the APK goes after `releases\`** (a self-hosted file, GitHub Releases, Play internal testing) is prompt 21's
-    question; this script only produces and checksums it.
+  - **Where the APK goes after `releases\`: production's own database** (decision 21-1, self-hosted). After the copy and
+    **before** the tag, the script uploads it itself: `POST https://backend.adhdtimeorganizer.com/api/android-release`
+    with the raw APK, its versionCode / versionName / SHA-256, and the key from the user environment variable
+    `ANDROID_RELEASE_UPLOAD_KEY` (sent from a temp header file, never on the command line). The server hashes the body
+    and refuses a mismatch, answers 200 to a repeat of the same file and 409 to another build of the code or a lower code;
+    a failed upload leaves no tag, so the run is simply repeated. Before the build it checks the key is set and reads
+    production's `GET /api/android-release/latest` — a 404 there means the server with the release routes isn't deployed.
+    `-NoUpload` releases without it and prints the `curl.exe` line that uploads the copied file later. **One-time setup:**
+    generate a long random key, set it as `ANDROID_RELEASE_UPLOAD_KEY` on production (Easypanel) and as a user
+    environment variable on this PC. Phones download from `GET /api/android-release/{code}/apk`; nothing is uploaded to
+    GitHub or Play.
+- **The update check** (decision 21-2; `update/`). Release builds only (`BuildConfig.UPDATE_CHECK`; a debug build is
+  debug-signed and talks to the test server, so no production APK installs over it). After a sync, at most once a day
+  after the server last answered, `UpdateChecker` reads `GET android-release/latest` (anonymous, on `authApiService`). A
+  newer versionCode shows a line on the status screen's backend card and posts **one** notification per version on the
+  silent "App updates" channel; both open the download in the browser, so the app needs no `REQUEST_INSTALL_PACKAGES`
+  and Android's installer checks the signature. A download URL on any host but the build's own server is ignored. The
+  rules are `UpdatePolicy` (pure, `UpdatePolicyTest`). A failed call leaves the state, so the next sync asks again.
+- **The minimum version** (decision 21-3). The server's `TRACKER_MINIMUM_CLIENT_VERSION_ANDROID` makes the
+  tracker-went-silent notification say "update" instead of "check it runs"; it is advisory and refuses nothing. The
+  owner raises it, in Easypanel while deploying the server, **only** when a production release changes the wire
+  contract or fixes something an older build would otherwise blame on the app — never on every release. The `426` gate
+  for incompatible builds stays a design in the server's Tracking `docs/summary.md`.
 
 ## Rules that hold everywhere
 

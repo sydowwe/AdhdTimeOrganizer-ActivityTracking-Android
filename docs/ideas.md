@@ -229,24 +229,28 @@ why, they'll distrust both.
 **Catches.** DW can't be read directly; aggregated stats are coarse (bucketed, sometimes off by an hour around
 day boundaries). Use them as a sanity check, never as data.
 
-## 9. Distribution, updates and client version
+## 9. Distribution, updates and client version — built 2026-11-03 (prompt 21), not yet run against production
 
 **Why.** (From the desktop list.) Every fix only reaches a phone that gets the new APK. Today that means building
 it from Android Studio.
 
 **How.**
-- **Play Store (internal testing track)** is the easy update path, but `QUERY_ALL_PACKAGES` and
-  `PACKAGE_USAGE_STATS` need a declaration and justification; `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` too. A
-  self-hosted APK with an in-app "update available" check (version JSON on the server) avoids the review but
-  needs "install unknown apps".
+- **Self-hosted, chosen 2026-11-03 (prompt 21)** over Play internal testing (`QUERY_ALL_PACKAGES`,
+  `PACKAGE_USAGE_STATS` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` would each need a declaration and a review) and
+  GitHub Releases (workable — the repo is public — but the phone's check would then depend on GitHub's API and its
+  anonymous rate limit, and the upload on `gh` auth on this PC). `prod-release.ps1` uploads the APK to production's database; the release build
+  checks `android-release/latest` once a day and opens the download in the browser, so "install unknown apps" is the
+  browser's, granted once, and the app asks for no install permission (`CLAUDE.md` → *Versioning*).
 - **Send the client version** — built 2026-10-30 (prompt 25): `X-Client-Version: android/1.4.0 (7)` on every request;
   the server keeps it on `TrackerSourceStatus` and calls a silent old build "out of date" (`CLAUDE.md` → *The wire
   contract*).
-- A minimum-version gate (426) for wire-contract changes.
+- A minimum-version gate (426) for wire-contract changes — still a design only. The advisory minimum is raised by the
+  owner only for a wire change or a fix an old build would blame on the app (decision 21-3).
 
 **Catches.** The release signing key — set up 2026-10-30 (prompt 25): kept outside the repo, read from
 `keystore.properties`; losing it still means users must uninstall (and lose the outbox) to update (`CLAUDE.md` →
-*Versioning*). Still open: the channel and an in-app update check (prompt 21).
+*Versioning*). Settled 2026-11-03: the channel and the in-app update check (prompt 21). Still open: the first real
+upload, once production runs the server's `android-tracker` work and has `ANDROID_RELEASE_UPLOAD_KEY`.
 
 ## 10. A push channel to the phone (FCM) — built 2026-10-30
 
