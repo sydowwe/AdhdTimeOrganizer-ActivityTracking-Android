@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
     Promote a tested build to a production release: a signed release APK of a test-release tag, checked,
-    copied to releases\, and marked with a prod/vX.Y.Z tag. Never makes a new version, never pushes, never installs.
+    copied to releases\, uploaded to the production server (where every phone's update check finds it), and
+    marked with a prod/vX.Y.Z tag. Never makes a new version, never pushes git, never installs.
 
 .DESCRIPTION
     Refuses at the first failure and says why:
@@ -13,13 +14,19 @@
       4. the release key is configured (keystore.properties or the RELEASE_* env vars) and its file exists
       5. CHANGELOG.md has a section for this version that no longer says DRAFT. A missing one is drafted from
          git log since the previous prod/ tag and the script stops for you to edit it
-      6. testDebugUnitTest + assembleRelease, the release build's servers are production's, apksigner verify
+      6. the upload key is set (ANDROID_RELEASE_UPLOAD_KEY, the value production has) and production answers
+         GET /api/android-release/latest with nothing newer than this build
+      7. testDebugUnitTest + assembleRelease, the release build's servers are production's, apksigner verify
          accepts the APK, and aapt2 reads the tag's versionName and versionCode back out of it
-      7. the APK is copied to releases\adhd-tracker-X.Y.Z-<code>.apk, its SHA-256 printed, the annotated tag
-         prod/vX.Y.Z put on the release commit with the changelog section as its message, and an uncommitted
-         CHANGELOG.md committed on its own
+      8. the APK is copied to releases\adhd-tracker-X.Y.Z-<code>.apk, its SHA-256 printed, and it is uploaded to
+         production (POST /api/android-release; the server checks the SHA-256 and refuses another build of the
+         same code). Only then the annotated tag prod/vX.Y.Z is put on the release commit with the changelog
+         section as its message, and an uncommitted CHANGELOG.md committed on its own. A failed upload leaves no
+         tag, so the run can simply be repeated; a repeated upload of the same file is accepted.
 
-    -DryRun does every check and the build and writes nothing: no draft, no copy, no tag, no commit.
+    -DryRun does every check and the build and writes nothing: no draft, no copy, no upload, no tag, no commit.
+    -NoUpload skips step 6's key and server checks and the upload (production not deployed yet): the APK and
+    the tag are made, and the upload is left to a later run of nothing but the printed curl line.
     The rules are in CLAUDE.md, section "Versioning".
 
 .EXAMPLE
@@ -31,7 +38,8 @@
 param(
     [string] $Version,
     [switch] $ServerDeployed,
-    [switch] $DryRun
+    [switch] $DryRun,
+    [switch] $NoUpload
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,6 +55,8 @@ $resValuesFile = Join-Path $root 'app\build\generated\res\resValues\release\valu
 $releasesDir = Join-Path $root 'releases'
 $prodServer = 'https://backend.adhdtimeorganizer.com/'
 $prodWebApp = 'https://adhdtimeorganizer.com/'
+$releaseRoute = "${prodServer}api/android-release"
+$uploadKeyVariable = 'ANDROID_RELEASE_UPLOAD_KEY'
 # The release key's certificate (apksigner's "certificate SHA-256 digest"). A different key forces every installed
 # copy to be uninstalled to update, so a build signed with any other is refused. Public, not a secret.
 $expectedCertSha256 = ''
@@ -94,6 +104,32 @@ function Find-BuildTools {
         if ($tools -and (Test-Path (Join-Path $tools.FullName 'apksigner.bat'))) { return $tools.FullName }
     }
     return $null
+}
+
+# curl.exe (in Windows since 10 1803) rather than Invoke-WebRequest: the same behaviour under 5.1 and 7, a raw binary
+# body, and a status code instead of an exception. Returns the status (0 when there was no answer) and the body.
+# The upload key goes in a header file, never on the command line, where other processes could read it.
+function Invoke-Curl([string[]] $curlArgs, [string] $headerLine) {
+    $bodyFile = [System.IO.Path]::GetTempFileName()
+    $headerFile = $null
+    try {
+        $all = @('-sS', '-o', $bodyFile, '-w', '%{http_code}', '--max-time', '300')
+        if ($headerLine) {
+            $headerFile = [System.IO.Path]::GetTempFileName()
+            [System.IO.File]::WriteAllText($headerFile, "$headerLine`n", $utf8)
+            $all += @('-H', "@$headerFile")
+        }
+        $full = @($all + $curlArgs)
+        $result = Invoke-Native 'curl.exe' @full
+        $status = 0
+        [void] [int]::TryParse((($result.Output | Select-Object -Last 1) -replace '\D', ''), [ref] $status)
+        $body = if (Test-Path $bodyFile) { [System.IO.File]::ReadAllText($bodyFile) } else { '' }
+        $errorText = ($result.Output | Select-Object -SkipLast 1) -join "`n"
+        return [pscustomobject] @{ Status = $status; Body = $body; Error = $errorText }
+    } finally {
+        Remove-Item $bodyFile -ErrorAction SilentlyContinue
+        if ($headerFile) { Remove-Item $headerFile -ErrorAction SilentlyContinue }
+    }
 }
 
 function Get-VersionKey([string] $tag) {
@@ -235,7 +271,36 @@ if (-not $section) {
     if (-not $DryRun) { Fail $changelogProblem }
 }
 
-# ---- 6. build and check ----------------------------------------------------------------------------------
+# ---- 6. the upload key and production's release route ---------------------------------------------------
+# Before the build, so a missing key or an undeployed server costs nothing. A dry run reports it at the end, with the rest.
+$uploadKey = [Environment]::GetEnvironmentVariable($uploadKeyVariable)
+$serverProblem = $null
+$publishedCode = $null
+if (-not $NoUpload) {
+    if (-not $uploadKey) {
+        $serverProblem = ("$uploadKeyVariable is not set: it is the key production's $uploadKeyVariable holds, set once as a " +
+            "user environment variable on this PC (see CLAUDE.md, Versioning). Or pass -NoUpload to release without uploading.")
+    } else {
+        $latest = Invoke-Curl -curlArgs @("$releaseRoute/latest")
+        if ($latest.Status -eq 204) {
+            Say 'production has no release published yet; this is the first'
+        } elseif ($latest.Status -eq 200) {
+            $publishedCode = [int] ($latest.Body | ConvertFrom-Json).versionCode
+            if ($publishedCode -ge $code) {
+                $serverProblem = "production already publishes versionCode $publishedCode; $name is code $code. Run test-release for a newer version."
+            } else {
+                Say "production publishes code $publishedCode; this release replaces it as the latest"
+            }
+        } elseif ($latest.Status -eq 404) {
+            $serverProblem = "production answers 404 for $releaseRoute/latest: the server with the release routes is not deployed there yet. Deploy it, or pass -NoUpload."
+        } else {
+            $serverProblem = "production did not answer $releaseRoute/latest (status $($latest.Status)): $($latest.Error)$($latest.Body)"
+        }
+    }
+    if ($serverProblem -and -not $DryRun) { Fail $serverProblem }
+}
+
+# ---- 7. build and check ----------------------------------------------------------------------------------
 $tools = Find-BuildTools
 if (-not $tools) { Fail 'Android build-tools (apksigner, aapt2) not found; set ANDROID_HOME' }
 
@@ -282,27 +347,55 @@ if ($package -notmatch "versionCode='$code'" -or $package -notmatch "versionName
 }
 $hash = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLowerInvariant()
 
-if ($changelogProblem) { Fail $changelogProblem }
-
-# ---- 7. copy and tag -------------------------------------------------------------------------------------
 $fileName = "adhd-tracker-$name-$code.apk"
+$uploadUrl = "${releaseRoute}?versionCode=$code&versionName=$name&sha256=$hash"
+# For -NoUpload: the one command that publishes the copied file later, the key read from the variable when it is run.
+$uploadCommand = "curl.exe --fail-with-body -X POST -H `"X-Release-Upload-Key: `$env:$uploadKeyVariable`" " +
+    "-H 'Content-Type: application/vnd.android.package-archive' --data-binary '@releases\$fileName' '$uploadUrl'"
+
 if ($DryRun) {
     Write-Host ''
-    Write-Host "${mode}: every check passed; nothing written. $name (code $code)" -ForegroundColor Green
-    Write-Host "  would copy  releases\$fileName"
-    Write-Host "  sha-256     $hash"
-    Write-Host "  signed by   $cert"
-    Write-Host "  server      $server"
-    Write-Host "  would tag   $prodTag on $($tagCommit.Substring(0, 8))"
-    if (-not $expectedCertSha256) { Write-Host "  note        no expected certificate is set in this script yet" -ForegroundColor Yellow }
-    if (-not $googleClient) { Write-Host '  note        the release has no Google client id: its sign-in button is hidden' -ForegroundColor Yellow }
+    Write-Host "${mode}: $name (code $code) built and checked; nothing written." -ForegroundColor Cyan
+    Write-Host "  would copy    releases\$fileName"
+    Write-Host "  sha-256       $hash"
+    Write-Host "  signed by     $cert"
+    Write-Host "  server        $server"
+    if ($NoUpload) { Write-Host '  upload        skipped (-NoUpload)' }
+    elseif (-not $serverProblem) { Write-Host "  would upload  to $releaseRoute (production's latest: $(if ($publishedCode) { "code $publishedCode" } else { 'none' }))" }
+    Write-Host "  would tag     $prodTag on $($tagCommit.Substring(0, 8))"
+    if (-not $expectedCertSha256) { Write-Host "  note          no expected certificate is set in this script yet" -ForegroundColor Yellow }
+    if (-not $googleClient) { Write-Host '  note          the release has no Google client id: its sign-in button is hidden' -ForegroundColor Yellow }
+}
+
+if ($changelogProblem) { Fail $changelogProblem }
+if ($serverProblem) { Fail $serverProblem }
+
+if ($DryRun) {
+    Write-Host "${mode}: every check passed." -ForegroundColor Green
     exit 0
 }
 
+# ---- 8. copy, upload, tag --------------------------------------------------------------------------------
 New-Item -ItemType Directory -Force $releasesDir | Out-Null
 $target = Join-Path $releasesDir $fileName
-if (Test-Path $target) { Fail "$target already exists" }
-Copy-Item $apk $target
+if (Test-Path $target) {
+    # A run whose upload failed made this copy; the same file is the same release.
+    if ((Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { Fail "$target already exists, and is another build" }
+} else {
+    Copy-Item $apk $target
+}
+
+# Before the tag: a tag with no upload behind it would make a re-run refuse ("already released").
+$uploaded = $null
+if (-not $NoUpload) {
+    Say "uploading $fileName to $releaseRoute"
+    $upload = Invoke-Curl -curlArgs @('-X', 'POST', '-H', 'Content-Type: application/vnd.android.package-archive',
+        '--data-binary', "@$target", $uploadUrl) -headerLine "X-Release-Upload-Key: $uploadKey"
+    if ($upload.Status -eq 201) { $uploaded = 'published' }
+    elseif ($upload.Status -eq 200) { $uploaded = 'was published already (same file)' }
+    elseif ($upload.Status -eq 401) { Fail "production refused the upload key (401): $uploadKeyVariable here is not the one production has. No tag was made." }
+    else { Fail "the upload failed (status $($upload.Status)): $($upload.Error)$($upload.Body)`nNo tag was made; fix it and run again." }
+}
 
 $messageFile = [System.IO.Path]::GetTempFileName()
 try {
@@ -327,9 +420,15 @@ Write-Host "  sha-256     $hash"
 Write-Host "  signed by   $cert"
 Write-Host "  server      $server"
 Write-Host "  tag         $prodTag on $($tagCommit.Substring(0, 8))   (nothing pushed)"
+if ($uploaded) { Write-Host "  upload      $uploaded on $releaseRoute; phones see it at their next daily check" }
 if ($changelogCommit) { Write-Host "  changelog   committed as $changelogCommit" }
 if (-not $googleClient) { Write-Host '  note        the release has no Google client id: its sign-in button is hidden' -ForegroundColor Yellow }
 Write-Host ''
+if ($NoUpload) {
+    Write-Host 'Not uploaded (-NoUpload). Once production has the release routes, from the repo root:' -ForegroundColor Yellow
+    Write-Host "  $uploadCommand"
+    Write-Host ''
+}
 Write-Host 'To publish the tags:'
 Write-Host "  git push origin $tag"
 Write-Host "  git push origin $prodTag"
