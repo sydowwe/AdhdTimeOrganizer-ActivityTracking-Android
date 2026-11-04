@@ -15,4 +15,10 @@
 
     <!-- The check on a granted settings card. -->
     <color name="success">#FF2E7D32</color>
+
+    <!-- The home-screen widget; it draws outside the app's theme, so its colours are its own. -->
+    <color name="widget_background">#FFFFFBFE</color>
+    <color name="widget_text">#FF1C1B1F</color>
+    <color name="widget_text_secondary">#FF49454F</color>
+    <color name="widget_accent">@color/purple_500</color>
 </resources>

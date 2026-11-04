@@ -64,12 +64,16 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `capture/CaptureActivity.kt`, `capture/CaptureTileService.kt` | The one-field dialog (tile, launcher shortcut) and the share target "Save to Inbox"; the "Capture" Quick Settings tile |
 | `pause/PauseClipper.kt`, `pause/PausePolicy.kt` | **Pure.** Pause tracking (prompt 17): what a pause takes out of a read (sessions clipped, the rest dropped, no cursor moved), the daily limits' sittings without it; where each length ends, the morning, when the notification shows, when a paused phone sends an empty sync |
 | `pause/Pauses.kt`, `pause/PauseNotifier.kt`, `pause/PauseActionReceiver.kt`, `pause/PausePreferences.kt` | The pauses in `outbox.db` (start, Resume, the morning from `/now`); "Tracking paused until …" with **Resume**; the kept morning, the notification's state, the last heartbeat |
+| `pause/PauseTileService.kt`, `pause/PauseChoiceActivity.kt`, `pause/PauseDialog.kt` | The "Pause tracking" Quick Settings tile; the translucent screen its tap opens; the four lengths, shared with the status card |
+| `today/TodaySummary.kt`, `today/WidgetPlan.kt` | **Pure.** This phone's time today from the usage log (day bounds in the device's zone, the total, the top apps); which kept block is current, when the widget goes stale |
+| `today/TodayWidget.kt`, `today/TodayWidgetProvider.kt`, `today/TodayPreferences.kt` | Draws the "Phone today" widget (after a sync, on a pause, on its alarm); the system's and the alarm's entry point; the kept planner blocks |
 | `ignore/IgnoredPackages.kt`, `ignore/IgnoredAppsList.kt` | **Pure.** `IgnoreState`: the server's rules + pending ignores → what the phone drops, every transition, the 7-day expiry; `IgnoreCallOutcome`; `OutboxPurge`; the screen's rows |
 | `ignore/IgnoreStore.kt`, `ignore/IgnoreSync.kt` | The rules cache (body + ETag) and pending ops in prefs; `GET rules`, `PUT` / `DELETE ignored`, the outbox purge on an ignore |
 | `ignore/IgnoredAppsActivity.kt`, `ignore/IgnoreDialogs.kt` | The "Ignored apps" screen (the week's apps + every ignored one, Ignore / Stop ignoring); the one-line confirmations it shares with the review |
 | `push/PushMessage.kt`, `push/PushRegistrationPolicy.kt` | **Pure.** Push from the server (prompt 22): FCM's data fields → the message (id, kind, words, buttons), its channel by kind (`ServerChannel`), where a tap goes; when to register with the server |
 | `push/PushSetup.kt`, `push/PushRegistrar.kt`, `push/PushMessagingService.kt`, `push/PushNotifier.kt`, `push/PushActionReceiver.kt` | Firebase started by hand from `BuildConfig.FIREBASE_*`; `PUT` / `DELETE tracker/android/push-device` (a network-bound job; unregister on sign-out); FCM's entry point (dropped while signed out); the notification; its buttons → `tracker/android/notifications/{id}/action/{action}` |
 | `util/InstalledApps.kt` | Labels, icons, launcher entries and the home apps from `PackageManager`, within what `<queries>` makes visible |
+| `util/Tiles.kt` | `openAndCollapse`: what both tiles do with a tap, with API 34's `PendingIntent` branch |
 | `worker/UsageSyncWorker.kt`, `TimeOrganizerApp.kt` | WorkManager entry point; periodic + "Sync Now" scheduling |
 | `LoginActivity.kt`, `MainActivity.kt` | Password or Google sign-in, then 2FA; status screen (red banner while usage access is off, amber while setup is unfinished) |
 | `auth/GoogleSignIn.kt` | Credential Manager's "Sign in with Google" → the ID token the server verifies |
@@ -659,7 +663,7 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   resume** — and nothing the phone is used for meanwhile is recorded or sent, in any app. While paused the card says "Paused
   until 15:00" and offers **Resume**, and a silent "Tracking paused until 15:00 · Resume" sits on its own low channel (`pause`,
   id 11): swipeable, cleared by itself at a timed pause's end (`setTimeoutAfter`), shown again once a day while "until I
-  resume" runs (`PausePolicy.notice`). Starting a pause from a notification or a tile is prompt 19's tile.
+  resume" runs (`PausePolicy.notice`). The "Pause tracking" tile starts and ends one too (*Widget and pause tile*).
 - **What it takes out (`PauseClipper`, pure, `PauseClipperTest`; decision 17-3)**, applied in `UsageStatsCollector.collect`
   after the ignored apps' drop: **sessions are clipped at the pause's edges** (one spanning it becomes two; a re-read clips the
   same way, so a piece's start — the dedup key — is stable), **pickups, interruptions and derailments touching it are dropped
@@ -681,6 +685,38 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   Resume writes the real end. Read by the sync after it takes its `nowMs`, so a pause started before the read is seen. Kept until
   every cursor has passed it and two days more (the limits read the whole day). **An account switch keeps it**: it is this
   phone's, and the new account's time in it is as private.
+
+### Widget and pause tile (prompt 19, 2026-11-04)
+- **The "Phone today" widget** (RemoteViews, no Compose — decision 19-2): today's total labelled "this phone today", the line
+  under it, and the top 3 apps. A tap opens the status screen. **This phone only**: an all-devices total needs a new
+  tracker route, because `activity-tracking/unified/*` refuses a tracker token (decision 19-3; `docs/ideas.md` #3).
+- **The line** says one thing, first match wins: "Usage access is off" (the total shows "–"), "Paused until 15:00", "now: Thesis
+  until 11:30", or nothing.
+- **The figures come from the usage log, not the outbox (decision 19-1):** the outbox holds only about the last run, because
+  sent rows are pruned behind the cursor. `TodaySummary` applies what the sync applies — `SessionBuilder`, `forOutbox`,
+  `PauseClipper`, the 5 s floor — so it matches the dashboards and may differ from Digital Wellbeing. The app in front counts up to
+  now. Split-screen counts once in the total, and fully for each app. **The read starts 6 h before midnight** and clips to the
+  day: a read from midnight never sees the resume of a sitting crossing it (a sitting over 6 h long and still going is missed).
+- **When it draws (decision 19-5):** after every sync run, the only draw that asks `/now`; on a pause starting or ending; on a
+  sign-out from the status screen; and on one inexact `setAndAllowWhileIdle(RTC)` alarm at the next moment its text is wrong (a
+  block's start or end, a pause's end, local midnight). `RTC`, not a wake-up: it comes when the phone is next awake. A boot
+  redraws it through `onUpdate`. **The total can be up to a sync old**; a block or a day never outlives its end. With no widget
+  placed nothing runs at all. The first one placed asks for a sync, since no block was kept before it.
+- **The blocks are the widget's own** (`TodayPreferences`): `NowClient` holds its answer in memory for 30 s, so the blocks covering
+  now and the next are kept in prefs, which is what lets a block's start show offline. They hold activity names: never logged,
+  **cleared on an account switch** (`TodayWidget.reset`) and on a sign-out, and when the last widget goes. The total stays: it is
+  this phone's.
+- **The "Pause tracking" tile (decision 19-4):** while recording, a tap opens the four lengths over the app in front
+  (`PauseChoiceActivity`, the card's `PauseDialog`); never a fixed length, so a stray tap can't silently stop the recording. While
+  paused it is lit, says "Tracking paused / until 15:00", and a tap is Resume at once. A locked phone asks for the unlock first.
+  An ordinary tile gets `onStartListening` each time the shade shows it, so nothing tells it about a pause; a Resume from the
+  notification with the shade still open shows at the next opening. `requestListeningState` would not help: it reaches
+  only active tiles.
+- **A long press on either tile opens the status screen** (`QS_TILE_PREFERENCES` on `MainActivity`). The filter is per package,
+  so the Capture tile got it too; before, it opened the system's app info.
+- The pause card has **"Add the tile"** on Android 13+, like Quick capture's.
+- **Not seen on a device**: the widget, the tile and the long press have only been built, and the owner's phone has its own
+  shade (MIUI).
 
 ### Push from the server (prompt 22, 2026-10-30)
 - **What it is:** the server's own notifications — a reminder, a to-do or routine item coming due, a timer phase ending, a

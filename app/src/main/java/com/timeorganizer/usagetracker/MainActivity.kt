@@ -22,7 +22,6 @@ import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.data.local.SyncPreferences
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.timeorganizer.usagetracker.breaks.BreakMonitor
 import com.timeorganizer.usagetracker.breaks.BreakPolicy
@@ -49,8 +48,9 @@ import com.timeorganizer.usagetracker.loops.LoopPreferences
 import com.timeorganizer.usagetracker.mapping.MappedAppsActivity
 import com.timeorganizer.usagetracker.now.KeptDistractions
 import com.timeorganizer.usagetracker.notify.Notifications
-import com.timeorganizer.usagetracker.pause.PauseLength
+import com.timeorganizer.usagetracker.pause.PauseDialog
 import com.timeorganizer.usagetracker.pause.PauseNotifier
+import com.timeorganizer.usagetracker.pause.PauseTileService
 import com.timeorganizer.usagetracker.pause.Pauses
 import com.timeorganizer.usagetracker.push.PushNotifier
 import com.timeorganizer.usagetracker.push.PushRegistrar
@@ -62,6 +62,7 @@ import com.timeorganizer.usagetracker.review.ReviewPreferences
 import com.timeorganizer.usagetracker.sync.SyncEngine
 import com.timeorganizer.usagetracker.sync.SyncReport
 import com.timeorganizer.usagetracker.sync.SyncState
+import com.timeorganizer.usagetracker.today.TodayWidget
 import com.timeorganizer.usagetracker.update.UpdateChecker
 import com.timeorganizer.usagetracker.util.Constants
 import com.timeorganizer.usagetracker.util.InstalledApps
@@ -448,25 +449,13 @@ class MainActivity : AppCompatActivity() {
     private fun setUpPauseCard() {
         findViewById<View>(R.id.btnPause).setOnClickListener {
             lifecycleScope.launch {
-                val morningMs = withContext(Dispatchers.IO) { Pauses.morning(applicationContext, ask = false) }
-                val morning = android.text.format.DateFormat.getTimeFormat(this@MainActivity).format(Date(morningMs))
-                val lengths = PauseLength.entries
-                val labels = lengths.map {
-                    when (it) {
-                        PauseLength.FIFTEEN_MINUTES -> getString(R.string.pause_15_minutes)
-                        PauseLength.ONE_HOUR -> getString(R.string.pause_1_hour)
-                        PauseLength.UNTIL_MORNING -> getString(R.string.pause_until_morning, morning)
-                        PauseLength.UNTIL_RESUMED -> getString(R.string.pause_until_i_resume)
-                    }
-                }.toTypedArray()
-                MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle(R.string.pause_dialog_title)
-                    .setItems(labels) { _, which -> changePause { Pauses.start(applicationContext, lengths[which]) } }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
+                PauseDialog.show(this@MainActivity) { length -> changePause { Pauses.start(applicationContext, length) } }
             }
         }
         findViewById<View>(R.id.btnPauseResume).setOnClickListener { changePause { Pauses.resume(applicationContext) } }
+        setUpAddTile(
+            R.id.btnPauseAddTile, PauseTileService::class.java, R.string.pause_tile_label, R.drawable.ic_stat_pause, R.string.pause_tile_added
+        )
     }
 
     private fun changePause(change: suspend () -> Unit) {
@@ -498,21 +487,26 @@ class MainActivity : AppCompatActivity() {
     /** Quick capture: the field itself, and on Android 13+ the system's one-tap "add this tile" request. */
     private fun setUpCaptureCard() {
         findViewById<View>(R.id.btnCaptureNow).setOnClickListener { startActivity(CaptureActivity.intent(this)) }
+        setUpAddTile(
+            R.id.btnCaptureAddTile, CaptureTileService::class.java, R.string.capture_tile_label, R.drawable.ic_stat_capture, R.string.capture_tile_added
+        )
+    }
+
+    /** A card's "Add the tile", shown on Android 13+ only: the system's own request, one tap instead of editing Quick Settings. */
+    private fun setUpAddTile(buttonId: Int, tile: Class<*>, label: Int, icon: Int, added: Int) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val addTile = findViewById<View>(R.id.btnCaptureAddTile)
+        val addTile = findViewById<View>(buttonId)
         addTile.visibility = View.VISIBLE
         addTile.setOnClickListener {
             getSystemService(StatusBarManager::class.java).requestAddTileService(
-                ComponentName(this, CaptureTileService::class.java),
-                getString(R.string.capture_tile_label),
-                Icon.createWithResource(this, R.drawable.ic_stat_capture),
+                ComponentName(this, tile),
+                getString(label),
+                Icon.createWithResource(this, icon),
                 mainExecutor
             ) { result ->
-                val added = result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
+                val isAdded = result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ||
                     result == StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
-                Toast.makeText(
-                    this, if (added) R.string.capture_tile_added else R.string.capture_tile_not_added, Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, if (isAdded) added else R.string.capture_tile_not_added, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -629,6 +623,7 @@ class MainActivity : AppCompatActivity() {
 
         authPrefs.clearTokens(SignOutReason.USER)
         PushNotifier.cancelAll(this)
+        TodayWidget.kick(this)
 
         // Fire-and-forget on GlobalScope so it survives this Activity finishing
         if (savedToken != null && savedRefreshToken != null) {

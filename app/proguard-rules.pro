@@ -6,6 +6,7 @@
 # Stored as JSON in prefs: renamed fields would make an updated app unable to read what the previous one wrote
 -keep class com.timeorganizer.usagetracker.ignore.PendingIgnoreOp { *; }
 -keep enum com.timeorganizer.usagetracker.ignore.IgnoreOpKind { *; }
+-keep class com.timeorganizer.usagetracker.today.KeptBlock { *; }
 
 # Retrofit
 -keepattributes RuntimeVisibleAnnotations, RuntimeInvisibleAnnotations

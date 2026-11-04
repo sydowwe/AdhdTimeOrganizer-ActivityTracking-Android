@@ -6,12 +6,23 @@
         <item name="colorOnSecondary">@color/black</item>
     </style>
 
-    <!-- Quick capture: only its dialog shows, over the app it was opened from. Night colours come from the parent. -->
+    <!-- Quick capture and the pause tile: only a dialog shows, over the app it was opened from. Night colours come from the parent. -->
     <style name="Theme.TimeOrganizerUsageTracker.Capture">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <!-- One of the widget's three apps; hidden until there is an app to show. -->
+    <style name="WidgetAppRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">@color/widget_text_secondary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:visibility">gone</item>
     </style>
 </resources>

@@ -20,6 +20,7 @@ import com.timeorganizer.usagetracker.drift.DriftMonitor
 import com.timeorganizer.usagetracker.push.PushNotifier
 import com.timeorganizer.usagetracker.push.PushRegistrar
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
+import com.timeorganizer.usagetracker.today.TodayWidget
 import com.timeorganizer.usagetracker.ignore.IgnoreStore
 import com.timeorganizer.usagetracker.ignore.IgnoreSync
 import com.timeorganizer.usagetracker.ignore.OutboxPurge
@@ -384,7 +385,8 @@ class SyncEngine(context: Context) {
          * open break: it names the previous person's activity. So is the kept distraction list (the chime's ticks stay:
          * they are this phone's). So are the loops the loop check saw (the apps that don't count stay, for the same reason),
          * the start ramp's blocks and its wake (its switch and "which blocks" stay), the drift nudge's block, and the daily
-         * limits' figures, settled stages and unsent claims (their switch stays). So are the
+         * limits' figures, settled stages and unsent claims (their switch stays), and the planner blocks the widget keeps (its
+         * total stays: it is this phone's). So are the
          * thoughts quick capture still holds: they were meant for the previous account's to-dos. Otherwise the ones captured
          * while signed out go now.
          */
@@ -404,6 +406,7 @@ class SyncEngine(context: Context) {
                 StartRampMonitor.reset(context)
                 DriftMonitor.reset(context)
                 BudgetMonitor.reset(context)
+                TodayWidget.reset(context)
                 CaptureSender.reset(context)
                 PushNotifier.cancelAll(context)
             }

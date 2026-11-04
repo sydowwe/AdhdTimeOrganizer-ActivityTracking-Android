@@ -101,21 +101,24 @@ where the scrolling is happening.
 - Overlaps Digital Wellbeing's app timers (see #8); ours count by *activity* across devices, theirs by app on one
   device. Say that in the UI.
 
-## 3. Home-screen widget and Quick Settings tile
+## 3. Home-screen widget and Quick Settings tile — built 2026-11-04 (prompt 19), not yet seen on a device
 
 **Why.** The lowest-effort feedback loop on a phone. "Phone today: 2 h 10 m · Planned now: Thesis" next to the
-clock keeps the data in sight without opening anything. A tile gives one-tap pause (#6) and "Sync now".
+clock keeps the data in sight without opening anything. A tile gives quick pause (#6).
 
-**How.**
-- **Widget (Glance):** today's phone total from the outbox (local, instant), today's top 3 apps, the current
-  planner block from the cached `/now` (#1). A widget's own update period is at least 30 minutes, so drive
-  updates from the sync worker instead.
-- **Tile (`TileService`):** state = tracking / paused; tap toggles pause; long-press opens the app.
-- **Server (optional):** a unified "today across devices" number from the unified dashboard endpoints, so the
-  widget can say "today: 6 h 40 m (all devices)".
+**What was built.** The "Phone today" widget (RemoteViews, so still no Compose in the project): today's total, labelled "this
+phone today", the top 3 apps, and the block planned now or the pause going. It reads the usage log rather than the outbox,
+which keeps only about the last run, and keeps its own blocks from `/now`. The "Pause tracking" tile: a tap offers the four
+lengths while recording and resumes at once while paused; a long press on either tile opens the status screen. See *Widget
+and pause tile* in `CLAUDE.md`; decisions in the server repo's `review/androidTrackerPrompts/decisions.md` → 19.
 
-**Catches.** Local totals cover this phone only — label them. Glance adds Compose to the build; fine, but it is
-the first Compose in the project.
+**Not built, still open.**
+- **An all-devices number** ("today: 6 h 40 m, all devices"). `activity-tracking/unified/*` refuses a tracker token, so it needs
+  a new `[AllowAndroidTracker]` route on `UnifiedSpan` under `tracker/android/*`, with token tests in both directions and a
+  wire sample. Not on `/now`: that is polled every minute, and a day's merge doesn't belong in it (decision 19-3).
+- **A "Sync now" tile.** The tile went to pause, as the prompt said it should once 17 existed.
+- **A fresher total.** It is up to a sync old, about 15 minutes. The watcher could redraw it, but only while it is running
+  anyway.
 
 ## 4. Unlock count and first-pickup time — built 2026-10-29 (prompt 14), server half; the web's view is a frontend prompt
 
@@ -175,7 +178,7 @@ messaging. "It never leaves the phone" beats "it's deleted on arrival".
 - ~~**Pause for…**~~ — **done (prompt 17, 2026-10-29)**: 15 min / 1 h / until morning (the planner's wake-up, from `/now`) /
   until I resume, from the status screen; a "Tracking paused · Resume" notification while it runs. Sessions clipped at the
   pause's edges, everything else touching it dropped, no cursor moved; nudges run on; no marker on the server; an empty sync
-  every 6 h while paused. See *Pause tracking* in `CLAUDE.md`. Starting one from a tile is #3's.
+  every 6 h while paused. See *Pause tracking* in `CLAUDE.md`. The tile starts one too (#3, prompt 19).
 - ~~**Never-send list**~~ and ~~**sync server ignore rules down**~~ — **done (prompt 26c, 2026-10-25)** as one
   thing, decided with the owner: there is no phone-only kind of ignore. Ignoring is the server's ordinary rule
   (`PUT tracker/android/ignored/{packageName}`), the phone downloads every rule (`GET tracker/android/rules`, exact

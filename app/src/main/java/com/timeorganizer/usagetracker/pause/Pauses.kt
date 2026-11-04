@@ -4,12 +4,13 @@ import android.content.Context
 import com.timeorganizer.usagetracker.data.local.outbox.OutboxDatabase
 import com.timeorganizer.usagetracker.data.local.outbox.PauseRangeEntity
 import com.timeorganizer.usagetracker.now.NowClient
+import com.timeorganizer.usagetracker.today.TodayWidget
 import java.time.ZoneId
 
 /**
- * Pause tracking (prompt 17): the pauses kept in `outbox.db`, started from the status card and ended by Resume (the card or
- * the notification). What a pause takes out is [PauseClipper]'s, applied by the sync's read, the loop store and the daily
- * limits' estimate; the nudges themselves run on (decision 17-1).
+ * Pause tracking (prompt 17): the pauses kept in `outbox.db`, started from the status card or the tile and ended by Resume
+ * (either of those, or the notification). What a pause takes out is [PauseClipper]'s, applied by the sync's read, the loop
+ * store, the daily limits' estimate and the widget's total; the nudges themselves run on (decision 17-1).
  */
 object Pauses {
 
@@ -30,6 +31,7 @@ object Pauses {
             dao.insertPause(PauseRangeEntity(startMs = nowMs, endMs = end))
         }
         PauseNotifier.refresh(context, nowMs)
+        TodayWidget.refresh(context)
     }
 
     /** Ends the pause going now; one that began this very millisecond leaves no range behind. */
@@ -37,6 +39,7 @@ object Pauses {
         val dao = dao(context)
         dao.activePause(nowMs)?.let { if (it.startMs >= nowMs) dao.deletePause(it.id) else dao.endPause(it.id, nowMs) }
         PauseNotifier.refresh(context, nowMs)
+        TodayWidget.refresh(context)
     }
 
     /**

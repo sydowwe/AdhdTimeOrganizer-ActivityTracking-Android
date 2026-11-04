@@ -14,6 +14,7 @@ import com.timeorganizer.usagetracker.push.PushRegistrar
 import com.timeorganizer.usagetracker.ramp.StartRampMonitor
 import com.timeorganizer.usagetracker.review.EveningReviewRunner
 import com.timeorganizer.usagetracker.sync.SyncEngine
+import com.timeorganizer.usagetracker.today.TodayWidget
 import com.timeorganizer.usagetracker.update.UpdateChecker
 import kotlinx.coroutines.CancellationException
 
@@ -52,6 +53,8 @@ class UsageSyncWorker(
         BudgetMonitor.afterSync(applicationContext)
         // Release builds: once a day, is a newer production build published? One notification per version. Never throws.
         UpdateChecker.afterSync(applicationContext)
+        // The home-screen widget, last: today's total as this run read it, and the block from `/now`. Never throws.
+        TodayWidget.afterSync(applicationContext)
         Result.success()
     } catch (e: CancellationException) {
         throw e

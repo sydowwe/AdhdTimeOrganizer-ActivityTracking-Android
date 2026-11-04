@@ -182,6 +182,21 @@
     <string name="notify_pause_title">Tracking paused %1$s</string>
     <string name="notify_pause_text">Nothing is recorded meanwhile.</string>
 
+    <!-- The pause tile and the home-screen widget (prompt 19) -->
+    <string name="pause_tile_label">Pause tracking</string>
+    <string name="pause_tile_paused">Tracking paused</string>
+    <string name="pause_tile_recording">Recording</string>
+    <string name="pause_tile_added">The Pause tracking tile is in Quick Settings</string>
+    <string name="btn_pause_add_tile">Add the tile</string>
+    <string name="widget_today_label">Phone today</string>
+    <string name="widget_today_description">Today\'s time on this phone, its top apps and the block planned now</string>
+    <string name="widget_this_phone">this phone today</string>
+    <string name="widget_total_unknown">–</string>
+    <string name="widget_app_row">%1$s · %2$s</string>
+    <string name="widget_block_now">now: %1$s until %2$s</string>
+    <string name="widget_paused">Paused %1$s</string>
+    <string name="widget_no_usage_access">Usage access is off</string>
+
     <!-- Push from the server (prompt 22): one channel per kind of thing. Which kinds come at all is set in the web app's
          notification settings, the "Phone app" column. -->
     <string name="channel_server_reminders">Reminders and due items</string>

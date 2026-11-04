@@ -61,6 +61,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- A long press on either Quick Settings tile opens the status screen, not the system's app info. -->
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
             <!-- Quick capture's long-press shortcut on the app icon. -->
             <meta-data
                 android:name="android.app.shortcuts"
@@ -98,6 +102,26 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- The "Pause tracking" Quick Settings tile; the system binds it. -->
+        <service
+            android:name=".pause.PauseTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_pause"
+            android:label="@string/pause_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- The pause tile's four lengths, over the app it was opened from; its own empty task, like quick capture's. -->
+        <activity
+            android:name=".pause.PauseChoiceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.TimeOrganizerUsageTracker.Capture" />
 
         <activity
             android:name=".LoginActivity"
@@ -185,6 +209,19 @@
         <receiver
             android:name=".pause.PauseActionReceiver"
             android:exported="false" />
+
+        <!-- The "Phone today" widget; the system draws it, and only the app's own PendingIntent sends its look-again. -->
+        <receiver
+            android:name=".today.TodayWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_today_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
 
         <!-- Push from the server (prompt 22): FCM's messages and new tokens. Firebase's own receiver hands them on. -->
         <service
