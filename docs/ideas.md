@@ -420,8 +420,11 @@ desk is in use; held while a timer runs and under the usual silences. On by defa
   been lived with.
 - **"Not today"** on the notification. Android shows at most three buttons, and the three are taken.
 - **Per-activity exclusions** ("never for Lunch"). Importance covers most of it.
-- **Not this one as Skip in the planner.** Today it only settles the ramp and quiets drift, as the desktop's does; marking the
-  block skipped would be a server call and an explicit planner change the owner didn't ask for.
+- **Not this one as Skip in the planner.** Today it only settles the ramp and quiets drift, so the block can still be announced
+  as missed when it ends. The desktop's has cancelled the block since 2026-11-07 (`tracker/desktop/skip-block`), at the owner's
+  word; the phone would need its own route on `IPlannedBlockSkipper`.
+- **A running stopwatch holding the ramp.** `/now`'s `timerRunning` still counts only a countdown or pomodoro, so Start now over
+  a stopwatch lands on the web app's "replace it?" dialog. The desktop's heartbeat counts one since 2026-11-07 (`IsTimingAsync`).
 - **The desktop following the importance choice.** Its ramp still asks about every block; the same `isOptional` /
   `isCritical` on its heartbeat and a setting there would be a desktop-repo change.
 
