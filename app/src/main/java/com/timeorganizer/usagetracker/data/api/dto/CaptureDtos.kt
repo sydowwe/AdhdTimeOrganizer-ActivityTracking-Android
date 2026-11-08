@@ -1,6 +1,6 @@
 package com.timeorganizer.usagetracker.data.api.dto
 
-/** `POST tracker/android/capture`: one thought. User-authored: never log it. */
+/** `POST tracker/capture`: one thought. User-authored: never log it. */
 data class CaptureRequest(
     val text: String,
     /** A link shared with the text; `null` is left out by Gson. */

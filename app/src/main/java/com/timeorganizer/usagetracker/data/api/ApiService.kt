@@ -146,9 +146,11 @@ interface ApiService {
 
     /**
      * Quick capture: the thought becomes a to-do on the user's capture list ("Inbox"). 200 whether it was added, already
-     * open (a retry) or reopened; 409 `noPriority` when the account has no task priority; 400 for a blank text.
+     * open (a retry) or reopened; 409 `noPriority` when the account has no task priority; 400 for a blank text. A route
+     * both trackers call (the desktop's hotkey too), so it is not under `tracker/android/` — servers from 2026-11-08; an
+     * older one answers 404 here, which the queue keeps and retries.
      */
-    @POST("tracker/android/capture")
+    @POST("tracker/capture")
     suspend fun capture(
         @Body request: CaptureRequest
     ): Response<CaptureResponse>
