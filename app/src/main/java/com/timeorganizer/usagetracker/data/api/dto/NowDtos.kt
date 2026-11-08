@@ -42,6 +42,9 @@ data class TrackerNowBlockDto(
 /** `POST tracker/android/start-block`: the start ramp's **Start now**. */
 data class StartBlockRequest(val plannerTaskId: Long)
 
+/** `POST tracker/android/skip-block`: the start ramp's **Not this one**. */
+data class SkipBlockRequest(val plannerTaskId: Long)
+
 data class TrackerNowDesktopDto(
     /** When the desk's newest active minute ended (UTC); `null` with none in the last six hours. */
     val lastActiveAt: String?,

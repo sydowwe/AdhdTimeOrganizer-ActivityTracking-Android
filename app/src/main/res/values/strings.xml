@@ -252,7 +252,7 @@
     <!-- Start ramp: status card -->
     <string name="ramp_card_title">Start ramp</string>
     <string name="ramp_card_switch">Offer to start the timer when a planned block starts</string>
-    <string name="ramp_card_hint">One notification per block at its start (or at your next pickup, while 10 minutes are left). Start now starts the block and opens its timer in the web app, In 2 min asks once more, Not this one also keeps the drift nudge quiet in that block. Skipped when the block is already started or you are at your desk (the desktop tracker asks there). Waits while a timer runs, during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications.</string>
+    <string name="ramp_card_hint">One notification per block at its start (or at your next pickup, while 10 minutes are left). Start now starts the block and opens its timer in the web app, In 2 min asks once more, Not this one cancels the block in your planner and keeps the drift nudge quiet in it. Skipped when the block is already started or you worked on it at your desk. Waits while you are at your desk (the desktop tracker asks there), while a timer or stopwatch runs, during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications.</string>
     <string name="ramp_card_blocks">Which blocks</string>
     <string name="ramp_card_blocks_all">Every block</string>
     <string name="ramp_card_blocks_not_optional">All but Optional</string>

@@ -22,6 +22,7 @@ import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
 import com.timeorganizer.usagetracker.data.api.dto.PushDeviceRequest
 import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
 import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
+import com.timeorganizer.usagetracker.data.api.dto.SkipBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.StartBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityOptionsResponse
 import com.timeorganizer.usagetracker.data.api.dto.TrackerNowResponse
@@ -131,6 +132,16 @@ interface ApiService {
     @POST("tracker/android/start-block")
     suspend fun startBlock(
         @Body request: StartBlockRequest
+    ): Response<Unit>
+
+    /**
+     * The start ramp's **Not this one**: the planned block is cancelled, so it isn't announced as missed and the desk doesn't
+     * ask about it again. 204, and 204 again on a retry; 409 when there is nothing to skip (started or finished meanwhile, not
+     * today's, not the caller's).
+     */
+    @POST("tracker/android/skip-block")
+    suspend fun skipBlock(
+        @Body request: SkipBlockRequest
     ): Response<Unit>
 
     /**

@@ -86,10 +86,13 @@ data class StartRampStep(
  *   only makes someone feel behind.
  * - **Which blocks** — [RampBlocks], from the planner's importance; All but Optional by default.
  * - **Settled without a word** when the block is already under way (started in the planner — the web app's timer marks it
- *   — or from this ramp), when the desk is in use (the desktop tracker's own ramp asks there, decision 10-7), or too late.
- * - **Held, never dropped**: while a countdown or pomodoro runs (its end is the moment to move on to the plan), the server's
- *   silence, a call, DND, car mode, the "Phone away" timer and another nudge in the last 10 minutes. Said once the hold is
- *   over, if still worth saying.
+ *   — or from this ramp, or the desk's last minutes inside it were on plan, the desktop's own test), or too late.
+ * - **Held, never dropped**: while the desk is in use (the desktop tracker's own ramp asks there, and asks nothing once the
+ *   user has walked away, decision 10-7), while a countdown, pomodoro or stopwatch runs (stopping it is the moment to move on
+ *   to the plan), the server's silence, a call, DND, car mode, the "Phone away" timer and another nudge in the last 10 minutes.
+ *   Said once the hold is over, if still worth saying. Only the desk's hold runs without the watcher: someone can sit at their
+ *   desk for hours, and a foreground service for all of that would be for a pickup that isn't coming. Its look-again and the
+ *   sync hear the desk go idle.
  * - **Not nagging.** One ramp per block. **In 2 min** asks exactly once more, without that button, so it can't become a
  *   snooze loop; **Start now**, **Not this one** and a swipe settle the block — the block is settled the moment it is
  *   posted, so ignoring it settles it too. Withdrawn when the block is started, ends, or is gone from the plan.
@@ -151,22 +154,23 @@ object StartRampPolicy {
 
             val lateByMs = nowMs - block.startMs
             val tooLate = lateByMs > ON_TIME_MS && block.endMs - nowMs < MIN_LEFT_WHEN_LATE_MS
-            if (block.inProgress || !facts.deskIdle || tooLate) {
+            if (block.inProgress || workedOnAtTheDesk(block, facts) || tooLate) {
                 current = settle(current, block)
                 continue
             }
 
-            val heldUntilMs = when {
+            val heldOnThePhone = when {
                 facts.silent || input.locallySilent || facts.timerRunning == true -> nowMs + RECHECK_MS
                 else -> input.heldUntilMs?.takeIf { it > nowMs }
             }
+            val heldUntilMs = heldOnThePhone ?: (nowMs + RECHECK_MS).takeIf { !facts.deskIdle }
             if (heldUntilMs != null) {
                 return StartRampStep(
                     current,
                     cancel = cancel,
                     recheckAtMs = heldUntilMs,
                     wakeAtMs = wakeAt(current, facts, input.blocks, nowMs),
-                    watchUntilMs = askableUntil(block)
+                    watchUntilMs = askableUntil(block).takeIf { heldOnThePhone != null }
                 )
             }
 
@@ -205,6 +209,15 @@ object StartRampPolicy {
         val withdrawn = withdrawn(state)
         if (state.showingBlockId != blockId || !state.showingCanDefer) return withdrawn
         return withdrawn.copy(settled = state.settled - blockId, againBlockId = blockId, againAtMs = nowMs + AGAIN_MS)
+    }
+
+    /**
+     * The desk's last minutes were on plan and its newest one ended inside [block]: it is under way, started or not, as the
+     * desktop's ramp reads an on-plan minute. Minutes from before the block say nothing about it.
+     */
+    private fun workedOnAtTheDesk(block: NowBlock, facts: NowFacts): Boolean {
+        val lastActiveMs = facts.deskLastActiveMs ?: return false
+        return facts.deskWork?.onPlan == true && lastActiveMs > block.startMs
     }
 
     /** How long a held ramp is still worth saying: past this the late rule lets the block go. */

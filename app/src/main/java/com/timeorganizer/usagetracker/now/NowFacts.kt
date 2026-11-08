@@ -47,7 +47,7 @@ data class NowFacts(
     val distractionPackages: Set<String>,
     /** The first open block starting later today; `null` with none, or when it can't be read. */
     val next: NowBlock? = null,
-    /** A countdown or pomodoro runs; `null` when the server didn't say (one from before prompt 10): unknown. */
+    /** A countdown, pomodoro or stopwatch runs; `null` when the server didn't say (one from before prompt 10): unknown. */
     val timerRunning: Boolean? = null,
     /** The user's next morning (prompt 17's "until morning"); `null` from a server before it, or unreadable. */
     val nextWakeUpMs: Long? = null

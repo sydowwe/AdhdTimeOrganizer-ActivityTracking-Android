@@ -256,7 +256,7 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   on an ignore.
 - **The sync, rules, ignore, mapping, `/now`, capture and budget answers** (`activities`, `activityCreated`, `problem`, `distraction`,
   `appCategoryLink`, `now`, `captured`, `budgets`, `budgetClaimed`), **and the requests the phone writes** (`syncRequest`, `ignoreRequest`,
-  `startBlockRequest`, `captureRequest`, `budgetClaimRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
+  `startBlockRequest`, `skipBlockRequest`, `captureRequest`, `budgetClaimRequest`, which `WireSampleTest` must write exactly), **are pinned by `app/src/test/resources/AndroidTrackerWire.samples.json`**, a
   byte-for-byte copy of the server's `AdhdTimeOrganizer.Tracking/application/dto/response/android/` file.
   `WireSampleTest` reads it through the DTOs; the server's `AndroidTrackerWireSampleTests` checks its live routes
   against it and that this copy is identical (it finds the copy by name anywhere in this checkout — keep exactly one).
@@ -495,14 +495,20 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   the planner's own importance (`/now`'s `isOptional` / `isCritical`, server-computed).
 - **All of it is `StartRampPolicy`** (pure, `StartRampPolicyTest`), the desktop tracker's `StartRampPolicy` for the phone.
   **Late** it says how late, only while 10 min of the block are left (up to 3 min late always). **Settled without a word**
-  when the block is already started, when `/now` says the desk is in use (the desktop's own ramp asks there), or too late.
-  **Held, never dropped:** a running countdown or pomodoro (`/now`'s `timerRunning`; missing on an older server = unknown,
-  not held), the server's silence, a call, DND, car mode, the "Phone away" timer, another nudge in the last 10 min.
+  when the block is already started, when the desk's last minutes inside it were on plan (`/now`'s `recent`; the desktop's own
+  "under way" test, so someone who worked on it at the desk and walked away isn't asked to start it), or too late.
+  **Held, never dropped:** the desk in use (`/now`'s `isIdle` false: the desktop's own ramp asks there, but it won't speak to
+  an empty chair, so the phone asks once the desk goes idle, decision 10-13; the only hold without the watcher, since someone
+  can sit at their desk for hours), a running countdown, pomodoro or stopwatch (`/now`'s `timerRunning`; missing on an older
+  server = unknown, not held), the server's silence, a call, DND, car mode, the "Phone away" timer, another nudge in the last
+  10 min.
 - **The buttons.** **Start now** (`StartRampActionActivity`, unseen) posts `tracker/android/start-block` (the block goes in
   progress in the planner) and opens `WEB_APP_ROOT?track=<plannerTaskId>`, where the web app starts the countdown for the
   rest of the block (`useTrackLink`; the desktop opens the same). **In 2 min** asks exactly once more, without that button.
-  **Not this one** also keeps the drift nudge quiet in that block (`DriftMonitor.quietBlock` → `DriftState.quietBlockId`,
-  decision 10-6 — the one place one nudge writes another's state). The block is settled the moment the ramp is posted, so a
+  **Not this one** posts `tracker/android/skip-block` (the block is cancelled, so the planner doesn't announce it as missed and
+  the desk doesn't ask about it again; one try, and offline the phone's own half stands) and also keeps the drift nudge quiet
+  in that block (`DriftMonitor.quietBlock` → `DriftState.quietBlockId`, decision 10-6 — the one place one nudge writes
+  another's state). The block is settled the moment the ramp is posted, so a
   swipe or no answer settles it too. Withdrawn when the block is started elsewhere, ends, or leaves the plan.
 - **When it runs (`StartRampMonitor`):** an **alarm at the next block's start** (`setAndAllowWhileIdle`, inexact, no
   permission; re-planned after every evaluation from `/now`'s `next`; `StartRampActionReceiver.ACTION_WAKE`), an in-process

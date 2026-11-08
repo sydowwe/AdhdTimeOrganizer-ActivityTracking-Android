@@ -27,6 +27,7 @@ import com.timeorganizer.usagetracker.data.api.dto.CreateTrackerActivityResponse
 import com.timeorganizer.usagetracker.data.api.dto.DistractionResponse
 import com.timeorganizer.usagetracker.data.api.dto.RepointTrackerRuleRequest
 import com.timeorganizer.usagetracker.data.api.dto.SetDistractionRequest
+import com.timeorganizer.usagetracker.data.api.dto.SkipBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.StartBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityDto
 import com.timeorganizer.usagetracker.data.api.dto.TrackerActivityOptionsResponse
@@ -233,6 +234,12 @@ class WireSampleTest {
     @Test
     fun theStartBlockRequest_writesTheSampleExactly() {
         assertEquals(samples["startBlockRequest"], gson.toJsonTree(StartBlockRequest(7)))
+    }
+
+    /** Its Not this one. A renamed id is a 409 there, and the block is still announced as missed. */
+    @Test
+    fun theSkipBlockRequest_writesTheSampleExactly() {
+        assertEquals(samples["skipBlockRequest"], gson.toJsonTree(SkipBlockRequest(7)))
     }
 
     /**

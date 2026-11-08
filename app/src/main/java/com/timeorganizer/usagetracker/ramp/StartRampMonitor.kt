@@ -2,6 +2,7 @@ package com.timeorganizer.usagetracker.ramp
 
 import android.content.Context
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
+import com.timeorganizer.usagetracker.data.api.dto.SkipBlockRequest
 import com.timeorganizer.usagetracker.data.api.dto.StartBlockRequest
 import com.timeorganizer.usagetracker.data.local.AuthPreferences
 import com.timeorganizer.usagetracker.drift.DriftMonitor
@@ -78,7 +79,7 @@ object StartRampMonitor {
 
     /**
      * One of [StartRampActionReceiver.ACTIONS] or the activity's Start now, for [blockId]. The returned job ends once the
-     * state is written (and, for Start now, the planner told).
+     * state is written (and, for Start now and Not this one, the planner told).
      */
     fun onAction(context: Context, action: String, blockId: Long): Job {
         val app = context.applicationContext
@@ -102,7 +103,10 @@ object StartRampMonitor {
                 }
                 when (action) {
                     StartRampActionActivity.ACTION_START -> startInPlanner(blockId)
-                    StartRampActionReceiver.ACTION_NOT_THIS_ONE -> DriftMonitor.quietBlock(app, blockId).join()
+                    StartRampActionReceiver.ACTION_NOT_THIS_ONE -> {
+                        DriftMonitor.quietBlock(app, blockId).join()
+                        skipInPlanner(blockId)
+                    }
                 }
             }
             evaluateSafely(app)
@@ -132,6 +136,21 @@ object StartRampMonitor {
             throw e
         } catch (_: Exception) {
             // Offline: the web app's timer starts the block when it opens.
+        }
+    }
+
+    /**
+     * **Not this one**'s server half: the block is cancelled, so the planner doesn't announce it as missed and the desk doesn't
+     * ask about it again. One try: a 409 (started or finished meanwhile) leaves the block as it is, and offline the phone's own
+     * half still stands, the block settled and drift quiet.
+     */
+    private suspend fun skipInPlanner(blockId: Long) {
+        try {
+            RetrofitClient.apiService.skipBlock(SkipBlockRequest(blockId))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Offline: the block stays open on the server, as if this button had not reached it.
         }
     }
 

@@ -1,5 +1,6 @@
 package com.timeorganizer.usagetracker.ramp
 
+import com.timeorganizer.usagetracker.now.DeskWork
 import com.timeorganizer.usagetracker.now.NowBlock
 import com.timeorganizer.usagetracker.now.NowFacts
 import com.timeorganizer.usagetracker.ramp.StartRampPolicy.MINUTE_MS
@@ -27,8 +28,10 @@ class StartRampPolicyTest {
         next: NowBlock? = email,
         silent: Boolean = false,
         deskIdle: Boolean = true,
-        timerRunning: Boolean? = false
-    ) = NowFacts(silent, current, deskLastActiveMs = null, deskIdle = deskIdle, deskWork = null, emptySet(), next, timerRunning)
+        timerRunning: Boolean? = false,
+        deskLastActiveMs: Long? = null,
+        deskWork: DeskWork? = null
+    ) = NowFacts(silent, current, deskLastActiveMs, deskIdle = deskIdle, deskWork = deskWork, emptySet(), next, timerRunning)
 
     private fun input(
         nowMs: Long,
@@ -146,14 +149,76 @@ class StartRampPolicyTest {
     }
 
     @Test
-    fun theDeskInUse_settlesTheBlock_theDesktopsRampAsksThere() {
-        val step = decide(facts = facts(deskIdle = false))
+    fun theDesksLastMinutes_onPlanInsideTheBlock_meanItIsUnderWay() {
+        val step = decide(
+            nowMs = min(20),
+            facts = facts(deskIdle = false, deskLastActiveMs = min(19), deskWork = DeskWork("Thesis", onPlan = true))
+        )
 
         assertNull(step.post)
         assertTrue(7L in step.state.settled)
     }
 
+    @Test
+    fun workOnPlanInsideTheBlock_stillCounts_onceTheDeskIsIdle() {
+        val step = decide(
+            nowMs = min(20),
+            facts = facts(deskIdle = true, deskLastActiveMs = min(15), deskWork = DeskWork("Thesis", onPlan = true))
+        )
+
+        assertNull("left the desk after working on it: there is nothing to start", step.post)
+        assertTrue(7L in step.state.settled)
+    }
+
+    @Test
+    fun onPlanMinutes_fromBeforeTheBlock_sayNothingAboutIt() {
+        // The newest minute ended exactly at Thesis's start: that was the block before, on its own plan.
+        val step = decide(
+            nowMs = min(1),
+            facts = facts(deskIdle = true, deskLastActiveMs = min(0), deskWork = DeskWork("Email", onPlan = true))
+        )
+
+        assertEquals(thesis, step.post?.block)
+    }
+
     // ---- held, never dropped ----------------------------------------------------
+
+    @Test
+    fun theDeskInUse_holdsTheRamp_theDesktopsRampAsksThere() {
+        val step = decide(facts = facts(deskIdle = false))
+
+        assertNull(step.post)
+        assertTrue("held is not settled", step.state.settled.isEmpty())
+        assertEquals(sec(5) + MINUTE_MS, step.recheckAtMs)
+    }
+
+    /** Left the desk at 10:58 for an 11:00 block: the desk stays "in use" for 2–4 min and can't ask an empty chair. */
+    @Test
+    fun leavingTheDeskJustBeforeTheBlock_isAskedAbout_onceTheDeskIsIdle() {
+        val atTheStart = decide(facts = facts(deskIdle = false, deskLastActiveMs = min(-2)))
+        assertNull(atTheStart.post)
+
+        val after = decide(atTheStart.state, nowMs = min(3), facts = facts(deskIdle = true, deskLastActiveMs = min(-2)))
+
+        assertEquals(StartRampNudge(thesis, lateByMs = 3 * MINUTE_MS, canDefer = true), after.post)
+    }
+
+    @Test
+    fun theDesksHold_keepsNoWatcherOn_theOthersDo() {
+        val desk = decide(facts = facts(deskIdle = false))
+        assertNull("someone can sit at their desk for hours", desk.watchUntilMs)
+
+        val deskAndATimer = decide(facts = facts(deskIdle = false, timerRunning = true))
+        assertEquals(min(80), deskAndATimer.watchUntilMs)
+    }
+
+    @Test
+    fun theDeskInUse_pastTheLateLimit_letsTheBlockGo() {
+        val step = decide(nowMs = min(81), facts = facts(deskIdle = false))
+
+        assertNull(step.post)
+        assertTrue(7L in step.state.settled)
+    }
 
     @Test
     fun aRunningTimer_holdsTheRamp_untilItStops() {
