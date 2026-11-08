@@ -57,8 +57,8 @@
       "lastActiveAt": "2026-10-18T10:04:00Z",
       "isIdle": true,
       "recent": [
-        { "target": "Activity", "activityId": 12, "name": "Thesis", "activeSeconds": 240, "onPlan": true },
-        { "target": null, "activityId": null, "name": null, "activeSeconds": 30, "onPlan": null }
+        { "target": "Activity", "activityId": 12, "name": "Thesis", "activeSeconds": 240, "onPlan": true, "isDistraction": false },
+        { "target": null, "activityId": null, "name": null, "activeSeconds": 30, "onPlan": null, "isDistraction": false }
       ]
     },
     "distractionPackages": ["com.instagram.android", "com.reddit.frontpage"],
