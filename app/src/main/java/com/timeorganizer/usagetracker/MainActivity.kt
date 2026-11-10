@@ -104,7 +104,7 @@ class MainActivity : AppCompatActivity() {
 
     // Backend card
     private lateinit var tvBackendStatus: TextView
-    private lateinit var tvApiUrl: TextView
+    private lateinit var tvBuildInfo: TextView
 
     // Actions
     private lateinit var btnSyncNow: Button
@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity() {
         tvLastSync = findViewById(R.id.tvLastSync)
         tvSyncResult = findViewById(R.id.tvSyncResult)
         tvBackendStatus = findViewById(R.id.tvBackendStatus)
-        tvApiUrl = findViewById(R.id.tvApiUrl)
+        tvBuildInfo = findViewById(R.id.tvBuildInfo)
         btnSyncNow = findViewById(R.id.btnSyncNow)
         btnLogout = findViewById(R.id.btnLogout)
 
@@ -183,7 +183,7 @@ class MainActivity : AppCompatActivity() {
             performLogout()
         }
 
-        tvApiUrl.text = getString(
+        tvBuildInfo.text = getString(
             R.string.build_and_server_label,
             BuildConfig.VERSION_NAME,
             BuildConfig.VERSION_CODE,

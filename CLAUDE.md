@@ -239,8 +239,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **Every request names the build** (prompt 25): `X-Client-Version: android/<versionName> (<versionCode>)`, added by
   `RetrofitClient`'s first interceptor on `baseClient`, so login, refresh and sync all carry it. The server keeps the last
   one per source on `TrackerSourceStatus.ClientVersion` (stamped with `LastSeenAt`, so at most hourly) and calls a silent
-  phone "out of date" below `TrackerMinimumClientVersion:Android`. The status screen's quiet line shows the same build and
-  the server's host: `1.4.0 (7) · test.backend.adhdtimeorganizer.com`.
+  phone "out of date" below `TrackerMinimumClientVersion:Android`. The status screen shows the same build and the server's
+  host in a quiet line under its title (not in the Backend card, whose check says nothing about the build):
+  `Version 1.4.0 (7) · test.backend.adhdtimeorganizer.com`.
 - **Pickups and loops ride the sync (prompt 14)** as two optional arrays (`pickups: [{startUtc, endUtc, unlocked}]`, `loops:
   [{startUtc, endUtc, rule, pickups, apps, answer}]`, rule / answer by the server's member names, `LoopRule.wire` /
   `LoopAnswer.wire`), in requests of their own with `sessions: []`, sent after every session is (`SyncEngine.sendExtras`,

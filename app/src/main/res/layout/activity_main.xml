@@ -76,12 +76,28 @@
             android:gravity="center_vertical"
             android:layout_marginBottom="16dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="TimeOrganizer Usage Tracker"
-                android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="TimeOrganizer Usage Tracker"
+                    android:textAppearance="?attr/textAppearanceHeadlineMedium" />
+
+                <!-- The installed build and the server its build type talks to -->
+                <TextView
+                    android:id="@+id/tvBuildInfo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSettings"
@@ -792,13 +808,6 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textAppearance="?attr/textAppearanceBodyMedium" />
-
-                <TextView
-                    android:id="@+id/tvApiUrl"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:layout_marginTop="4dp" />
 
                 <!-- A newer production build (prompt 21): shown only when there is one; a tap opens the download. -->
                 <TextView
