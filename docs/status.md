@@ -8,9 +8,11 @@ _Last updated: 2026-11-10._
 
 ## Where things stand
 
-- `main` at 1.7.0 (code 10), tag `v1.7.0`, plus the review fixes (`145919d`..`4cd1021`). No version bump since.
-  Bump with `test-release` once the fixes are worth putting on the phone. **None of them has been seen on a
-  device.**
+- `main` at **1.7.1 (code 11), tag `v1.7.1`** (`569e4f2`): 1.7.0 plus the review fixes (`145919d`..`4cd1021`).
+  Built and tested, **not installed**: no authorized device was connected. To install it, connect the phone and run
+  `test-release -NoBump`, with the owner's uncommitted work stashed first. `-NoBump` doesn't check the tree, so
+  without the stash it would build their work into a "1.7.1" that `v1.7.1` doesn't contain.
+  **None of the fixes has been seen on a device.**
 - **The release build can't be signed here:** `packageRelease` fails with "keystore password was incorrect" for
   `adhd-tracker`. That is the owner's setup (`keystore.properties`), off-limits to a session. R8 (`minifyReleaseWithR8`)
   runs before signing and passes, and that is the step that checks the keep rules.
