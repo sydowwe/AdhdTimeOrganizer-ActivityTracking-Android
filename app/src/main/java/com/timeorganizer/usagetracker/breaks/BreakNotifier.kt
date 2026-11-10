@@ -26,6 +26,7 @@ object BreakNotifier {
                 subject.name,
                 DateFormat.getTimeFormat(context).format(Date(subject.blockEndMs ?: 0L))
             )
+            BreakSubject.Kind.CHOSEN -> context.getString(R.string.notify_break_text_chosen)
         }
 
         val notification = NotificationCompat.Builder(context, Notifications.CHANNEL_BREAKS)

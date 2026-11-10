@@ -51,7 +51,7 @@ Under `app/src/main/java/com/timeorganizer/usagetracker/`:
 | `now/KeptDistractions.kt` | `/now`'s distraction packages kept in prefs for a restart offline; shared by the chime and the drift nudge |
 | `drift/DriftPolicy.kt` | **Pure.** The drift nudge: the distraction apps' time in front inside a block (30 s grace, a minute's gap pauses it) → nudge / hold / withdraw; the buttons; how long to watch; sittings from the log |
 | `drift/DriftMonitor.kt`, `drift/DriftNotifier.kt`, `drift/DriftActionReceiver.kt`, `drift/DriftActionActivity.kt`, `drift/DriftPreferences.kt` | Runs the policy (a distraction app to the front, a look-again, after each sync, a button), arms the watcher through blocks, posts the nudge; "5 more minutes" and the swipe (receiver), "Back to it" and "Switch plan" (an unseen activity, so it may open the home screen or the browser); its switch and state |
-| `breaks/BreakPolicy.kt` | **Pure.** Breaks that don't end: `/now` + phone use from the log + silence + state → start / nudge / end; the buttons; how long to watch; `PhoneUse` from usage events |
+| `breaks/BreakPolicy.kt` | **Pure.** Breaks that don't end: `/now` + phone use from the log + silence + state → start / nudge / end (and a break started on the desktop, desktop prompt 10); the buttons; how long to watch; `PhoneUse` from usage events |
 | `breaks/BreakMonitor.kt`, `breaks/BreakNotifier.kt`, `breaks/BreakActionReceiver.kt`, `breaks/BreakPreferences.kt` | Runs the policy (after each sync, on a pickup, on a button, when it asks to look again), arms the watcher, posts the nudge; its switch, length and state |
 | `chime/ChimeSchedule.kt`, `chime/ChimeApps.kt` | **Pure.** The time chime: the chosen apps' sittings from the log → the stretch (gaps ≤ 3 min paused, longer ones start over) → chime now / when the next falls due; which apps are chosen (distraction flags + ticks − unticks) and the screen's rows |
 | `chime/ChimeMonitor.kt`, `chime/ChimeNotifier.kt`, `chime/ChimePreferences.kt`, `chime/ChimeAppsActivity.kt` | Runs the schedule (a chosen app to the front, the next chime due, after each sync), keeps the watcher on while the chime is, posts the chime; its switch, interval, choices, the kept distraction list and state; the "Time chime" screen |
@@ -415,7 +415,9 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   missing on an older server = unknown), the desk's last active minute
   (`lastActiveAt`), `isIdle` and what its last five minutes resolved to (`recent`, busiest first, each with `onPlan`), the
   distraction packages, and the user's next morning (`nextWakeUpAt`, prompt 17: the planner day's wake-up, else their
-  default). The phone decides nothing the server decides there: no matcher, no planner, no idle rule.
+  default). Since desktop prompt 10 it also has the break the user started on the desktop (`desktop.plannedBreak`:
+  `startedAt`, `plannedEndAt`, `isOver`; missing on an older server = none, read as `NowFacts.deskBreak`). The phone decides
+  nothing the server decides there: no matcher, no planner, no idle rule.
 - **Read through `NowClient` and `NowFacts`, nowhere else.** One answer is reused for 30 s (the server's `max-age`), then
   asked for again with its `ETag`: an unchanged day is a `304`. In memory only, cleared on an account switch. An unreadable
   field is absent, never guessed (an unparsable block is no plan). Pinned by the `now` entry of the wire sample
@@ -455,6 +457,20 @@ tasks race to write its new schema file. The file is fine once one of them has; 
 - **Precision is the server's minute.** `isIdle` turns true 2–4 min after the user stands up (`DesktopIdleRule`); a phone
   out before then is looked at again a minute later. Idle, a shut laptop and a stopped desktop tracker read the same — so a
   phone used beside a dead desktop tracker can be nudged; without one, the desk is never recently active and nothing runs.
+- **A break started on the desktop (desktop prompt 10, 2026-11-10)** needs no guessing. "Taking a break" on the desk's
+  hyperfocus toast reaches the phone as `/now`'s `desktop.plannedBreak`. Once the desk is idle, `BreakPolicy` opens it
+  (`BreakState.Open.deskBreakStartMs`).
+  - **No pickup is needed to open it.** The nudge falls at the desk's **planned end**, counted from the press. A phone in
+    use then hears it at once; one face down hears it at its next pickup.
+  - **The desk speaks instead whenever someone is at it.** It holds its own toast while they are away and ends the break
+    silently on their return. So a desk not idle opens nothing here, and the desk saying it is over (`isOver`) ends it here,
+    taking the nudge down. So does the break vanishing from `/now`, or a newer one replacing it.
+  - **"5 more minutes" on the desk** moves the nudge later, never earlier.
+  - **The text** names the break as above when it can. Otherwise, or when the block it would name ends before the nudge,
+    it says "The break you started on your desktop is over." (`BreakSubject.Kind.CHOSEN`).
+  - **It lapses** 2 h past its planned end, when the server stops showing it.
+  - Without the field (an older server or desktop tracker) it is prompt 09's guessed break, as described above.
+  - Decisions D10-1 to D10-3 are in the server repo's `review/androidTrackerPrompts/decisions.md`.
 - **Never logged:** the subject is the user's activity name. It is kept in `break_nudge` prefs while a break is open, and
   an account switch resets it (`SyncEngine.onSignedIn`).
 

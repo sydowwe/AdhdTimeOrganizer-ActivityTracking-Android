@@ -132,6 +132,7 @@
     <string name="notify_break_title">Break\'s been %1$s</string>
     <string name="notify_break_text_desk">%1$s is still open on your desktop.</string>
     <string name="notify_break_text_planned">%1$s is planned until %2$s.</string>
+    <string name="notify_break_text_chosen">The break you started on your desktop is over.</string>
     <string name="notify_break_back">Back to it</string>
     <string name="notify_break_more">5 more minutes</string>
     <string name="notify_break_done">I\'m done for now</string>

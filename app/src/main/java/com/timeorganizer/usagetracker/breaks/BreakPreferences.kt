@@ -32,13 +32,18 @@ class BreakPreferences(context: Context) {
                 startMs = prefs.getLong(KEY_START, 0L),
                 subject = BreakSubject(
                     name = prefs.getString(KEY_SUBJECT, null).orEmpty(),
-                    kind = if (prefs.getString(KEY_SUBJECT_KIND, null) == KIND_PLANNED) BreakSubject.Kind.PLANNED else BreakSubject.Kind.DESK,
+                    kind = when (prefs.getString(KEY_SUBJECT_KIND, null)) {
+                        KIND_PLANNED -> BreakSubject.Kind.PLANNED
+                        KIND_CHOSEN -> BreakSubject.Kind.CHOSEN
+                        else -> BreakSubject.Kind.DESK
+                    },
                     blockId = optLong(KEY_BLOCK),
                     blockEndMs = optLong(KEY_BLOCK_END)
                 ),
                 nudgeAtMs = optLong(KEY_NUDGE_AT),
                 posted = prefs.getBoolean(KEY_POSTED, false),
-                expiresAtMs = prefs.getLong(KEY_EXPIRES, 0L)
+                expiresAtMs = prefs.getLong(KEY_EXPIRES, 0L),
+                deskBreakStartMs = optLong(KEY_DESK_BREAK)
             )
             KIND_DONE -> BreakState.Done(optLong(KEY_BLOCK), prefs.getLong(KEY_SINCE, 0L))
             else -> BreakState.Idle
@@ -52,12 +57,17 @@ class BreakPreferences(context: Context) {
                         putString(KEY_KIND, KIND_OPEN)
                         putLong(KEY_START, value.startMs)
                         putString(KEY_SUBJECT, value.subject.name)
-                        putString(KEY_SUBJECT_KIND, if (value.subject.kind == BreakSubject.Kind.PLANNED) KIND_PLANNED else KIND_DESK)
+                        putString(KEY_SUBJECT_KIND, when (value.subject.kind) {
+                            BreakSubject.Kind.PLANNED -> KIND_PLANNED
+                            BreakSubject.Kind.CHOSEN -> KIND_CHOSEN
+                            BreakSubject.Kind.DESK -> KIND_DESK
+                        })
                         putOpt(KEY_BLOCK, value.subject.blockId)
                         putOpt(KEY_BLOCK_END, value.subject.blockEndMs)
                         putOpt(KEY_NUDGE_AT, value.nudgeAtMs)
                         putBoolean(KEY_POSTED, value.posted)
                         putLong(KEY_EXPIRES, value.expiresAtMs)
+                        putOpt(KEY_DESK_BREAK, value.deskBreakStartMs)
                     }
                     is BreakState.Done -> {
                         putString(KEY_KIND, KIND_DONE)
@@ -88,13 +98,16 @@ class BreakPreferences(context: Context) {
         const val KEY_POSTED = "posted"
         const val KEY_EXPIRES = "expires"
         const val KEY_SINCE = "since"
+        const val KEY_DESK_BREAK = "desk_break"
         val STATE_KEYS = listOf(
-            KEY_KIND, KEY_START, KEY_SUBJECT, KEY_SUBJECT_KIND, KEY_BLOCK, KEY_BLOCK_END, KEY_NUDGE_AT, KEY_POSTED, KEY_EXPIRES, KEY_SINCE
+            KEY_KIND, KEY_START, KEY_SUBJECT, KEY_SUBJECT_KIND, KEY_BLOCK, KEY_BLOCK_END, KEY_NUDGE_AT, KEY_POSTED, KEY_EXPIRES, KEY_SINCE,
+            KEY_DESK_BREAK
         )
 
         const val KIND_OPEN = "open"
         const val KIND_DONE = "done"
         const val KIND_DESK = "desk"
         const val KIND_PLANNED = "planned"
+        const val KIND_CHOSEN = "chosen"
     }
 }

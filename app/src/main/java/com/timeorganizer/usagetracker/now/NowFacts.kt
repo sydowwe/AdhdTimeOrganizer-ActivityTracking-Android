@@ -28,6 +28,16 @@ data class DeskWork(
     val onPlan: Boolean?
 )
 
+/** A break the user started on the desktop (desktop prompt 10), its instants read. */
+data class DeskBreak(
+    /** When "Taking a break" was pressed; identifies the break. */
+    val startMs: Long,
+    /** When the desk's timer runs out; its "5 more minutes" moves it. */
+    val plannedEndMs: Long,
+    /** The desk said it ended: back at it, or its toast answered. */
+    val isOver: Boolean
+)
+
 /**
  * `GET tracker/android/now` as the nudges read it — pure, so it is pinned by the wire sample. The server decides
  * every part (the plan, what the desk's minutes were, whether to be silent); this only reads the instants and picks
@@ -50,7 +60,9 @@ data class NowFacts(
     /** A countdown, pomodoro or stopwatch runs; `null` when the server didn't say (one from before prompt 10): unknown. */
     val timerRunning: Boolean? = null,
     /** The user's next morning (prompt 17's "until morning"); `null` from a server before it, or unreadable. */
-    val nextWakeUpMs: Long? = null
+    val nextWakeUpMs: Long? = null,
+    /** The break the user last started on the desktop; `null` with none, from an older server, or unreadable. */
+    val deskBreak: DeskBreak? = null
 ) {
     companion object {
         fun from(response: TrackerNowResponse): NowFacts {
@@ -68,7 +80,12 @@ data class NowFacts(
                 distractionPackages = response.distractionPackages.orEmpty().toSet(),
                 next = response.plan?.next?.let(::block),
                 timerRunning = response.timerRunning,
-                nextWakeUpMs = ReviewText.instantMs(response.nextWakeUpAt)
+                nextWakeUpMs = ReviewText.instantMs(response.nextWakeUpAt),
+                deskBreak = desktop?.plannedBreak?.let { b ->
+                    val startMs = ReviewText.instantMs(b.startedAt)
+                    val endMs = ReviewText.instantMs(b.plannedEndAt)
+                    if (startMs != null && endMs != null) DeskBreak(startMs, endMs, b.isOver) else null
+                }
             )
         }
 

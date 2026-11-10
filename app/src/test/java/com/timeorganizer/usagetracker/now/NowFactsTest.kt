@@ -52,6 +52,18 @@ class NowFactsTest {
         assertEquals(setOf("com.instagram.android", "com.reddit.frontpage"), facts.distractionPackages)
         assertEquals(false, facts.timerRunning)
         assertEquals(ms("2026-10-19T06:00:00Z"), facts.nextWakeUpMs)
+        assertEquals(DeskBreak(ms("2026-10-18T10:04:30Z"), ms("2026-10-18T10:14:30Z"), isOver = false), facts.deskBreak)
+    }
+
+    /**
+     * Desktop prompt 10: a server or desktop tracker from before it has no break to hand over, and an unreadable instant is no
+     * break — the phone then guesses the length, as before.
+     */
+    @Test
+    fun aDeskWithoutAStartedBreak_hasNone() {
+        assertNull(parse("""{"desktop":{"lastActiveAt":null,"isIdle":true,"recent":[]}}""").deskBreak)
+        assertNull(parse("""{"desktop":{"isIdle":true,"plannedBreak":{"startedAt":"soon","plannedEndAt":"2026-10-18T10:14:30Z","isOver":false}}}""").deskBreak)
+        assertEquals(true, parse("""{"desktop":{"isIdle":true,"plannedBreak":{"startedAt":"2026-10-18T10:04:30Z","plannedEndAt":"2026-10-18T10:14:30Z","isOver":true}}}""").deskBreak?.isOver)
     }
 
     /** Prompt 17: a server from before it says no morning; "until morning" then falls back to the last heard, or 07:00. */

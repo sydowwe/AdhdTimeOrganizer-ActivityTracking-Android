@@ -50,7 +50,20 @@ data class TrackerNowDesktopDto(
     val lastActiveAt: String?,
     val isIdle: Boolean,
     /** What the last five desk minutes resolved to, busiest first. */
-    val recent: List<DesktopSliceDto>?
+    val recent: List<DesktopSliceDto>?,
+    /**
+     * The break the user last started on the desktop ("Taking a break", desktop prompt 10), until two hours past its planned
+     * end. `null` with none, and from a server or desktop tracker from before it: the phone then guesses the length.
+     */
+    val plannedBreak: TrackerNowDesktopBreakDto? = null
+)
+
+/** A break started on the desktop: when, until when its timer runs, and whether the desk said it ended. */
+data class TrackerNowDesktopBreakDto(
+    val startedAt: String?,
+    val plannedEndAt: String?,
+    /** The desk said it is over: the user came back to it, or answered its toast. A passed end is not "over". */
+    val isOver: Boolean
 )
 
 /** One slice of the desk's recent minutes: the seconds that resolved to one target. */

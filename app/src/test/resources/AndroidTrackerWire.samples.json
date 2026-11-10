@@ -59,7 +59,8 @@
       "recent": [
         { "target": "Activity", "activityId": 12, "name": "Thesis", "activeSeconds": 240, "onPlan": true, "isDistraction": false },
         { "target": null, "activityId": null, "name": null, "activeSeconds": 30, "onPlan": null, "isDistraction": false }
-      ]
+      ],
+      "plannedBreak": { "startedAt": "2026-10-18T10:04:30Z", "plannedEndAt": "2026-10-18T10:14:30Z", "isOver": false }
     },
     "distractionPackages": ["com.instagram.android", "com.reddit.frontpage"],
     "timerRunning": false,

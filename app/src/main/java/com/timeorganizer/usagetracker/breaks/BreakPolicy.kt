@@ -1,5 +1,6 @@
 package com.timeorganizer.usagetracker.breaks
 
+import com.timeorganizer.usagetracker.now.DeskBreak
 import com.timeorganizer.usagetracker.now.NowBlock
 import com.timeorganizer.usagetracker.now.NowFacts
 import com.timeorganizer.usagetracker.usagestats.SessionBuilder
@@ -19,7 +20,13 @@ data class BreakSubject(
         DESK,
 
         /** "Thesis is planned until 11:30": the desk's last minutes had no name or were off the plan. */
-        PLANNED
+        PLANNED,
+
+        /**
+         * A break the user started on the desktop with nothing to name (desktop prompt 10): "The break you started on your
+         * desktop is over." [name] is empty.
+         */
+        CHOSEN
     }
 }
 
@@ -35,7 +42,12 @@ sealed interface BreakState {
         val nudgeAtMs: Long?,
         /** A nudge is showing, so the end of the break has to clear it. */
         val posted: Boolean,
-        val expiresAtMs: Long
+        val expiresAtMs: Long,
+        /**
+         * The desktop break this one follows (its `startedAt`, desktop prompt 10): the user chose it and its length, so the
+         * nudge falls at its planned end and the length is counted from the press. `null` for a break the phone detected.
+         */
+        val deskBreakStartMs: Long? = null
     ) : BreakState
 
     /** "I'm done for now": silent until another block starts, or with no block until the desk is used again. */
@@ -108,6 +120,11 @@ data class BreakStep(val state: BreakState, val action: BreakAction, val recheck
  *   it at the next pickup. Silenced (the server's reason, a call, DND) it waits, it is not dropped.
  * - **It ends** when the desk is used again (a newer last minute — the nudge is cleared), when the planned block it
  *   names ends, or after [MAX_BREAK_MS]. Without an answer from the server nothing starts, ends or is posted.
+ * - **A break the user started on the desktop** (`/now`'s `desktop.plannedBreak`, desktop prompt 10) needs no guessing: once
+ *   the desk is idle it is open, whatever the pickups, and its nudge falls at the desk's **planned end** (counted from the
+ *   press), to a phone in use then or at its next pickup. The desk speaks instead whenever someone is at it — it holds its own
+ *   toast while they are away — so the two never both do: the desk being used, or the desk saying the break is over, ends it
+ *   here. It lapses [MAX_BREAK_MS] after its planned end, when the server stops showing it.
  */
 object BreakPolicy {
 
@@ -192,8 +209,10 @@ object BreakPolicy {
 
     private fun open(facts: NowFacts, input: BreakInput, pickupsFromMs: Long?): BreakState.Open? {
         if (facts.silent || !facts.deskIdle) return null
-        val deskMs = facts.deskLastActiveMs ?: return null
         val nowMs = input.nowMs
+        chosenBreak(facts, nowMs)?.let { return openChosen(facts, it, nowMs, pickupsFromMs) }
+
+        val deskMs = facts.deskLastActiveMs ?: return null
         if (nowMs - deskMs >= MAX_BREAK_MS) return null
 
         val breakMs = input.breakMinutes * MINUTE_MS
@@ -206,6 +225,28 @@ object BreakPolicy {
         val expiresAtMs = if (subject.kind == BreakSubject.Kind.PLANNED) subject.blockEndMs!! else deskMs + MAX_BREAK_MS
         if (expiresAtMs <= nowMs) return null
         return BreakState.Open(deskMs, subject, deskMs + breakMs, posted = false, expiresAtMs = expiresAtMs)
+    }
+
+    /** The desktop break the phone may speak for: started on the desk, not said to be over, not lapsed. */
+    private fun chosenBreak(facts: NowFacts, nowMs: Long): DeskBreak? =
+        facts.deskBreak?.takeIf { !it.isOver && nowMs < it.plannedEndMs + MAX_BREAK_MS }
+
+    /**
+     * A break the user started on the desk, open once the desk is idle. No pickup is needed — the user said it is a break —
+     * but one answered with "I'm done for now" stays answered ([pickupsFromMs] is that release). Named like any break when
+     * there is a name; a planned block that ends before the nudge would date it, so then it is the plain "you started it".
+     */
+    private fun openChosen(facts: NowFacts, chosen: DeskBreak, nowMs: Long, pickupsFromMs: Long?): BreakState.Open? {
+        if (pickupsFromMs != null && chosen.startMs < pickupsFromMs) return null
+        val deskMs = facts.deskLastActiveMs ?: chosen.startMs
+        val expiresAtMs = chosen.plannedEndMs + MAX_BREAK_MS
+        if (expiresAtMs <= nowMs) return null
+
+        val subject = subjectOf(facts, deskMs)
+            ?.takeIf { it.kind != BreakSubject.Kind.PLANNED || (it.blockEndMs ?: 0L) > chosen.plannedEndMs }
+            ?: BreakSubject("", BreakSubject.Kind.CHOSEN, null, null)
+        return BreakState.Open(deskMs, subject, chosen.plannedEndMs, posted = false, expiresAtMs = expiresAtMs,
+            deskBreakStartMs = chosen.startMs)
     }
 
     /**
@@ -224,12 +265,24 @@ object BreakPolicy {
         return null
     }
 
-    private fun fromOpen(open: BreakState.Open, input: BreakInput): BreakStep {
+    private fun fromOpen(state: BreakState.Open, input: BreakInput): BreakStep {
         val nowMs = input.nowMs
         val facts = input.facts
         val deskMs = facts?.deskLastActiveMs
-        if (deskMs != null && deskMs > open.startMs) return BreakStep(BreakState.Idle, cancelIfPosted(open), null) // back at the desk
-        if (nowMs >= open.expiresAtMs) return BreakStep(BreakState.Idle, cancelIfPosted(open), null)
+        if (deskMs != null && deskMs > state.startMs) return BreakStep(BreakState.Idle, cancelIfPosted(state), null) // back at the desk
+        if (nowMs >= state.expiresAtMs) return BreakStep(BreakState.Idle, cancelIfPosted(state), null)
+
+        var open = state
+        if (open.deskBreakStartMs != null && facts != null) {
+            // The desk said it is over (back at it, its toast answered), or the break is gone or replaced: the phone stops.
+            val chosen = facts.deskBreak
+            if (chosen == null || chosen.startMs != open.deskBreakStartMs || chosen.isOver) {
+                return BreakStep(BreakState.Idle, cancelIfPosted(open), null)
+            }
+            // The desk's "5 more minutes" moved the end. Only ever later: the phone's own "5 more" must not be pulled back.
+            val nudgeAt = open.nudgeAtMs
+            if (nudgeAt != null && chosen.plannedEndMs > nudgeAt) open = open.copy(nudgeAtMs = chosen.plannedEndMs)
+        }
 
         // Looked at again each minute while it matters now: the phone is in use, or a nudge is up and must come down
         // the moment the desk is used. A phone put down hears the rest at its next pickup.
@@ -242,7 +295,8 @@ object BreakPolicy {
 
         return BreakStep(
             open.copy(nudgeAtMs = null, posted = true),
-            BreakAction.Post(open.subject, nowMs - open.startMs),
+            // A break the user started counts from the press; one the phone detected from the desk's last minute.
+            BreakAction.Post(open.subject, nowMs - (open.deskBreakStartMs ?: open.startMs)),
             minOf(nowMs + RECHECK_MS, open.expiresAtMs)
         )
     }

@@ -1,6 +1,7 @@
 package com.timeorganizer.usagetracker.breaks
 
 import com.timeorganizer.usagetracker.breaks.BreakPolicy.MINUTE_MS
+import com.timeorganizer.usagetracker.now.DeskBreak
 import com.timeorganizer.usagetracker.now.DeskWork
 import com.timeorganizer.usagetracker.now.NowBlock
 import com.timeorganizer.usagetracker.now.NowFacts
@@ -25,8 +26,15 @@ class BreakPolicyTest {
         deskLastActiveMs: Long? = desk,
         work: DeskWork? = thesis,
         current: List<NowBlock> = emptyList(),
-        silent: Boolean = false
-    ) = NowFacts(silent, current, deskLastActiveMs, deskIdle, work, emptySet())
+        silent: Boolean = false,
+        deskBreak: DeskBreak? = null
+    ) = NowFacts(silent, current, deskLastActiveMs, deskIdle, work, emptySet(), deskBreak = deskBreak)
+
+    /** "Taking a break" pressed in the desk's last minute, a 15-minute timer: it runs out at minute 14. */
+    private fun chosen(endMinute: Int = 14, isOver: Boolean = false) = DeskBreak(at(-1), at(endMinute), isOver)
+
+    private fun openChosen(nudgeAtMinute: Int? = 14, posted: Boolean = false, subject: BreakSubject = deskSubject) =
+        BreakState.Open(desk, subject, nudgeAtMinute?.let(::at), posted, at(14) + BreakPolicy.MAX_BREAK_MS, deskBreakStartMs = at(-1))
 
     private fun block(id: Long, name: String, fromMinute: Int, toMinute: Int) =
         NowBlock(id, name, at(fromMinute), at(toMinute), inProgress = true)
@@ -313,6 +321,119 @@ class BreakPolicyTest {
             BreakStep(BreakState.Idle, BreakAction.None, null),
             BreakPolicy.decide(BreakState.Done(null, at(1)), input(nowMinute = 12, enabled = false))
         )
+    }
+
+    // ---- a break the user started on the desktop (desktop prompt 10) ------------
+
+    /** Phone in use at the end: the phone speaks, at the desk's planned end and not the guessed length, counted from the press. */
+    @Test
+    fun aDeskBreak_phoneInUseAtItsEnd_nudgesAtThePlannedEnd_countedFromThePress() {
+        val running = facts(deskBreak = chosen())
+
+        val opened = BreakPolicy.decide(BreakState.Idle, input(nowMinute = 4, facts = running))
+        assertEquals(openChosen(), opened.state)
+
+        assertEquals("the phone's own 10 minutes are not the length", BreakAction.None,
+            BreakPolicy.decide(opened.state, input(nowMinute = 10, facts = running)).action)
+
+        val end = BreakPolicy.decide(opened.state, input(nowMinute = 14, facts = running))
+        assertEquals(BreakAction.Post(deskSubject, 15 * MINUTE_MS), end.action)
+    }
+
+    /**
+     * Neither at the desk nor on the phone at the end: the user said it is a break, so it opens without a pickup, and the
+     * phone says it at its next one, with the real length.
+     */
+    @Test
+    fun aDeskBreak_withThePhoneDown_isSaidAtTheNextPickup() {
+        val running = facts(deskBreak = chosen())
+
+        val down = BreakPolicy.decide(BreakState.Idle, input(nowMinute = 20, facts = running, phone = PhoneUse.NONE))
+        assertEquals(openChosen(), down.state)
+        assertEquals(BreakAction.None, down.action)
+        assertNull("the pickup wakes it", down.recheckAtMs)
+
+        val pickedUp = BreakPolicy.decide(down.state, input(nowMinute = 30, facts = running, phone = phone(30, 30)))
+        assertEquals(BreakAction.Post(deskSubject, 31 * MINUTE_MS), pickedUp.action)
+    }
+
+    /** At the desk at the end: the desk speaks, so the phone does not open the break at all. */
+    @Test
+    fun aDeskBreak_withTheDeskInUse_staysTheDesks() {
+        val atTheDesk = facts(deskIdle = false, deskLastActiveMs = at(14), deskBreak = chosen())
+
+        val step = BreakPolicy.decide(BreakState.Idle, input(nowMinute = 14, facts = atTheDesk))
+
+        assertEquals(BreakState.Idle, step.state)
+        assertEquals(BreakAction.None, step.action)
+    }
+
+    /**
+     * Back at the desk before the end: the desk says the break is over before the ledger shows the desk in use, and the phone
+     * stops then — taking a nudge already up down with it.
+     */
+    @Test
+    fun aDeskBreak_saidOverByTheDesk_endsHere_andTakesTheNudgeDown() {
+        val over = facts(deskBreak = chosen(isOver = true))
+
+        assertEquals(BreakStep(BreakState.Idle, BreakAction.None, null), BreakPolicy.decide(openChosen(), input(nowMinute = 8, facts = over)))
+        assertEquals(
+            BreakStep(BreakState.Idle, BreakAction.Cancel, null),
+            BreakPolicy.decide(openChosen(nudgeAtMinute = null, posted = true), input(nowMinute = 20, facts = over))
+        )
+        assertEquals("an ended one opens nothing", BreakState.Idle,
+            BreakPolicy.decide(BreakState.Idle, input(nowMinute = 20, facts = over, phone = PhoneUse.NONE)).state)
+    }
+
+    /** A break gone from `/now`, or replaced by a newer one, is not this one any more. */
+    @Test
+    fun aDeskBreak_goneOrReplaced_endsHere() {
+        for (now in listOf(facts(), facts(deskBreak = DeskBreak(at(30), at(40), isOver = false)))) {
+            assertEquals(BreakState.Idle, BreakPolicy.decide(openChosen(), input(nowMinute = 31, facts = now)).state)
+        }
+    }
+
+    /** The desk's "5 more minutes" moves the nudge later; the phone's own "5 more" is never pulled back to the desk's end. */
+    @Test
+    fun aDeskBreak_followsTheDesksFiveMore_butNotBackwards() {
+        val extended = facts(deskBreak = chosen(endMinute = 19))
+        val moved = BreakPolicy.decide(openChosen(), input(nowMinute = 14, facts = extended))
+        assertEquals(BreakAction.None, moved.action)
+        assertEquals(at(19), (moved.state as BreakState.Open).nudgeAtMs)
+
+        val snoozed = BreakPolicy.fiveMore(openChosen(nudgeAtMinute = null, posted = true), at(14))
+        assertEquals(BreakAction.None, BreakPolicy.decide(snoozed, input(nowMinute = 16, facts = facts(deskBreak = chosen()))).action)
+    }
+
+    /** With nothing to name, it is the break the user started; a block ending before the nudge would date it, so that too. */
+    @Test
+    fun aDeskBreak_withNothingToName_isTheBreakYouStarted() {
+        val chosenSubject = BreakSubject("", BreakSubject.Kind.CHOSEN, null, null)
+
+        val unnamed = BreakPolicy.decide(BreakState.Idle, input(nowMinute = 4, facts = facts(work = null, deskBreak = chosen())))
+        assertEquals(chosenSubject, (unnamed.state as BreakState.Open).subject)
+
+        val shortBlock = facts(work = null, current = listOf(block(7, "Email", -30, 10)), deskBreak = chosen())
+        assertEquals(chosenSubject, (BreakPolicy.decide(BreakState.Idle, input(nowMinute = 4, facts = shortBlock)).state as BreakState.Open).subject)
+
+        val longBlock = facts(work = null, current = listOf(block(7, "Email", -30, 60)), deskBreak = chosen())
+        assertEquals(BreakSubject("Email", BreakSubject.Kind.PLANNED, 7, at(60)),
+            (BreakPolicy.decide(BreakState.Idle, input(nowMinute = 4, facts = longBlock)).state as BreakState.Open).subject)
+    }
+
+    /** Two hours past its planned end the server stops showing it, and the phone lets it go too. */
+    @Test
+    fun aDeskBreak_lapsesTwoHoursPastItsPlannedEnd() {
+        assertEquals(BreakState.Idle, BreakPolicy.decide(openChosen(nudgeAtMinute = null), input(nowMinute = 134, facts = facts(deskBreak = chosen()))).state)
+    }
+
+    /** "I'm done for now" on a desk break stays answered: its release never reopens the same break. */
+    @Test
+    fun aDeskBreak_answeredDone_isNotReopenedByItsRelease() {
+        val done = BreakPolicy.done(openChosen(nudgeAtMinute = null, posted = true), at(15))
+        val released = facts(deskLastActiveMs = at(16), deskBreak = chosen())
+
+        assertEquals(BreakState.Idle, BreakPolicy.decide(done, input(nowMinute = 25, facts = released)).state)
     }
 
     // ---- the watcher -----------------------------------------------------------
