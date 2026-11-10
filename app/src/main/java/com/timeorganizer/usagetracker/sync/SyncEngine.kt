@@ -195,6 +195,7 @@ class SyncEngine(context: Context) {
 
     private suspend fun sendAll(nowMs: Long): SendOutcome {
         val deviceId = prefs.deviceId
+        // One sender for every page of the run: its breaker counts refusals per run (BatchSender).
         val sender = BatchSender<PendingSessionEntity>(SyncLimits.MAX_SESSIONS_PER_REQUEST) { post(it, deviceId) }
         var counts = SyncCounts()
         var rejected = 0
@@ -253,20 +254,21 @@ class SyncEngine(context: Context) {
         perRequest: Int,
         nextPage: suspend () -> List<SyncExtra>
     ): GroupOutcome {
+        // One sender for the whole group, so the breaker counts refusals across its pages (BatchSender).
+        var unacknowledged = false
+        val sender = BatchSender<SyncExtra>(perRequest) { batch ->
+            if (unacknowledged) {
+                BatchResult.Sent(SyncCounts()) // an older server: don't send it the rest
+            } else {
+                val (result, acknowledged) = postExtras(batch, deviceId, nowMs)
+                if (result is BatchResult.Sent && !acknowledged) unacknowledged = true
+                result
+            }
+        }
         while (true) {
             val extras = nextPage()
             if (extras.isEmpty()) return GroupOutcome(null, false)
 
-            var unacknowledged = false
-            val sender = BatchSender<SyncExtra>(perRequest) { batch ->
-                if (unacknowledged) {
-                    BatchResult.Sent(SyncCounts()) // an older server: don't send it the rest
-                } else {
-                    val (result, acknowledged) = postExtras(batch, deviceId, nowMs)
-                    if (result is BatchResult.Sent && !acknowledged) unacknowledged = true
-                    result
-                }
-            }
             val pass = sender.sendAll(
                 extras,
                 onSent = { batch -> if (!unacknowledged) markSent(batch, nowMs, loopDao) },

@@ -39,18 +39,33 @@ data class PassResult(
     val counts: SyncCounts,
     val rejected: Int,
     /** Why the pass ended early, or `null` when every item was either sent or rejected. */
-    val stoppedBy: BatchResult?
+    val stoppedBy: BatchResult?,
+    /** The pass stopped because the server refused more single items than one run may drop ([BatchSender.MAX_REJECTED_PER_RUN]). */
+    val refusingEverything: Boolean = false
 )
 
 /**
  * Sends items in batches and keeps a refused batch from costing more than its bad item: a
  * [BatchResult.Rejected] batch is split in half and each half retried, down to the single item that is then
  * dropped. The rest of the pass stops at the first batch that has to wait.
+ *
+ * **The breaker.** A bad deploy, a WAF or a reverse proxy answering 400 / 413 to everything looks exactly like a payload
+ * complaint, and bisecting would then drop the whole outbox one item at a time. Real refusals are rare (`SyncLimits`
+ * applies every server rule before an item is queued, and a server since 2026-10-18 drops a bad session itself), so one
+ * sender — one run — drops at most [maxRejectedPerRun] items across all its passes. One more refused single means the
+ * server is broken, not the data: the pass stops as [BatchResult.RetryLater] and drops **none** of the items it refused,
+ * because a pass's refusals are dropped only once it ends. So a server refusing everything costs nothing, run after run.
+ * The price is an outbox held behind more than [maxRejectedPerRun] genuinely bad items in one page, which waits (and, after
+ * 24 h, is notified) instead of being dropped.
  */
 class BatchSender<T>(
     private val maxBatch: Int,
+    private val maxRejectedPerRun: Int = MAX_REJECTED_PER_RUN,
     private val send: suspend (List<T>) -> BatchResult
 ) {
+    /** Dropped by the passes so far: the breaker counts per run, and a run uses one sender. */
+    private var rejectedThisRun = 0
+
     suspend fun sendAll(
         items: List<T>,
         onSent: suspend (List<T>) -> Unit,
@@ -58,7 +73,13 @@ class BatchSender<T>(
     ): PassResult {
         val queue = ArrayDeque(items.chunked(maxBatch))
         var counts = SyncCounts()
-        var rejected = 0
+        val refused = mutableListOf<T>()
+
+        suspend fun dropRefused(): Int {
+            refused.forEach { onRejected(it) }
+            rejectedThisRun += refused.size
+            return refused.size
+        }
 
         while (queue.isNotEmpty()) {
             val batch = queue.removeFirst()
@@ -68,16 +89,24 @@ class BatchSender<T>(
                     counts += result.counts
                 }
                 BatchResult.Rejected -> if (batch.size == 1) {
-                    onRejected(batch.single())
-                    rejected++
+                    refused += batch.single()
+                    if (rejectedThisRun + refused.size > maxRejectedPerRun) {
+                        return PassResult(counts, 0, BatchResult.RetryLater, refusingEverything = true)
+                    }
                 } else {
                     val half = batch.size / 2
                     queue.addFirst(batch.subList(half, batch.size))
                     queue.addFirst(batch.subList(0, half))
                 }
-                BatchResult.RetryLater, BatchResult.AuthRequired -> return PassResult(counts, rejected, result)
+                // A wait says nothing against the refusals before it: those items were answered for one by one.
+                BatchResult.RetryLater, BatchResult.AuthRequired -> return PassResult(counts, dropRefused(), result)
             }
         }
-        return PassResult(counts, rejected, null)
+        return PassResult(counts, dropRefused(), null)
+    }
+
+    companion object {
+        /** Single items one run may drop as refused before it reads the server as refusing everything. */
+        const val MAX_REJECTED_PER_RUN = 5
     }
 }

@@ -221,6 +221,10 @@ tasks race to write its new schema file. The file is fine once one of them has; 
   400/413/422 is a payload complaint — bisect the batch down to the bad session and drop only it; **every other
   status waits** (403, 404, 408, 409, 425, 429, 5xx). Never drop on a 404: a proxy or a moved route says
   nothing about the sessions.
+- **The breaker (`BatchSender`, 2026-11-10):** a server or proxy answering 400 to everything looks like a payload
+  complaint, so one run drops at most `MAX_REJECTED_PER_RUN` (5) refused singles per sender (the sessions, each extras
+  group). One more and the pass stops as a wait, dropping **none** of its own refusals (they are dropped only when a pass
+  ends). A server refusing everything costs nothing; more than 5 genuinely bad rows in one page wait instead of going.
 - **Activity mapping happens only on the server** (`AndroidMappingRuleSet`, the one matcher; the grid's
   `coveredBy` chip and the sync's attribution both use it). The app sends package + label and never decides
   what activity a session is. If a feature here needs to know (a nudge, a widget), the server has to tell it.
