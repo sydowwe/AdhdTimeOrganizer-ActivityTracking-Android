@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.drift
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.timeorganizer.usagetracker.util.holdBroadcastFor
 
 /**
  * The drift nudge's **5 more minutes** and its swipe-away, handed to [DriftMonitor]. The two buttons that leave the app in
@@ -12,9 +13,8 @@ class DriftActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action?.takeIf { it in ACTIONS } ?: return
-        // The state is written off the main thread; keep the process until it is.
-        val pending = goAsync()
-        DriftMonitor.onAction(context, action).invokeOnCompletion { pending.finish() }
+        // The state is written and /now asked off the main thread; the broadcast is held for it, within its budget.
+        holdBroadcastFor(DriftMonitor.onAction(context, action))
     }
 
     companion object {

@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.ramp
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.timeorganizer.usagetracker.util.holdBroadcastFor
 
 /**
  * The ramp's **In 2 min**, **Not this one**, its swipe-away and the wake at a block's start, handed to [StartRampMonitor].
@@ -14,9 +15,9 @@ class StartRampActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action?.takeIf { it in ACTIONS } ?: return
         val blockId = intent.getLongExtra(StartRampNotifier.EXTRA_BLOCK_ID, 0L)
-        // The state is written (and /now asked) off the main thread; keep the process until it is.
-        val pending = goAsync()
-        StartRampMonitor.onAction(context, action, blockId).invokeOnCompletion { pending.finish() }
+        // The state is written, the planner told and /now asked off the main thread; the broadcast is held for it, within
+        // its budget. The wake's evaluation is the whole point of the alarm, so it is held for, not handed off.
+        holdBroadcastFor(StartRampMonitor.onAction(context, action, blockId))
     }
 
     companion object {

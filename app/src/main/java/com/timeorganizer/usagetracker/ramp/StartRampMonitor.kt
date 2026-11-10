@@ -79,7 +79,8 @@ object StartRampMonitor {
 
     /**
      * One of [StartRampActionReceiver.ACTIONS] or the activity's Start now, for [blockId]. The returned job ends once the
-     * state is written (and, for Start now and Not this one, the planner told).
+     * state is written, for Start now and Not this one the planner told, and the evaluation after it (which asks `/now`)
+     * has run; the receiver holds its broadcast for that only within `BROADCAST_BUDGET_MS`.
      */
     fun onAction(context: Context, action: String, blockId: Long): Job {
         val app = context.applicationContext

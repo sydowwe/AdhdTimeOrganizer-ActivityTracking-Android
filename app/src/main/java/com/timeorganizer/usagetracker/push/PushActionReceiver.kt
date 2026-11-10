@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.Toast
 import com.timeorganizer.usagetracker.R
 import com.timeorganizer.usagetracker.data.api.RetrofitClient
+import com.timeorganizer.usagetracker.util.holdBroadcastFor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,9 +30,9 @@ class PushActionReceiver : BroadcastReceiver() {
         val tag = intent.getStringExtra(EXTRA_TAG) ?: return
         val app = context.applicationContext
 
-        val pending = goAsync()
-        scope.launch {
-            try {
+        // The call is held for within the broadcast's budget; a slower one goes on and answers when it is done.
+        holdBroadcastFor(
+            scope.launch {
                 val done = try {
                     RetrofitClient.apiService.takeNotificationAction(id, action).isSuccessful
                 } catch (e: CancellationException) {
@@ -43,10 +44,8 @@ class PushActionReceiver : BroadcastReceiver() {
                     if (done) PushNotifier.cancel(app, tag)
                     else Toast.makeText(app, R.string.push_action_failed, Toast.LENGTH_LONG).show()
                 }
-            } finally {
-                pending.finish()
             }
-        }
+        )
     }
 
     companion object {

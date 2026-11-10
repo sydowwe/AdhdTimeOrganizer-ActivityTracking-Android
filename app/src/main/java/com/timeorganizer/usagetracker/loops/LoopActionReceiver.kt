@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.loops
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.timeorganizer.usagetracker.util.holdBroadcastFor
 
 /**
  * The check-in's three buttons, its swipe-away and the away timer's alarm, handed to [LoopMonitor]. Not exported: only
@@ -12,9 +13,8 @@ class LoopActionReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action?.takeIf { it in ACTIONS } ?: return
-        // The state is written off the main thread; keep the process until it is.
-        val pending = goAsync()
-        LoopMonitor.onAction(context, action).invokeOnCompletion { pending.finish() }
+        // The state is written off the main thread; the broadcast is held for it, within its budget.
+        holdBroadcastFor(LoopMonitor.onAction(context, action))
     }
 
     companion object {

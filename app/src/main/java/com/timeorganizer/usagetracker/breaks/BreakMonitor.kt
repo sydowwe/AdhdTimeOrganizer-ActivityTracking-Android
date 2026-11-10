@@ -74,7 +74,10 @@ object BreakMonitor {
     /** After a sync run, inline: the worker keeps the process for it. */
     suspend fun afterSync(context: Context) = evaluateSafely(context.applicationContext)
 
-    /** One of [BreakActionReceiver.ACTIONS]. The returned job ends once the state is written and the next look is planned. */
+    /**
+     * One of [BreakActionReceiver.ACTIONS]. The returned job ends once the state is written and the evaluation after it
+     * (which asks `/now`) has run; the receiver holds its broadcast for that only within `BROADCAST_BUDGET_MS`.
+     */
     fun onAction(context: Context, action: String): Job {
         val app = context.applicationContext
         return scope.launch {

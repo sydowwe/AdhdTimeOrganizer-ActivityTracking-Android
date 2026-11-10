@@ -3,6 +3,7 @@ package com.timeorganizer.usagetracker.pause
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.timeorganizer.usagetracker.util.holdBroadcastFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,15 +15,8 @@ class PauseActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_RESUME) return
         val app = context.applicationContext
-        // The row is written off the main thread; keep the process until it is.
-        val pending = goAsync()
-        scope.launch {
-            try {
-                Pauses.resume(app)
-            } finally {
-                pending.finish()
-            }
-        }
+        // The row is written off the main thread; the broadcast is held for it, within its budget.
+        holdBroadcastFor(scope.launch { Pauses.resume(app) })
     }
 
     companion object {

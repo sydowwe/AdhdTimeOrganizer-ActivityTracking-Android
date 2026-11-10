@@ -81,7 +81,11 @@ object DriftMonitor {
     /** After a sync run, inline: the worker keeps the process for it. */
     suspend fun afterSync(context: Context) = evaluateSafely(context.applicationContext)
 
-    /** One of [DriftActionReceiver.ACTIONS] or the activity's two. The returned job ends once the state is written. */
+    /**
+     * One of [DriftActionReceiver.ACTIONS] or the activity's two. The returned job ends once the state is written and the
+     * evaluation after it (which asks `/now`) has run; the receiver holds its broadcast for that only within
+     * `BROADCAST_BUDGET_MS`.
+     */
     fun onAction(context: Context, action: String): Job {
         val app = context.applicationContext
         return scope.launch {
@@ -105,7 +109,8 @@ object DriftMonitor {
 
     /**
      * The start ramp's **Not this one** (decision 10-6): no drift nudge in [blockId]. The one place another feature writes
-     * this state; a drift nudge already up for that block goes. The returned job ends once the state is written.
+     * this state; a drift nudge already up for that block goes. The returned job ends once the state is written and the
+     * evaluation after it has run.
      */
     fun quietBlock(context: Context, blockId: Long): Job {
         val app = context.applicationContext

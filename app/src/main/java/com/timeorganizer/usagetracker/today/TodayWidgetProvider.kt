@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import com.timeorganizer.usagetracker.TimeOrganizerApp
+import com.timeorganizer.usagetracker.util.holdBroadcastFor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,15 +32,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
     private fun drawInBackground(context: Context) {
         val app = context.applicationContext
-        // The usage log is read off the main thread; keep the process until the widget is drawn.
-        val pending = goAsync()
-        scope.launch {
-            try {
-                TodayWidget.refresh(app)
-            } finally {
-                pending.finish()
-            }
-        }
+        // The usage log is read off the main thread; the broadcast is held until the widget is drawn, within its budget.
+        holdBroadcastFor(scope.launch { TodayWidget.refresh(app) })
     }
 
     companion object {
