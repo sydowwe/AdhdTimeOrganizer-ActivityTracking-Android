@@ -8,8 +8,7 @@ _Last updated: 2026-11-10._
 
 ## Where things stand
 
-- `main` at 1.7.0 (code 10), tag `v1.7.0`, plus the five batch-1 fix commits (`145919d`..`0fb4fab`). No version
-  bump since. Bump with `test-release` once the fixes are worth putting on the phone.
+- `main` at 1.7.0 (code 10), tag `v1.7.0`, plus the review fixes (`145919d`..`bc36a0b`). No version bump since. Bump with `test-release` once the fixes are worth putting on the phone.
 - **The release build can't be signed here:** `packageRelease` fails with "keystore password was incorrect" for
   `adhd-tracker`. Owner's setup (`keystore.properties`), off-limits to a session. R8 (`minifyReleaseWithR8`) still
   runs and passes before it, which is what checks the keep rules.
@@ -23,16 +22,20 @@ _Last updated: 2026-11-10._
 **Batch 1 (items 1, 3, 5, 6, 7): done and committed**, one `fix:` commit each. 546 tests pass and `lintDebug`
 exits 0. None of it has been seen on a device yet.
 
+**Item 4: done** (`bc36a0b`). Every receiver's `goAsync()` goes through `util/Broadcasts.kt` `holdBroadcastFor(job)`:
+the broadcast is finished when the job ends or after 8 s, and slower work goes on in its own scope. It holds rather
+than finishing as soon as the state is written, because the ramp's alarm wake *is* the evaluation. A new receiver
+should use it too. The shared runner for the six monitors was **not** done; it is still optional cleanup.
+
 Next, in this order (details in the review):
 
-1. **Item 4**: notification buttons doing network work inside `goAsync()`. Probably together with a shared runner for
-   the six monitors.
-2. **Item 2**: a 400 to everything empties the outbox. Recommended: a circuit breaker (stop after a few refused
+1. **Item 2**: a 400 to everything empties the outbox. Recommended: a circuit breaker (stop after a few refused
    singles in one run). **Owner to decide.**
-3. CI workflow; check that Robolectric + `MigrationTestHelper` can run the Room migrations; a `SyncEngine` test.
-4. Diagnostics screen (privacy-safe ring buffer + "Copy diagnostics"), then a device pass over the six unverified
+2. CI workflow; check that Robolectric + `MigrationTestHelper` can run the Room migrations; a `SyncEngine` test.
+   (No `kotlinx-coroutines-test` dependency yet.)
+3. Diagnostics screen (privacy-safe ring buffer + "Copy diagnostics"), then a device pass over the six unverified
    features.
-5. Status-screen reshape, plus the UX and security points.
+4. Status-screen reshape, plus the UX and security points. Optional: the shared monitor runner.
 
 ## Open questions for the owner
 
