@@ -119,17 +119,34 @@ class ForegroundWatchService : Service() {
 
     private suspend fun poll() {
         val collector = UsageStatsCollector(this)
-        val tracker = ForegroundTracker()
-        var readToMs = System.currentTimeMillis() - SETTLE_MS
-        publish(tracker, tracker.prime(collector.events(readToMs - PRIME_LOOKBACK_MS, readToMs)))
+        // `null` until primed, and again after a failed read.
+        var tracker: ForegroundTracker? = null
+        var readToMs = 0L
 
-        suspend fun read() {
+        // A throw here would be uncaught on Dispatchers.Default and take the process down, and a sticky restart from the
+        // background may then be refused. A failed read instead drops the tracker and the next read primes a fresh one
+        // from PRIME_LOOKBACK_MS back: retrying the same window on the old tracker could feed it an event twice, and a
+        // repeated resume leaves an app open for good. A fresh prime may report the app in front again; a nudge's kick
+        // is idempotent.
+        fun read() {
             val endMs = System.currentTimeMillis() - SETTLE_MS
-            if (endMs <= readToMs) return // the clock moved backwards; read again once it has caught up
-            publish(tracker, tracker.advance(collector.events(readToMs, endMs), endMs))
-            readToMs = endMs
+            try {
+                val current = tracker
+                if (current == null) {
+                    val fresh = ForegroundTracker()
+                    publish(fresh, fresh.prime(collector.events(endMs - PRIME_LOOKBACK_MS, endMs)))
+                    tracker = fresh
+                } else {
+                    if (endMs <= readToMs) return // the clock moved backwards; read again once it has caught up
+                    publish(current, current.advance(collector.events(readToMs, endMs), endMs))
+                }
+                readToMs = endMs
+            } catch (_: Exception) {
+                tracker = null
+            }
         }
 
+        read()
         while (true) {
             if (!screenOn.value) {
                 // One read once the screen-off is in the log and past the merge gap, so nothing looks in front
