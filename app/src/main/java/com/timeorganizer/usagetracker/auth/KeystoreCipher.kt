@@ -3,7 +3,6 @@ package com.timeorganizer.usagetracker.auth
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import java.security.GeneralSecurityException
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -23,15 +22,17 @@ class KeystoreCipher(private val alias: String) {
         return Base64.encodeToString(payload, Base64.NO_WRAP)
     }
 
-    /** `null` when the value cannot be read back — a wiped keystore, or data from another install. */
+    /**
+     * `null` when the value cannot be read back — a wiped keystore, data from another install, or a Keystore that fails
+     * outright. Every exception, not only `GeneralSecurityException`: the provider also throws `ProviderException` (a
+     * runtime exception) and `KeyStore.load` an `IOException`, and this runs from `Application.onCreate`.
+     */
     fun decrypt(encoded: String): String? = try {
         val payload = Base64.decode(encoded, Base64.NO_WRAP)
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, payload, 0, IV_BYTES))
         String(cipher.doFinal(payload, IV_BYTES, payload.size - IV_BYTES), Charsets.UTF_8)
-    } catch (_: GeneralSecurityException) {
-        null
-    } catch (_: IllegalArgumentException) {
+    } catch (_: Exception) {
         null
     }
 

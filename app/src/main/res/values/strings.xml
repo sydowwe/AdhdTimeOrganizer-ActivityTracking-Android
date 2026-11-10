@@ -96,6 +96,8 @@
     <string name="login_failed_code">Sign-in failed (%1$d). Try again.</string>
     <string name="login_two_factor_setup_required">Your account must set up two-factor authentication. Do it in the web app, then sign in here.</string>
     <string name="login_session_ended">Your session ended. Sign in again — nothing recorded meanwhile is lost.</string>
+    <!-- The Keystore refused to encrypt the new tokens, so the sign-in can't be kept. -->
+    <string name="login_tokens_not_stored">This phone couldn\'t store the sign-in securely. Try again; restarting the phone may help.</string>
     <string name="two_factor_hint">Enter the 6-digit code from your authenticator app.</string>
     <string name="two_factor_recovery_hint">Enter one of the recovery codes you saved when you set up two-factor authentication.</string>
     <string name="two_factor_otp_label">6-digit code</string>

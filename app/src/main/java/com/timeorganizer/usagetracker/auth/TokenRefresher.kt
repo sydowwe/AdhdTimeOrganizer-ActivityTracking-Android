@@ -44,6 +44,7 @@ class TokenRefresher(
             when (val decision = RefreshPolicy.decide(attempt, attempts)) {
                 RefreshDecision.RetryAfterGrace -> attempts++
                 is RefreshDecision.Save -> {
+                    // Unstored (the Keystore refused) still serves this process; the next start says the session ended.
                     authPrefs.saveTokens(decision.accessToken, decision.refreshToken)
                     return decision
                 }

@@ -250,9 +250,14 @@ class LoginActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                authPrefs.saveTokens(access, refresh)
-                SyncEngine.onSignedIn(applicationContext, access)
+            val stored = withContext(Dispatchers.IO) {
+                authPrefs.saveTokens(access, refresh).also { stored ->
+                    if (stored) SyncEngine.onSignedIn(applicationContext, access) else authPrefs.discardUnsaved()
+                }
+            }
+            if (!stored) {
+                showError(R.string.login_tokens_not_stored)
+                return@launch
             }
             TimeOrganizerApp.enqueueSyncNow(applicationContext)
             startActivity(Intent(this@LoginActivity, MainActivity::class.java))
