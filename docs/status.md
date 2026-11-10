@@ -8,40 +8,41 @@ _Last updated: 2026-11-10._
 
 ## Where things stand
 
-- `main` at 1.7.0 (code 10), tag `v1.7.0`, plus the review fixes (`145919d`..`bc36a0b`). No version bump since. Bump with `test-release` once the fixes are worth putting on the phone.
+- `main` at 1.7.0 (code 10), tag `v1.7.0`, plus the review fixes (`145919d`..`4cd1021`). No version bump since.
+  Bump with `test-release` once the fixes are worth putting on the phone. **None of them has been seen on a
+  device.**
 - **The release build can't be signed here:** `packageRelease` fails with "keystore password was incorrect" for
-  `adhd-tracker`. Owner's setup (`keystore.properties`), off-limits to a session. R8 (`minifyReleaseWithR8`) still
-  runs and passes before it, which is what checks the keep rules.
+  `adhd-tracker`. That is the owner's setup (`keystore.properties`), off-limits to a session. R8 (`minifyReleaseWithR8`)
+  runs before signing and passes, and that is the step that checks the keep rules.
 - **The owner's uncommitted work:** the status-screen title change (`MainActivity.kt`, `activity_main.xml`,
   `strings.xml`, `CLAUDE.md`; the "Version 1.4.0 (7) · host" line under the title). Not ours, so never commit it in a
-  fix commit. `strings.xml` holds both: stage only our hunks (`git apply --cached` with a patch of just those lines).
-- Current work: the follow-ups from [review-2026-11-10.md](review-2026-11-10.md).
+  fix commit. When one of our changes touches the same file, stage only our hunks: write a `-U0` patch of just those
+  lines and `git apply --cached --unidiff-zero` it.
+- 550 tests pass; `lintDebug` exits 0.
 
-## Review follow-up
+## Review follow-up ([review-2026-11-10.md](review-2026-11-10.md))
 
-**Batch 1 (items 1, 3, 5, 6, 7): done and committed**, one `fix:` commit each. 546 tests pass and `lintDebug`
-exits 0. None of it has been seen on a device yet.
+**Done:** the whole *Fix first* list (items 1–7), one `fix:` commit each. Their mechanisms are in the KDoc and, for
+the breaker, in `CLAUDE.md` (*The wire contract*). Things a later change must respect:
+- Every receiver's `goAsync()` goes through `util/Broadcasts.kt` `holdBroadcastFor(job)` (an 8 s budget). Use it for
+  any new receiver too.
+- A `BatchSender` is created once per run (per extras group), never per page: the breaker counts per sender.
 
-**Item 4: done** (`bc36a0b`). Every receiver's `goAsync()` goes through `util/Broadcasts.kt` `holdBroadcastFor(job)`:
-the broadcast is finished when the job ends or after 8 s, and slower work goes on in its own scope. It holds rather
-than finishing as soon as the state is written, because the ramp's alarm wake *is* the evaluation. A new receiver
-should use it too. The shared runner for the six monitors was **not** done; it is still optional cleanup.
-
-Next, in this order (details in the review):
-
-1. **Item 2**: a 400 to everything empties the outbox. Recommended: a circuit breaker (stop after a few refused
-   singles in one run). **Owner to decide.**
-2. CI workflow; check that Robolectric + `MigrationTestHelper` can run the Room migrations; a `SyncEngine` test.
-   (No `kotlinx-coroutines-test` dependency yet.)
-3. Diagnostics screen (privacy-safe ring buffer + "Copy diagnostics"), then a device pass over the six unverified
-   features.
-4. Status-screen reshape, plus the UX and security points. Optional: the shared monitor runner.
+**Next, in this order:**
+1. CI workflow (`testDebugUnitTest`, `lintDebug`, `minifyReleaseWithR8` or an unsigned release); check that
+   Robolectric + `MigrationTestHelper` can run the Room migrations; a `SyncEngine` test with a fake `ApiService`,
+   including the breaker end to end. There is no `kotlinx-coroutines-test` dependency yet.
+2. Diagnostics screen (privacy-safe ring buffer + "Copy diagnostics"), then a device pass over the six unverified
+   features and the fixes above.
+3. Status-screen reshape, plus the review's UX and security points.
+   Optional cleanups: the shared monitor runner; a status-screen line when the breaker tripped (today it shows as
+   an ordinary "waiting").
 
 ## Open questions for the owner
 
-- Item 2: breaker, server-body check, or both.
 - Item 3 reuses `SESSION_ENDED`, so a lost Keystore key is notified as "Signed out by the server". The text below
   that title is right, the title isn't quite. Its own reason and wording, or fine as it is?
+- The server-body check for 400s (item 2's second guard) was not done. Worth it later?
 
 ## Gotchas found while working
 
