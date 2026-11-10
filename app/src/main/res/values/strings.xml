@@ -227,7 +227,8 @@
     <!-- Daily limits: status card -->
     <string name="budget_card_title">Daily limits</string>
     <string name="budget_card_switch">Say my daily limits on the phone</string>
-    <string name="budget_card_hint">The limits you set in the web app on an activity or category, counted with this phone\'s time up to the second: once at 80 % and once at the limit, while one of its apps is open. Time at the desk reaching a limit is said in the browser instead; never both. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
+    <!-- Set only from the layout, never formatted: formatted="false" so lint doesn't read "% a" as a format spec (a "%%" would show as is). -->
+    <string name="budget_card_hint" formatted="false">The limits you set in the web app on an activity or category, counted with this phone\'s time up to the second: once at 80 % and once at the limit, while one of its apps is open. Time at the desk reaching a limit is said in the browser instead; never both. Waits during calls, Do Not Disturb, car mode, quiet hours, a Phone away timer, and for 10 minutes after another nudge. Needs notifications, and the battery exemption to notice apps.</string>
     <string name="budget_card_line">%1$s: %2$s of %3$s</string>
     <string name="budget_card_none">No daily limit counts a phone app yet. Set one on an activity or category in the web app, and map the app to it.</string>
 
