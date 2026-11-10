@@ -38,13 +38,26 @@ class CaptureActivity : AppCompatActivity() {
             }
             return
         }
-        if (savedInstanceState == null) showField()
-        else finish()
+        // The manifest's configChanges keep a rotation, dark mode or font size from recreating this; anything else that does
+        // (the process restored) brings the half-typed thought back, which is what the feature exists to keep.
+        showField(savedInstanceState?.getCharSequence(STATE_TEXT))
     }
 
-    private fun showField() {
+    private var field: EditText? = null
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        field?.text?.let { outState.putCharSequence(STATE_TEXT, it.toString()) }
+    }
+
+    private fun showField(restored: CharSequence?) {
         val view = LayoutInflater.from(this).inflate(R.layout.dialog_capture, null)
         val field = view.findViewById<EditText>(R.id.etCapture)
+        this.field = field
+        if (restored != null) {
+            field.setText(restored)
+            field.setSelection(field.length())
+        }
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.capture_title)
             .setView(view)
@@ -87,6 +100,7 @@ class CaptureActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_CAPTURE = "com.timeorganizer.usagetracker.capture.CAPTURE"
+        private const val STATE_TEXT = "capture_text"
 
         fun intent(context: Context): Intent =
             Intent(context, CaptureActivity::class.java).setAction(ACTION_CAPTURE)

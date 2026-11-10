@@ -83,6 +83,7 @@
             android:icon="@drawable/ic_shortcut_capture"
             android:taskAffinity=""
             android:theme="@style/Theme.TimeOrganizerUsageTracker.Capture"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|fontScale|density|locale|layoutDirection"
             android:windowSoftInputMode="stateAlwaysVisible">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
