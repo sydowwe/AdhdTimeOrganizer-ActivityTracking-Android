@@ -19,11 +19,15 @@ class BudgetPreferences(context: Context) {
             prefs.edit().putBoolean(KEY_ENABLED, value).apply()
         }
 
-    /** The server's last answer; `null` before the first, or unreadable. */
+    /**
+     * The server's last answer; `null` before the first, or unreadable. Gson leaves a field the JSON lacks as `null` even
+     * where Kotlin says it can't be (a field renamed between builds), so every non-null field is touched here: a hole
+     * throws inside the `try` and reads as no figures, instead of later, in `Application.onCreate`, on every start.
+     */
     var facts: BudgetFacts?
         get() = prefs.getString(KEY_FACTS, null)?.let {
             try {
-                gson.fromJson(it, BudgetFacts::class.java)
+                gson.fromJson(it, BudgetFacts::class.java)?.also(::requireComplete)
             } catch (_: Exception) {
                 null
             }
@@ -51,6 +55,15 @@ class BudgetPreferences(context: Context) {
     /** An account switch: the figures, the settled stages and the claims were the previous person's. */
     fun clearAccount() {
         prefs.edit().remove(KEY_FACTS).remove(KEY_DAY).remove(KEY_SETTLED).remove(KEY_PENDING).apply()
+    }
+
+    /** Throws a `NullPointerException` when Gson left a non-null field `null`. */
+    private fun requireComplete(facts: BudgetFacts) {
+        facts.day.length
+        facts.budgets.forEach { budget ->
+            budget.targetName.length
+            budget.packages.size
+        }
     }
 
     // getStringSet's own set must not be changed or kept: copy it.

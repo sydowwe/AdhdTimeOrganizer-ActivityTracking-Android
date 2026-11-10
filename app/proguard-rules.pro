@@ -7,6 +7,8 @@
 -keep class com.timeorganizer.usagetracker.ignore.PendingIgnoreOp { *; }
 -keep enum com.timeorganizer.usagetracker.ignore.IgnoreOpKind { *; }
 -keep class com.timeorganizer.usagetracker.today.KeptBlock { *; }
+-keep class com.timeorganizer.usagetracker.budget.BudgetFacts { *; }
+-keep class com.timeorganizer.usagetracker.budget.PhoneBudget { *; }
 
 # Retrofit
 -keepattributes RuntimeVisibleAnnotations, RuntimeInvisibleAnnotations
